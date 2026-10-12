@@ -1,5 +1,7 @@
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.image.BufferedImage;
+import java.io.File;
 import java.util.*;
 import java.util.List;
 import javax.swing.*;
@@ -367,7 +369,7 @@ public class GuesserScreen extends JPanel {
         card.setBackground(Color.WHITE);
         card.setBorder(createBoxBorder(PRIMARY_BLUE, 2, 14, 10));
 
-        JLabel iconLabel = new JLabel(TextureManager.getIcon(filename, 78, 78), SwingConstants.CENTER);
+        JLabel iconLabel = new JLabel(loadIcon(filename, 78, 78), SwingConstants.CENTER);
         JLabel textLabel = new JLabel(name, SwingConstants.CENTER);
         textLabel.setFont(FONT_BODY_BOLD);
         textLabel.setForeground(TEXT_DARK);
@@ -454,7 +456,7 @@ public class GuesserScreen extends JPanel {
             setOpaque(true);
             setCursor(new Cursor(Cursor.HAND_CURSOR));
 
-            JLabel iconLabel = new JLabel(TextureManager.getIcon(filename, 34, 34), SwingConstants.CENTER);
+            JLabel iconLabel = new JLabel(loadIcon(filename, 34, 34), SwingConstants.CENTER);
             nameLabel = new JLabel(shapeName, SwingConstants.CENTER);
             nameLabel.setFont(FONT_SMALL_BOLD);
 
@@ -629,6 +631,48 @@ public class GuesserScreen extends JPanel {
             if (s[0].equalsIgnoreCase(name)) return s[1];
         }
         return "Circle.png";
+    }
+
+    // =====================================================================
+    //  Picture loading (AWT Toolkit, folder: <project folder>/shape)
+    // =====================================================================
+
+    private static final String SHAPE_DIR = System.getProperty("user.dir") + "/shape/";
+
+    /** Loads a PNG from the shape folder scaled to width x height (placeholder if missing). */
+    private static ImageIcon loadIcon(String filename, int width, int height) {
+        File file = new File(SHAPE_DIR + filename);
+        if (file.isFile()) {
+            Image raw = Toolkit.getDefaultToolkit().createImage(file.getPath());
+            Image scaled = raw.getScaledInstance(width, height, Image.SCALE_SMOOTH);
+            ImageIcon icon = new ImageIcon(scaled);
+            if (icon.getImageLoadStatus() == MediaTracker.COMPLETE) {
+                return icon;
+            }
+        }
+        return createPlaceholderIcon(filename, width, height);
+    }
+
+    /** Fallback box shown when a picture cannot be found. */
+    private static ImageIcon createPlaceholderIcon(String name, int w, int h) {
+        BufferedImage buf = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = buf.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setColor(new Color(220, 230, 242));
+        g2.fillRoundRect(0, 0, w, h, 12, 12);
+        g2.setColor(new Color(70, 90, 120));
+        g2.drawRoundRect(0, 0, w - 1, h - 1, 12, 12);
+        g2.setFont(new Font("Segoe UI", Font.BOLD, Math.max(10, w / 6)));
+        FontMetrics fm = g2.getFontMetrics();
+        String label = name.replace(".png", "");
+        if (label.length() > 6) {
+            label = label.substring(0, 6);
+        }
+        int tx = (w - fm.stringWidth(label)) / 2;
+        int ty = ((h - fm.getHeight()) / 2) + fm.getAscent();
+        g2.drawString(label, tx, ty);
+        g2.dispose();
+        return new ImageIcon(buf);
     }
 
     public static void main(String[] args) {

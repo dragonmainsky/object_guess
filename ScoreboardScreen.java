@@ -67,16 +67,8 @@ public class ScoreboardScreen extends JPanel {
     private static final Font FONT_SMALL       = new Font("Segoe UI", Font.PLAIN, 11);
     private static final Font FONT_SMALL_BOLD  = new Font("Segoe UI", Font.BOLD, 11);
 
-    // โฟลเดอร์ที่ใช้ค้นหารูป (ลำดับเดียวกับของเดิม)
-    private static final String[] SEARCH_DIRS = {
-        ".",
-        "UI_ONLY",
-        "object_texture/UI_ONLY",
-        "object_texture",
-        "../UI_ONLY",
-        "../object_texture/UI_ONLY",
-        "../../object_texture/UI_ONLY"
-    };
+    // โฟลเดอร์ที่เก็บไฟล์ PNG ทั้งหมด: <โฟลเดอร์โปรเจกต์>/shape
+    private static final String SHAPE_DIR = System.getProperty("user.dir") + "/shape/";
 
     // ข้อมูลตัวอย่าง (เรียงตามอันดับ 1 -> 4)
     private static final String[] PLAYER_NAMES  = {"Aim", "Player 2", "Player 3", "Player 4"};
@@ -518,25 +510,16 @@ public class ScoreboardScreen extends JPanel {
         return holder;
     }
 
-    /** โหลดรูปด้วย Toolkit วนหาตามโฟลเดอร์ ถ้าไม่เจอคืนค่า null */
+    /** โหลดรูปจากโฟลเดอร์ shape ด้วย Toolkit ถ้าไม่เจอคืนค่า null */
     private ImageIcon loadIcon(String fileName, int width, int height) {
         ImageIcon result = null;
-        boolean found = false;
-        for (int i = 0; i < SEARCH_DIRS.length; i++) {
-            if (found == false) {
-                File f = new File(SEARCH_DIRS[i], fileName);
-                if (f.exists() && f.isFile()) {
-                    // เจอไฟล์ในโฟลเดอร์นี้
-                    Image raw = Toolkit.getDefaultToolkit().getImage(f.getPath());
-                    Image scaled = raw.getScaledInstance(width, height, Image.SCALE_SMOOTH);
-                    result = new ImageIcon(scaled);
-                    found = true;
-                } else {
-                    // ไม่เจอในโฟลเดอร์นี้ ลองโฟลเดอร์ถัดไป
-                }
-            } else {
-                // เจอแล้ว ข้ามโฟลเดอร์ที่เหลือ
-            }
+        File f = new File(SHAPE_DIR + fileName);
+        if (f.exists() && f.isFile()) {
+            Image raw = Toolkit.getDefaultToolkit().createImage(f.getPath());
+            Image scaled = raw.getScaledInstance(width, height, Image.SCALE_SMOOTH);
+            result = new ImageIcon(scaled);
+        } else {
+            // ไม่เจอไฟล์ในโฟลเดอร์ shape
         }
         return result;
     }

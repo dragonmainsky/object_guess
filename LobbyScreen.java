@@ -66,16 +66,8 @@ public class LobbyScreen extends JPanel {
     private static final int PLAYERS_READY = 2;
     private static final int PLAYERS_TOTAL = 3;
 
-    // Folders searched for the shape pictures (same list the other screens use)
-    private static final String[] SEARCH_DIRS = {
-        ".",
-        "UI_ONLY",
-        "object_texture/UI_ONLY",
-        "object_texture",
-        "../UI_ONLY",
-        "../object_texture/UI_ONLY",
-        "../../object_texture/UI_ONLY"
-    };
+    // Folder that holds every PNG picture: <project folder>/shape
+    private static final String SHAPE_DIR = System.getProperty("user.dir") + "/shape/";
 
     // Preview shapes: picture file + name shown when the picture is missing
     private static final String[] PREVIEW_FILES = {"Triangle.png", "Circle.png", "Rectangle.png"};
@@ -447,14 +439,12 @@ public class LobbyScreen extends JPanel {
     /** Returns a fully loaded image, or null when the file cannot be found. */
     private Image loadImage(String filename) {
         Toolkit toolkit = Toolkit.getDefaultToolkit();
+        File file = new File(SHAPE_DIR + filename);
 
-        for (String dir : SEARCH_DIRS) {
-            File file = new File(dir, filename);
-            if (file.isFile()) {
-                Image candidate = toolkit.getImage(file.getPath());
-                if (waitForImage(candidate)) {
-                    return candidate;
-                }
+        if (file.isFile()) {
+            Image candidate = toolkit.createImage(file.getPath());
+            if (waitForImage(candidate)) {
+                return candidate;
             }
         }
 

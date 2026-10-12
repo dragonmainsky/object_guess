@@ -70,7 +70,7 @@ public class JoinScreen extends JPanel {
         brandCenter.setOpaque(false);
         brandCenter.setLayout(new BoxLayout(brandCenter, BoxLayout.Y_AXIS));
 
-        ImageIcon logoIcon = TextureManager.getIcon("logo.png", 140, 140);
+        ImageIcon logoIcon = UIStyle.loadIcon("logo.png", 140, 140);
         JLabel brandLogo = new JLabel(logoIcon);
         brandLogo.setAlignmentX(Component.LEFT_ALIGNMENT);
 
@@ -97,9 +97,9 @@ public class JoinScreen extends JPanel {
         // Bottom Left: Shape icons banner
         JPanel brandFooter = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         brandFooter.setOpaque(false);
-        brandFooter.add(new JLabel(TextureManager.getIcon("Triangle.png", 22, 22)));
-        brandFooter.add(new JLabel(TextureManager.getIcon("Circle.png", 22, 22)));
-        brandFooter.add(new JLabel(TextureManager.getIcon("Rectangle.png", 22, 22)));
+        brandFooter.add(new JLabel(UIStyle.loadIcon("Triangle.png", 22, 22)));
+        brandFooter.add(new JLabel(UIStyle.loadIcon("Circle.png", 22, 22)));
+        brandFooter.add(new JLabel(UIStyle.loadIcon("Rectangle.png", 22, 22)));
 
         JLabel footerText = new JLabel("A quick online party game for 3-8 players");
         footerText.setFont(UIStyle.FONT_SMALL);

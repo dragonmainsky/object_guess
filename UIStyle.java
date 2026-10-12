@@ -2,6 +2,8 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.*;
+import java.awt.image.BufferedImage;
+import java.io.File;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 
@@ -561,6 +563,48 @@ public class UIStyle {
         }
     }
 
+    // =====================================================================
+    //  Picture loading (AWT Toolkit, folder: <project folder>/shape)
+    // =====================================================================
+
+    private static final String SHAPE_DIR = System.getProperty("user.dir") + "/shape/";
+
+    /** Loads a PNG from the shape folder scaled to width x height (placeholder if missing). */
+    public static ImageIcon loadIcon(String filename, int width, int height) {
+        File file = new File(SHAPE_DIR + filename);
+        if (file.isFile()) {
+            Image raw = Toolkit.getDefaultToolkit().createImage(file.getPath());
+            Image scaled = raw.getScaledInstance(width, height, Image.SCALE_SMOOTH);
+            ImageIcon icon = new ImageIcon(scaled);
+            if (icon.getImageLoadStatus() == MediaTracker.COMPLETE) {
+                return icon;
+            }
+        }
+        return createPlaceholderIcon(filename, width, height);
+    }
+
+    /** Fallback box shown when a picture cannot be found. */
+    private static ImageIcon createPlaceholderIcon(String name, int w, int h) {
+        BufferedImage buf = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = buf.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setColor(new Color(220, 230, 242));
+        g2.fillRoundRect(0, 0, w, h, 12, 12);
+        g2.setColor(new Color(70, 90, 120));
+        g2.drawRoundRect(0, 0, w - 1, h - 1, 12, 12);
+        g2.setFont(new Font("Segoe UI", Font.BOLD, Math.max(10, w / 6)));
+        FontMetrics fm = g2.getFontMetrics();
+        String label = name.replace(".png", "");
+        if (label.length() > 6) {
+            label = label.substring(0, 6);
+        }
+        int tx = (w - fm.stringWidth(label)) / 2;
+        int ty = ((h - fm.getHeight()) / 2) + fm.getAscent();
+        g2.drawString(label, tx, ty);
+        g2.dispose();
+        return new ImageIcon(buf);
+    }
+
     /**
      * Top HeaderBar used across Lobby, Questioner, Guesser, and Scoreboard screens.
      */
@@ -574,7 +618,7 @@ public class UIStyle {
             JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
             leftPanel.setOpaque(false);
 
-            ImageIcon logoIcon = TextureManager.getIcon("logo.png", 32, 32);
+            ImageIcon logoIcon = loadIcon("logo.png", 32, 32);
             JLabel logoLabel = new JLabel(logoIcon);
             leftPanel.add(logoLabel);
 
