@@ -1,17 +1,115 @@
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.EventQueue;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.GridLayout;
+import java.awt.Image;
+import java.awt.Insets;
+import java.awt.Toolkit;
+import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.io.File;
 import java.net.InetAddress;
-import javax.swing.*;
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JTextField;
+import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
 
 /**
  * JoinScreen: Screen 1 - Server connection and player join screen.
+ * 
+ * Standard AWT/Swing implementation without Graphics2D or GradientPaint.
+ * Uses Toolkit to load images from the "shape" folder.
  */
 public class JoinScreen extends JPanel {
+
+    private static final Color BG_LIGHT       = new Color(244, 246, 250);
+    private static final Color PRIMARY_BLUE   = new Color(37, 99, 235);
+    private static final Color PRIMARY_HOVER  = new Color(29, 78, 216);
+    private static final Color SECONDARY_HOVER = new Color(241, 245, 249);
+    private static final Color TEXT_DARK      = new Color(17, 24, 39);
+    private static final Color TEXT_MUTED     = new Color(107, 114, 128);
+    private static final Color CARD_BORDER    = new Color(226, 232, 240);
+    private static final Color WARNING_BG     = new Color(255, 247, 230);
+    private static final Color WARNING_BORDER = new Color(250, 219, 150);
+    private static final Color WARNING_TEXT   = new Color(146, 84, 0);
+
+    private static final Font FONT_SMALL       = new Font("Segoe UI", Font.PLAIN, 12);
+    private static final Font FONT_SMALL_BOLD  = new Font("Segoe UI", Font.BOLD, 12);
+    private static final Font FONT_BODY        = new Font("Segoe UI", Font.PLAIN, 14);
+    private static final Font FONT_BODY_BOLD   = new Font("Segoe UI", Font.BOLD, 14);
+    private static final Font FONT_TITLE_LARGE = new Font("Segoe UI", Font.BOLD, 26);
+
+    private static final String IMAGE_DIR = "shape";
+    private static final String FALLBACK_IP = "192.168.1.24";
+
     private JTextField nameField;
     private JTextField ipField;
-    private UIStyle.ModernButton joinBtn;
-    private UIStyle.ModernButton exitBtn;
+    private JButton joinBtn;
+    private JButton exitBtn;
+
+    /** Dark navy background with faint decorative arc using standard Graphics (no Graphics2D or GradientPaint). */
+    private static class GradientPanel extends JPanel {
+        GradientPanel() {
+            super(new BorderLayout());
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+
+            int w = getWidth();
+            int h = getHeight();
+
+            // Solid deep navy background (eliminates horizontal scanline artifacts)
+            g.setColor(new Color(15, 28, 55));
+            g.fillRect(0, 0, w, h);
+
+            // Large faint decorative circle on the right side
+            g.setColor(new Color(255, 255, 255, 8));
+            int circleSize = (int) (h * 1.6);
+            g.fillOval(w - circleSize / 2, -circleSize / 4, circleSize, circleSize);
+        }
+    }
+
+    /** Card panel with rounded corners using standard Graphics. */
+    private static class RoundedPanel extends JPanel {
+        private final int radius;
+        private final Color fill;
+        private final Color border;
+
+        RoundedPanel(int radius, Color fill, Color border) {
+            this.radius = radius;
+            this.fill = fill;
+            this.border = border;
+            setOpaque(false);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            int w = getWidth() - 1;
+            int h = getHeight() - 1;
+
+            g.setColor(fill);
+            g.fillRoundRect(0, 0, w, h, radius * 2, radius * 2);
+            g.setColor(border);
+            g.drawRoundRect(0, 0, w, h, radius * 2, radius * 2);
+        }
+    }
 
     public JoinScreen() {
         this(null);
@@ -19,204 +117,314 @@ public class JoinScreen extends JPanel {
 
     public JoinScreen(ActionListener onJoinAction) {
         setLayout(new BorderLayout());
-        setBackground(UIStyle.BG_LIGHT);
+        setBackground(BG_LIGHT);
 
-        // Split Layout: Left Branding Panel, Right Form Panel
+        // Split layout: left branding panel and right connection form panel
         JPanel splitPanel = new JPanel(new GridLayout(1, 2));
+        splitPanel.add(buildLeftPanel());
+        splitPanel.add(buildRightPanel(onJoinAction));
 
-        // ================= LEFT BRAND PANEL =================
-        JPanel leftBrandPanel = new JPanel(new BorderLayout()) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                // Deep blue gradient
-                GradientPaint gp = new GradientPaint(
-                    0, 0, new Color(20, 36, 75),
-                    getWidth(), getHeight(), new Color(13, 24, 52)
-                );
-                g2.setPaint(gp);
-                g2.fillRect(0, 0, getWidth(), getHeight());
+        add(splitPanel, BorderLayout.CENTER);
+    }
 
-                // Subtle circular decorative background shape
-                g2.setColor(new Color(255, 255, 255, 8));
-                g2.fillOval(getWidth() / 2, -100, getWidth(), getWidth());
-                g2.dispose();
-            }
-        };
+    private JPanel buildLeftPanel() {
+        JPanel leftBrandPanel = new GradientPanel();
         leftBrandPanel.setBorder(new EmptyBorder(30, 40, 40, 40));
 
-        // Top Left: Make own server ? IP
-        String localIp = "127.0.0.1";
-        try {
-            localIp = InetAddress.getLocalHost().getHostAddress();
-        } catch (Exception e) {
-            localIp = "192.168.1.24"; // ค่าเริ่มต้นกรณีดึง IP ไม่สำเร็จ
-        }
-
+        // Header: Host info text
         JPanel brandHeader = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         brandHeader.setOpaque(false);
 
-        JLabel hostInfoLabel = new JLabel("Make own server ?  IP : " + localIp);
-        hostInfoLabel.setFont(UIStyle.FONT_SMALL);
+        JLabel hostInfoLabel = new JLabel("Make own server ?  IP : " + getLocalIp());
+        hostInfoLabel.setFont(FONT_SMALL);
         hostInfoLabel.setForeground(new Color(186, 203, 236));
-
         brandHeader.add(hostInfoLabel);
+
         leftBrandPanel.add(brandHeader, BorderLayout.NORTH);
 
-        // Center: Big Logo and Game Slogan
-        JPanel brandCenter = new JPanel();
+        // Center: logo, title, description
+        JPanel brandCenter = new JPanel(new GridBagLayout());
         brandCenter.setOpaque(false);
-        brandCenter.setLayout(new BoxLayout(brandCenter, BoxLayout.Y_AXIS));
-
-        ImageIcon logoIcon = UIStyle.loadIcon("logo.png", 140, 140);
-        JLabel brandLogo = new JLabel(logoIcon);
-        brandLogo.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JLabel brandTitle = new JLabel("<html>Guess What<br>It Looks Like?</html>");
         brandTitle.setFont(new Font("Segoe UI", Font.BOLD, 36));
         brandTitle.setForeground(Color.WHITE);
-        brandTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JLabel brandDesc = new JLabel("Pick the shapes. Read your friends. Win the round.");
         brandDesc.setFont(new Font("Segoe UI", Font.PLAIN, 15));
         brandDesc.setForeground(new Color(186, 203, 236));
-        brandDesc.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        brandCenter.add(Box.createVerticalGlue());
-        brandCenter.add(brandLogo);
-        brandCenter.add(Box.createVerticalStrut(24));
-        brandCenter.add(brandTitle);
-        brandCenter.add(Box.createVerticalStrut(12));
-        brandCenter.add(brandDesc);
-        brandCenter.add(Box.createVerticalGlue());
+        JPanel brandLogo = makeImageView("logo.png", 140, 140);
+
+        JPanel topSpacer = new JPanel();
+        topSpacer.setOpaque(false);
+        JPanel bottomSpacer = new JPanel();
+        bottomSpacer.setOpaque(false);
+
+        GridBagConstraints c = new GridBagConstraints();
+        c.gridx = 0;
+        c.weightx = 1;
+        c.anchor = GridBagConstraints.WEST;
+
+        // Spacers for vertical centering
+        c.gridy = 0;
+        c.weighty = 1;
+        c.fill = GridBagConstraints.BOTH;
+        brandCenter.add(topSpacer, c);
+
+        c.gridy = 1;
+        c.weighty = 0;
+        c.fill = GridBagConstraints.NONE;
+        c.insets = new Insets(0, 0, 24, 0);
+        brandCenter.add(brandLogo, c);
+
+        c.gridy = 2;
+        c.insets = new Insets(0, 0, 12, 0);
+        brandCenter.add(brandTitle, c);
+
+        c.gridy = 3;
+        c.insets = new Insets(0, 0, 0, 0);
+        brandCenter.add(brandDesc, c);
+
+        c.gridy = 4;
+        c.weighty = 1;
+        c.fill = GridBagConstraints.BOTH;
+        brandCenter.add(bottomSpacer, c);
 
         leftBrandPanel.add(brandCenter, BorderLayout.CENTER);
 
-        // Bottom Left: Shape icons banner
+        // Footer: shape icons + small text
         JPanel brandFooter = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         brandFooter.setOpaque(false);
-        brandFooter.add(new JLabel(UIStyle.loadIcon("Triangle.png", 22, 22)));
-        brandFooter.add(new JLabel(UIStyle.loadIcon("Circle.png", 22, 22)));
-        brandFooter.add(new JLabel(UIStyle.loadIcon("Rectangle.png", 22, 22)));
+
+        String[] iconNames = {"Triangle.png", "Circle.png", "Rectangle.png"};
+        for (String iconName : iconNames) {
+            brandFooter.add(makeImageView(iconName, 22, 22));
+        }
 
         JLabel footerText = new JLabel("A quick online party game for 3-8 players");
-        footerText.setFont(UIStyle.FONT_SMALL);
+        footerText.setFont(FONT_SMALL);
         footerText.setForeground(new Color(147, 171, 217));
         brandFooter.add(footerText);
 
         leftBrandPanel.add(brandFooter, BorderLayout.SOUTH);
-        splitPanel.add(leftBrandPanel);
 
-        // ================= RIGHT FORM PANEL =================
+        return leftBrandPanel;
+    }
+
+    private JPanel buildRightPanel(ActionListener onJoinAction) {
         JPanel rightWrapper = new JPanel(new GridBagLayout());
-        rightWrapper.setBackground(UIStyle.BG_LIGHT);
+        rightWrapper.setBackground(BG_LIGHT);
 
-        UIStyle.CardPanel formCard = new UIStyle.CardPanel(20, Color.WHITE, UIStyle.CARD_BORDER);
+        RoundedPanel formCard = new RoundedPanel(20, Color.WHITE, CARD_BORDER);
+        formCard.setLayout(new GridBagLayout());
         formCard.setPreferredSize(new Dimension(460, 520));
-        formCard.setLayout(new BoxLayout(formCard, BoxLayout.Y_AXIS));
         formCard.setBorder(new EmptyBorder(36, 36, 36, 36));
 
+        int row = 0;
+
+        // Header text
         JLabel joinServerTag = new JLabel("JOIN SERVER");
-        joinServerTag.setFont(UIStyle.FONT_SMALL_BOLD);
-        joinServerTag.setForeground(UIStyle.PRIMARY_BLUE);
-        joinServerTag.setAlignmentX(Component.LEFT_ALIGNMENT);
+        joinServerTag.setFont(FONT_SMALL_BOLD);
+        joinServerTag.setForeground(PRIMARY_BLUE);
+        formCard.add(joinServerTag, rowConstraints(row, 6));
+        row++;
 
         JLabel formTitle = new JLabel("Find your party");
-        formTitle.setFont(UIStyle.FONT_TITLE_LARGE);
-        formTitle.setForeground(UIStyle.TEXT_DARK);
-        formTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        formTitle.setFont(FONT_TITLE_LARGE);
+        formTitle.setForeground(TEXT_DARK);
+        formCard.add(formTitle, rowConstraints(row, 4));
+        row++;
 
         JLabel formSub = new JLabel("Enter your name and the host address to join a game.");
-        formSub.setFont(UIStyle.FONT_BODY);
-        formSub.setForeground(UIStyle.TEXT_MUTED);
-        formSub.setAlignmentX(Component.LEFT_ALIGNMENT);
+        formSub.setFont(FONT_BODY);
+        formSub.setForeground(TEXT_MUTED);
+        formCard.add(formSub, rowConstraints(row, 24));
+        row++;
 
-        formCard.add(joinServerTag);
-        formCard.add(Box.createVerticalStrut(6));
-        formCard.add(formTitle);
-        formCard.add(Box.createVerticalStrut(4));
-        formCard.add(formSub);
-        formCard.add(Box.createVerticalStrut(24));
+        // Inputs: Name, Server IP
+        String[] labels = {"Name", "Server IP"};
+        String[] defaults = {"Aim", FALLBACK_IP};
+        JTextField[] fields = new JTextField[labels.length];
 
-        // Name input field
-        JLabel nameLabel = new JLabel("Name");
-        nameLabel.setFont(UIStyle.FONT_BODY_BOLD);
-        nameLabel.setForeground(UIStyle.TEXT_DARK);
-        nameLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        for (int i = 0; i < labels.length; i++) {
+            JLabel label = new JLabel(labels[i]);
+            label.setFont(FONT_BODY_BOLD);
+            label.setForeground(TEXT_DARK);
+            formCard.add(label, rowConstraints(row, 6));
+            row++;
 
-        nameField = UIStyle.createStyledTextField("Aim");
-        nameField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
-        nameField.setAlignmentX(Component.LEFT_ALIGNMENT);
+            fields[i] = makeField(defaults[i]);
 
-        formCard.add(nameLabel);
-        formCard.add(Box.createVerticalStrut(6));
-        formCard.add(nameField);
-        formCard.add(Box.createVerticalStrut(16));
-
-        // Server IP input field
-        JLabel ipLabel = new JLabel("Server IP");
-        ipLabel.setFont(UIStyle.FONT_BODY_BOLD);
-        ipLabel.setForeground(UIStyle.TEXT_DARK);
-        ipLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        ipField = UIStyle.createStyledTextField("192.168.1.24");
-        ipField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
-        ipField.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        formCard.add(ipLabel);
-        formCard.add(Box.createVerticalStrut(6));
-        formCard.add(ipField);
-        formCard.add(Box.createVerticalStrut(18));
+            int gapBelow = (i < labels.length - 1) ? 16 : 18;
+            formCard.add(fields[i], rowConstraints(row, gapBelow));
+            row++;
+        }
+        nameField = fields[0];
+        ipField = fields[1];
 
         // Status banner
-        UIStyle.CardPanel statusBanner = new UIStyle.CardPanel(10, UIStyle.WARNING_BG, UIStyle.WARNING_BORDER);
+        RoundedPanel statusBanner = new RoundedPanel(10, WARNING_BG, WARNING_BORDER);
         statusBanner.setLayout(new BorderLayout());
-        statusBanner.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
-        statusBanner.setAlignmentX(Component.LEFT_ALIGNMENT);
         statusBanner.setBorder(new EmptyBorder(6, 12, 6, 12));
+        statusBanner.setPreferredSize(new Dimension(100, 38));
 
         JLabel playersCount = new JLabel("Players: 0 / 3 minimum");
-        playersCount.setFont(UIStyle.FONT_SMALL_BOLD);
-        playersCount.setForeground(UIStyle.WARNING_TEXT);
+        playersCount.setFont(FONT_SMALL_BOLD);
+        playersCount.setForeground(WARNING_TEXT);
 
         JLabel waitingBadge = new JLabel("WAITING FOR SERVER");
-        waitingBadge.setFont(UIStyle.FONT_SMALL_BOLD);
-        waitingBadge.setForeground(UIStyle.WARNING_TEXT);
+        waitingBadge.setFont(FONT_SMALL_BOLD);
+        waitingBadge.setForeground(WARNING_TEXT);
 
         statusBanner.add(playersCount, BorderLayout.WEST);
         statusBanner.add(waitingBadge, BorderLayout.EAST);
 
-        formCard.add(statusBanner);
-        formCard.add(Box.createVerticalStrut(24));
+        formCard.add(statusBanner, rowConstraints(row, 24));
+        row++;
 
         // Action Buttons
-        joinBtn = UIStyle.ModernButton.primary("JOIN GAME");
-        joinBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
-        joinBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
+        joinBtn = makeButton("JOIN GAME", PRIMARY_BLUE, Color.WHITE, PRIMARY_HOVER, false);
+        joinBtn.setPreferredSize(new Dimension(100, 44));
+
         if (onJoinAction != null) {
             joinBtn.addActionListener(onJoinAction);
         }
 
-        exitBtn = UIStyle.ModernButton.secondary("EXIT");
-        exitBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
-        exitBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
-        exitBtn.addActionListener(e -> {
-            int res = JOptionPane.showConfirmDialog(this, "Are you sure you want to exit?", "Exit Game", JOptionPane.YES_NO_OPTION);
-            if (res == JOptionPane.YES_OPTION) {
-                System.exit(0);
+        exitBtn = makeButton("EXIT", Color.WHITE, TEXT_DARK, SECONDARY_HOVER, true);
+        exitBtn.setPreferredSize(new Dimension(100, 42));
+        exitBtn.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                int res = JOptionPane.showConfirmDialog(
+                        JoinScreen.this,
+                        "Are you sure you want to exit?",
+                        "Exit Game",
+                        JOptionPane.YES_NO_OPTION);
+                if (res == JOptionPane.YES_OPTION) {
+                    System.exit(0);
+                }
             }
         });
 
-        formCard.add(joinBtn);
-        formCard.add(Box.createVerticalStrut(10));
-        formCard.add(exitBtn);
+        formCard.add(joinBtn, rowConstraints(row, 10));
+        row++;
+        formCard.add(exitBtn, rowConstraints(row, 0));
+        row++;
+
+        JPanel spacer = new JPanel();
+        spacer.setOpaque(false);
+        GridBagConstraints sc = rowConstraints(row, 0);
+        sc.weighty = 1;
+        sc.fill = GridBagConstraints.BOTH;
+        formCard.add(spacer, sc);
 
         rightWrapper.add(formCard);
-        splitPanel.add(rightWrapper);
+        return rightWrapper;
+    }
 
-        add(splitPanel, BorderLayout.CENTER);
+    /** Loads image from "shape/" directory using Toolkit without Graphics2D. */
+    private static Image loadImage(String fileName) {
+        Toolkit tk = Toolkit.getDefaultToolkit();
+        String path = System.getProperty("user.dir") + File.separator + IMAGE_DIR + File.separator + fileName;
+        File file = new File(path);
+
+        if (file.exists()) {
+            return tk.createImage(file.getPath());
+        } else {
+            java.net.URL url = JoinScreen.class.getResource("/" + IMAGE_DIR + "/" + fileName);
+            if (url != null) {
+                return tk.createImage(url);
+            } else {
+                return tk.createImage(path);
+            }
+        }
+    }
+
+    /** Creates a JPanel that paints an Image using standard Graphics.drawImage. */
+    private static JPanel makeImageView(String fileName, int width, int height) {
+        final Image img = loadImage(fileName);
+
+        JPanel view = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                if (img != null) {
+                    g.drawImage(img, 0, 0, getWidth(), getHeight(), this);
+                }
+            }
+        };
+        view.setOpaque(false);
+        view.setPreferredSize(new Dimension(width, height));
+        return view;
+    }
+
+    private static GridBagConstraints rowConstraints(int row, int bottomGap) {
+        GridBagConstraints c = new GridBagConstraints();
+        c.gridx = 0;
+        c.gridy = row;
+        c.weightx = 1;
+        c.weighty = 0;
+        c.fill = GridBagConstraints.HORIZONTAL;
+        c.anchor = GridBagConstraints.WEST;
+        c.insets = new Insets(0, 0, bottomGap, 0);
+        return c;
+    }
+
+    private static JTextField makeField(String initialText) {
+        JTextField f = new JTextField(initialText);
+        f.setFont(FONT_BODY);
+        f.setForeground(TEXT_DARK);
+        f.setBackground(Color.WHITE);
+        f.setBorder(new CompoundBorder(
+                new LineBorder(CARD_BORDER, 1),
+                new EmptyBorder(0, 12, 0, 12)));
+        f.setPreferredSize(new Dimension(100, 42));
+        return f;
+    }
+
+    private static JButton makeButton(String text, final Color normal, Color fg,
+                                      final Color hover, boolean outlined) {
+        final JButton b = new JButton(text);
+        b.setFont(FONT_BODY_BOLD);
+        b.setForeground(fg);
+        b.setBackground(normal);
+        b.setOpaque(true);
+        b.setContentAreaFilled(true);
+        b.setFocusPainted(false);
+        b.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        if (outlined) {
+            b.setBorder(new LineBorder(CARD_BORDER, 1));
+        } else {
+            b.setBorder(new EmptyBorder(0, 0, 0, 0));
+        }
+
+        b.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                applyHover(b, true, normal, hover);
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                applyHover(b, false, normal, hover);
+            }
+        });
+        return b;
+    }
+
+    private static void applyHover(JButton b, boolean inside, Color normal, Color hover) {
+        b.setBackground(inside ? hover : normal);
+    }
+
+    private static String getLocalIp() {
+        try {
+            String found = InetAddress.getLocalHost().getHostAddress();
+            return (found != null && !found.isEmpty()) ? found : FALLBACK_IP;
+        } catch (Exception e) {
+            return FALLBACK_IP;
+        }
     }
 
     public String getPlayerName() {
@@ -228,17 +436,22 @@ public class JoinScreen extends JPanel {
     }
 
     public void setOnJoinAction(ActionListener listener) {
-        joinBtn.addActionListener(listener);
+        if (listener != null) {
+            joinBtn.addActionListener(listener);
+        }
     }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            JFrame frame = new JFrame("Guess What It Looks Like? - Join Server");
-            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            frame.setSize(1280, 720);
-            frame.setLocationRelativeTo(null);
-            frame.setContentPane(new JoinScreen());
-            frame.setVisible(true);
+        EventQueue.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                JFrame frame = new JFrame("Guess What It Looks Like? - Join Server");
+                frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+                frame.setSize(1280, 720);
+                frame.setLocationRelativeTo(null);
+                frame.setContentPane(new JoinScreen());
+                frame.setVisible(true);
+            }
         });
     }
 }
