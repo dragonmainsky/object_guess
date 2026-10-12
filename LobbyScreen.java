@@ -1,18 +1,22 @@
 import java.awt.*;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.io.File;
 import javax.swing.*;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
 
 /**
  * LobbyScreen: Screen 2 - Game Lobby waiting room with players, server info, preview, and chat.
  *
- * Remake: self-contained plain Swing. Colors, fonts and small factories live in this class.
- * No custom painting: layout is BorderLayout / GridLayout / FlowLayout only, shapes are
- * PNG icons from TextureManager, and the progress bar is three filled panels.
+ * Remake 2: self-contained plain Swing.
+ *  - Colors, fonts and small factories live in this class.
+ *  - No custom painting. Layout is BorderLayout / GridLayout / FlowLayout only.
+ *  - Shape pictures are loaded with the AWT Toolkit (same idea as QuestionerScreen).
+ *  - Every choice is a full if / else block (no short conditional expressions).
+ *  - Button hover / press colors come from a MouseAdapter.
  *
  * Stacking trick used everywhere: a card placed at BorderLayout.NORTH keeps its
  * preferred height, and the leftover space below stays empty.
@@ -45,6 +49,7 @@ public class LobbyScreen extends JPanel {
     private static final Color EMPTY_SLOT_BG     = new Color(241, 245, 249);
     private static final Color EMPTY_SLOT_BORDER = new Color(203, 213, 225);
     private static final Color TRACK_GREY        = new Color(226, 232, 240);
+    private static final Color PLACEHOLDER_BG    = new Color(220, 230, 242);
 
     // ===== Fonts =====
     private static final Font FONT_TITLE_LARGE = new Font("Segoe UI", Font.BOLD, 24);
@@ -61,6 +66,22 @@ public class LobbyScreen extends JPanel {
     private static final int PLAYERS_READY = 2;
     private static final int PLAYERS_TOTAL = 3;
 
+    // Folders searched for the shape pictures (same list the other screens use)
+    private static final String[] SEARCH_DIRS = {
+        ".",
+        "UI_ONLY",
+        "object_texture/UI_ONLY",
+        "object_texture",
+        "../UI_ONLY",
+        "../object_texture/UI_ONLY",
+        "../../object_texture/UI_ONLY"
+    };
+
+    // Preview shapes: picture file + name shown when the picture is missing
+    private static final String[] PREVIEW_FILES = {"Triangle.png", "Circle.png", "Rectangle.png"};
+    private static final String[] PREVIEW_NAMES = {"Triangle", "Circle", "Rectangle"};
+
+    private final Image[] previewImages = new Image[PREVIEW_FILES.length];
     private final ActionListener onStartGameAction;
     private final ActionListener onLeaveAction;
 
@@ -71,6 +92,7 @@ public class LobbyScreen extends JPanel {
     public LobbyScreen(ActionListener onStartGameAction, ActionListener onLeaveAction) {
         this.onStartGameAction = onStartGameAction;
         this.onLeaveAction = onLeaveAction;
+        loadPreviewImages();
 
         setLayout(new BorderLayout());
         setBackground(BG_LIGHT);
@@ -118,13 +140,14 @@ public class LobbyScreen extends JPanel {
         roomCodeBadge.setBorder(new CompoundBorder(
             new LineBorder(BLUE_BORDER, 1),
             new EmptyBorder(6, 16, 6, 16)));
-        roomCodeBadge.add(wrap(makeLabel("ROOM CODE", FONT_SMALL_BOLD, PRIMARY_BLUE), FlowLayout.CENTER));
-        roomCodeBadge.add(wrap(makeLabel("SHAPE-01", FONT_BODY_BOLD, PRIMARY_BLUE), FlowLayout.CENTER));
+        roomCodeBadge.add(makeCenteredLabel("ROOM CODE", FONT_SMALL_BOLD, PRIMARY_BLUE));
+        roomCodeBadge.add(makeCenteredLabel("SHAPE-01", FONT_BODY_BOLD, PRIMARY_BLUE));
 
-        JPanel codeWrapper = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        codeWrapper.setOpaque(false);
-        codeWrapper.add(roomCodeBadge);
-        subHeader.add(codeWrapper, BorderLayout.EAST);
+        // FlowLayout lets the badge keep its own size at the right edge
+        JPanel codeSlot = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        codeSlot.setOpaque(false);
+        codeSlot.add(roomCodeBadge);
+        subHeader.add(codeSlot, BorderLayout.EAST);
 
         return subHeader;
     }
@@ -141,17 +164,24 @@ public class LobbyScreen extends JPanel {
         JPanel playersHeader = new JPanel(new BorderLayout());
         playersHeader.setOpaque(false);
         playersHeader.add(makeLabel("3 Players", FONT_SUBTITLE, TEXT_DARK), BorderLayout.WEST);
-        playersHeader.add(wrap(makeBadge("3 / 8", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER), FlowLayout.RIGHT),
-            BorderLayout.EAST);
+        playersHeader.add(makeBadge("3 / 8", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER), BorderLayout.EAST);
         playersCard.add(playersHeader, BorderLayout.NORTH);
 
         JPanel playerRows = new JPanel(new GridLayout(0, 1, 0, 8));
         playerRows.setOpaque(false);
-        playerRows.add(createPlayerRow("A", new Color(37, 99, 235), "Aim", "Ready", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER));
-        playerRows.add(createPlayerRow("P", new Color(139, 92, 246), "Player 2", "Ready", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER));
-        playerRows.add(createPlayerRow("P", new Color(236, 72, 153), "Player 3", "Waiting", WARNING_BG, WARNING_TEXT, WARNING_BORDER));
-        playerRows.add(createEmptySlot());
-        playersCard.add(playerRows, BorderLayout.CENTER);
+        playerRows.add(createPlayerRow("A", new Color(37, 99, 235), "Aim", "Ready",
+            SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER));
+        playerRows.add(createPlayerRow("P", new Color(139, 92, 246), "Player 2", "Ready",
+            SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER));
+        playerRows.add(createPlayerRow("P", new Color(236, 72, 153), "Player 3", "Waiting",
+            WARNING_BG, WARNING_TEXT, WARNING_BORDER));
+
+        // The empty slot sits under the rows at its own height
+        JPanel playersBody = new JPanel(new BorderLayout(0, 8));
+        playersBody.setOpaque(false);
+        playersBody.add(playerRows, BorderLayout.NORTH);
+        playersBody.add(createEmptySlot(), BorderLayout.CENTER);
+        playersCard.add(playersBody, BorderLayout.CENTER);
 
         // --- Card 2: Server information ---
         JPanel serverCard = makeCard();
@@ -167,8 +197,8 @@ public class LobbyScreen extends JPanel {
         JPanel serverBody = new JPanel(new BorderLayout(0, 12));
         serverBody.setOpaque(false);
         serverBody.add(serverRows, BorderLayout.NORTH);
-        serverBody.add(wrap(makeBadge("Minimum 3 players reached", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER),
-            FlowLayout.LEFT), BorderLayout.CENTER);
+        serverBody.add(makeBadge("Minimum 3 players reached", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER),
+            BorderLayout.SOUTH);
         serverCard.add(serverBody, BorderLayout.CENTER);
 
         // Both cards keep their natural height; leftover space stays empty at the bottom
@@ -190,21 +220,21 @@ public class LobbyScreen extends JPanel {
         previewCard.setLayout(new BorderLayout(0, 20));
 
         // Preview canvas: light-blue panel with 3 shape pictures
-        JPanel canvasBox = new JPanel(new FlowLayout(FlowLayout.CENTER, 40, 30));
+        JPanel canvasBox = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 30));
         canvasBox.setOpaque(true);
         canvasBox.setBackground(BLUE_LIGHT_BG);
         canvasBox.setBorder(new LineBorder(BLUE_BORDER, 1));
-        canvasBox.add(new JLabel(TextureManager.getIcon("Triangle.png", PREVIEW_ICON, PREVIEW_ICON)));
-        canvasBox.add(new JLabel(TextureManager.getIcon("Circle.png", PREVIEW_ICON, PREVIEW_ICON)));
-        canvasBox.add(new JLabel(TextureManager.getIcon("Rectangle.png", PREVIEW_ICON, PREVIEW_ICON)));
+        for (int i = 0; i < PREVIEW_FILES.length; i++) {
+            canvasBox.add(createPreviewPicture(previewImages[i], PREVIEW_NAMES[i]));
+        }
         previewCard.add(canvasBox, BorderLayout.NORTH);
 
-        // Headings
-        JPanel headings = new JPanel(new GridLayout(2, 1, 0, 6));
+        // Headings: one plain label per line
+        JPanel headings = new JPanel(new GridLayout(3, 1, 0, 4));
         headings.setOpaque(false);
-        headings.add(wrap(makeLabel("Almost ready!", FONT_TITLE, TEXT_DARK), FlowLayout.CENTER));
-        headings.add(wrap(makeLabel("Every player must press READY before the host can start the game.",
-            FONT_BODY, TEXT_MUTED), FlowLayout.CENTER));
+        headings.add(makeCenteredLabel("Almost ready!", FONT_TITLE, TEXT_DARK));
+        headings.add(makeCenteredLabel("Every player must press READY", FONT_BODY, TEXT_MUTED));
+        headings.add(makeCenteredLabel("before the host can start the game.", FONT_BODY, TEXT_MUTED));
 
         // Progress: label row + three-segment track (filled segments = ready players)
         JPanel progressHeader = new JPanel(new BorderLayout());
@@ -220,7 +250,11 @@ public class LobbyScreen extends JPanel {
         for (int i = 0; i < PLAYERS_TOTAL; i++) {
             JPanel segment = new JPanel();
             segment.setOpaque(true);
-            segment.setBackground(i < PLAYERS_READY ? PRIMARY_BLUE : TRACK_GREY);
+            if (i < PLAYERS_READY) {
+                segment.setBackground(PRIMARY_BLUE);
+            } else {
+                segment.setBackground(TRACK_GREY);
+            }
             track.add(segment);
         }
         JPanel trackSlot = new JPanel(new BorderLayout());
@@ -343,17 +377,19 @@ public class LobbyScreen extends JPanel {
         who.add(makeLabel(name, FONT_BODY_BOLD, TEXT_DARK));
 
         row.add(who, BorderLayout.WEST);
-        row.add(wrap(makeBadge(status, bg, fg, border), FlowLayout.RIGHT), BorderLayout.EAST);
+        row.add(makeBadge(status, bg, fg, border), BorderLayout.EAST);
         return row;
     }
 
     /** Solid-border slot for the next player to join. */
     private JPanel createEmptySlot() {
-        JPanel slot = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 8));
+        JPanel slot = new JPanel(new BorderLayout());
         slot.setOpaque(true);
         slot.setBackground(EMPTY_SLOT_BG);
-        slot.setBorder(new LineBorder(EMPTY_SLOT_BORDER, 1));
-        slot.add(makeLabel("Waiting for player...", FONT_SMALL, TEXT_MUTED));
+        slot.setBorder(new CompoundBorder(
+            new LineBorder(EMPTY_SLOT_BORDER, 1),
+            new EmptyBorder(8, 8, 8, 8)));
+        slot.add(makeCenteredLabel("Waiting for player...", FONT_SMALL, TEXT_MUTED), BorderLayout.CENTER);
         return slot;
     }
 
@@ -366,11 +402,87 @@ public class LobbyScreen extends JPanel {
     }
 
     private JPanel createChatMessage(String sender, String text, boolean isUser) {
+        Color senderColor;
+        if (isUser) {
+            senderColor = PRIMARY_BLUE;
+        } else {
+            senderColor = TEXT_MUTED;
+        }
+
         JPanel msg = new JPanel(new GridLayout(2, 1, 0, 0));
         msg.setOpaque(false);
-        msg.add(makeLabel(sender, FONT_SMALL_BOLD, isUser ? PRIMARY_BLUE : TEXT_MUTED));
+        msg.add(makeLabel(sender, FONT_SMALL_BOLD, senderColor));
         msg.add(makeLabel(text, FONT_SMALL, TEXT_DARK));
         return msg;
+    }
+
+    /** One shape picture, or a grey box with the shape name when the file is missing. */
+    private JLabel createPreviewPicture(Image image, String name) {
+        JLabel picture;
+        if (image != null) {
+            picture = new JLabel(new ImageIcon(image));
+        } else {
+            picture = new JLabel(name, JLabel.CENTER);
+            picture.setFont(FONT_SMALL_BOLD);
+            picture.setForeground(TEXT_MUTED);
+            picture.setOpaque(true);
+            picture.setBackground(PLACEHOLDER_BG);
+            picture.setBorder(new LineBorder(EMPTY_SLOT_BORDER, 1));
+            picture.setPreferredSize(new Dimension(PREVIEW_ICON, PREVIEW_ICON));
+        }
+        return picture;
+    }
+
+    // =====================================================================
+    //  Picture loading (AWT Toolkit)
+    // =====================================================================
+
+    private void loadPreviewImages() {
+        for (int i = 0; i < PREVIEW_FILES.length; i++) {
+            Image source = loadImage(PREVIEW_FILES[i]);
+            previewImages[i] = scaleImage(source, PREVIEW_ICON);
+        }
+    }
+
+    /** Returns a fully loaded image, or null when the file cannot be found. */
+    private Image loadImage(String filename) {
+        Toolkit toolkit = Toolkit.getDefaultToolkit();
+
+        for (String dir : SEARCH_DIRS) {
+            File file = new File(dir, filename);
+            if (file.isFile()) {
+                Image candidate = toolkit.getImage(file.getPath());
+                if (waitForImage(candidate)) {
+                    return candidate;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private Image scaleImage(Image source, int size) {
+        if (source == null) {
+            return null;
+        }
+        Image scaled = source.getScaledInstance(size, size, Image.SCALE_SMOOTH);
+        if (waitForImage(scaled)) {
+            return scaled;
+        } else {
+            return null;
+        }
+    }
+
+    private boolean waitForImage(Image image) {
+        MediaTracker tracker = new MediaTracker(this);
+        tracker.addImage(image, 0);
+        try {
+            tracker.waitForID(0);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+        return !tracker.isErrorID(0);
     }
 
     // =====================================================================
@@ -394,11 +506,16 @@ public class LobbyScreen extends JPanel {
         return label;
     }
 
-    /** Small label with fill + border. It hugs its text when wrapped (see wrap). */
+    /** Same as makeLabel, but the text sits in the middle of the label's width. */
+    private static JLabel makeCenteredLabel(String text, Font font, Color color) {
+        JLabel label = makeLabel(text, font, color);
+        label.setHorizontalAlignment(JLabel.CENTER);
+        return label;
+    }
+
+    /** Small label with fill + border. */
     private static JLabel makeBadge(String text, Color bg, Color fg, Color border) {
-        JLabel badge = new JLabel(text);
-        badge.setFont(FONT_SMALL_BOLD);
-        badge.setForeground(fg);
+        JLabel badge = makeCenteredLabel(text, FONT_SMALL_BOLD, fg);
         badge.setBackground(bg);
         badge.setOpaque(true);
         badge.setBorder(new CompoundBorder(
@@ -407,48 +524,47 @@ public class LobbyScreen extends JPanel {
         return badge;
     }
 
-    /**
-     * Square colored tile with the player's initial. The letter is centered by a
-     * FlowLayout: horizontally by the CENTER alignment, vertically by the gap.
-     */
-    private static JPanel makeAvatar(String text, Color bg, int size) {
-        JLabel letter = new JLabel(text);
-        letter.setFont(new Font("Segoe UI", Font.BOLD, size / 2));
-        letter.setForeground(Color.WHITE);
-
-        int gap = Math.max(0, (size - letter.getPreferredSize().height) / 2);
-        JPanel avatar = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, gap));
+    /** Square colored tile with the player's initial, locked to size x size. */
+    private static JLabel makeAvatar(String text, Color bg, int size) {
+        JLabel avatar = new JLabel(text, JLabel.CENTER);
         avatar.setOpaque(true);
         avatar.setBackground(bg);
+        avatar.setForeground(Color.WHITE);
+        avatar.setFont(new Font("Segoe UI", Font.BOLD, size / 2));
         Dimension d = new Dimension(size, size);
         avatar.setPreferredSize(d);
         avatar.setMinimumSize(d);
         avatar.setMaximumSize(d);
-        avatar.add(letter);
         return avatar;
-    }
-
-    /** Lets a label keep its own size and sit left, center or right in its row. */
-    private static JPanel wrap(JLabel label, int alignment) {
-        JPanel holder = new JPanel(new FlowLayout(alignment, 0, 0));
-        holder.setOpaque(false);
-        holder.add(label);
-        return holder;
     }
 
     /**
      * Plain JButton with a flat fill and thin border. The fill changes with
-     * hover / press through ButtonStateListener.
+     * mouse enter / exit / press through ButtonHoverListener.
      */
     private static JButton makeButton(String text, boolean primary, int padV, int padH) {
-        Color normal = primary ? PRIMARY_BLUE : Color.WHITE;
-        Color hover = primary ? PRIMARY_HOVER : BG_LIGHT;
-        Color pressed = primary ? PRIMARY_PRESSED : SECONDARY_PRESSED;
-        Color edge = primary ? PRIMARY_BLUE : CARD_BORDER;
+        Color normal;
+        Color hover;
+        Color pressed;
+        Color edge;
+        Color textColor;
+        if (primary) {
+            normal = PRIMARY_BLUE;
+            hover = PRIMARY_HOVER;
+            pressed = PRIMARY_PRESSED;
+            edge = PRIMARY_BLUE;
+            textColor = Color.WHITE;
+        } else {
+            normal = Color.WHITE;
+            hover = BG_LIGHT;
+            pressed = SECONDARY_PRESSED;
+            edge = CARD_BORDER;
+            textColor = TEXT_DARK;
+        }
 
         JButton button = new JButton(text);
         button.setFont(FONT_BODY_BOLD);
-        button.setForeground(primary ? Color.WHITE : TEXT_DARK);
+        button.setForeground(textColor);
         button.setBackground(normal);
         button.setContentAreaFilled(false); // call first: some look and feels reset opaque when it changes
         button.setOpaque(true);
@@ -458,8 +574,7 @@ public class LobbyScreen extends JPanel {
             new EmptyBorder(padV, padH, padV, padH)));
         button.setFocusPainted(false);
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        button.setRolloverEnabled(true);
-        button.getModel().addChangeListener(new ButtonStateListener(button, normal, hover, pressed));
+        button.addMouseListener(new ButtonHoverListener(button, normal, hover, pressed));
         return button;
     }
 
@@ -478,14 +593,15 @@ public class LobbyScreen extends JPanel {
     //  Inner classes
     // =====================================================================
 
-    /** Repaints a button in the right color whenever its model changes. */
-    private static class ButtonStateListener implements ChangeListener {
+    /** Colors a button from mouse events: normal, hover (mouse inside) and pressed. */
+    private static class ButtonHoverListener extends MouseAdapter {
         private final JButton button;
         private final Color normal;
         private final Color hover;
         private final Color pressed;
+        private boolean inside = false;
 
-        ButtonStateListener(JButton button, Color normal, Color hover, Color pressed) {
+        ButtonHoverListener(JButton button, Color normal, Color hover, Color pressed) {
             this.button = button;
             this.normal = normal;
             this.hover = hover;
@@ -493,11 +609,25 @@ public class LobbyScreen extends JPanel {
         }
 
         @Override
-        public void stateChanged(ChangeEvent event) {
-            ButtonModel model = button.getModel();
-            if (model.isPressed() || model.isArmed()) {
-                button.setBackground(pressed);
-            } else if (model.isRollover()) {
+        public void mouseEntered(MouseEvent e) {
+            inside = true;
+            button.setBackground(hover);
+        }
+
+        @Override
+        public void mouseExited(MouseEvent e) {
+            inside = false;
+            button.setBackground(normal);
+        }
+
+        @Override
+        public void mousePressed(MouseEvent e) {
+            button.setBackground(pressed);
+        }
+
+        @Override
+        public void mouseReleased(MouseEvent e) {
+            if (inside) {
                 button.setBackground(hover);
             } else {
                 button.setBackground(normal);
