@@ -1,14 +1,68 @@
 import java.awt.*;
 import java.awt.event.ActionListener;
 import javax.swing.*;
+import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
 
 /**
  * LobbyScreen: Screen 2 - Game Lobby waiting room with players, server info, preview, and chat.
+ *
+ * Remake: self-contained plain Swing. Colors, fonts and small factories live in this class.
+ * No custom painting: layout is BorderLayout / GridLayout / FlowLayout only, shapes are
+ * PNG icons from TextureManager, and the progress bar is three filled panels.
+ *
+ * Stacking trick used everywhere: a card placed at BorderLayout.NORTH keeps its
+ * preferred height, and the leftover space below stays empty.
  */
 public class LobbyScreen extends JPanel {
-    private ActionListener onStartGameAction;
-    private ActionListener onLeaveAction;
+
+    // ===== Colors =====
+    private static final Color BG_LIGHT          = new Color(241, 245, 249);
+    private static final Color CARD_BG           = Color.WHITE;
+    private static final Color CARD_BORDER       = new Color(226, 232, 240);
+
+    private static final Color PRIMARY_BLUE      = new Color(37, 99, 235);
+    private static final Color PRIMARY_HOVER     = new Color(29, 78, 216);
+    private static final Color PRIMARY_PRESSED   = new Color(30, 64, 175);
+    private static final Color SECONDARY_PRESSED = new Color(226, 232, 240);
+    private static final Color BLUE_LIGHT_BG     = new Color(239, 246, 255);
+    private static final Color BLUE_BORDER       = new Color(191, 219, 254);
+
+    private static final Color SUCCESS_BG        = new Color(220, 252, 231);
+    private static final Color SUCCESS_TEXT      = new Color(22, 101, 52);
+    private static final Color SUCCESS_BORDER    = new Color(187, 247, 208);
+
+    private static final Color WARNING_BG        = new Color(254, 249, 195);
+    private static final Color WARNING_TEXT      = new Color(133, 77, 14);
+    private static final Color WARNING_BORDER    = new Color(254, 240, 138);
+
+    private static final Color TEXT_DARK         = new Color(15, 23, 42);
+    private static final Color TEXT_MUTED        = new Color(100, 116, 139);
+
+    private static final Color EMPTY_SLOT_BG     = new Color(241, 245, 249);
+    private static final Color EMPTY_SLOT_BORDER = new Color(203, 213, 225);
+    private static final Color TRACK_GREY        = new Color(226, 232, 240);
+
+    // ===== Fonts =====
+    private static final Font FONT_TITLE_LARGE = new Font("Segoe UI", Font.BOLD, 24);
+    private static final Font FONT_TITLE       = new Font("Segoe UI", Font.BOLD, 18);
+    private static final Font FONT_SUBTITLE    = new Font("Segoe UI", Font.BOLD, 14);
+    private static final Font FONT_BODY        = new Font("Segoe UI", Font.PLAIN, 13);
+    private static final Font FONT_BODY_BOLD   = new Font("Segoe UI", Font.BOLD, 13);
+    private static final Font FONT_SMALL       = new Font("Segoe UI", Font.PLAIN, 11);
+    private static final Font FONT_SMALL_BOLD  = new Font("Segoe UI", Font.BOLD, 11);
+
+    // ===== Sizes / demo data =====
+    private static final int SIDE_WIDTH = 320;
+    private static final int PREVIEW_ICON = 80;
+    private static final int PLAYERS_READY = 2;
+    private static final int PLAYERS_TOTAL = 3;
+
+    private final ActionListener onStartGameAction;
+    private final ActionListener onLeaveAction;
 
     public LobbyScreen() {
         this(null, null);
@@ -19,484 +73,451 @@ public class LobbyScreen extends JPanel {
         this.onLeaveAction = onLeaveAction;
 
         setLayout(new BorderLayout());
-        setBackground(UIStyle.BG_LIGHT);
+        setBackground(BG_LIGHT);
 
-        // Main Body Container (no dark HeaderBar on this screen)
         JPanel mainContent = new JPanel(new BorderLayout(16, 16));
         mainContent.setOpaque(false);
         mainContent.setBorder(new EmptyBorder(16, 24, 16, 24));
+        mainContent.add(createSubHeader(), BorderLayout.NORTH);
 
-        // Subheader Bar
+        // 3 columns: fixed-width left, flexible center, fixed-width right
+        JPanel left = createLeftPanel();
+        left.setPreferredSize(new Dimension(SIDE_WIDTH, 0));
+        JPanel right = createRightPanel();
+        right.setPreferredSize(new Dimension(SIDE_WIDTH, 0));
+
+        JPanel columns = new JPanel(new BorderLayout(16, 0));
+        columns.setOpaque(false);
+        columns.add(left, BorderLayout.WEST);
+        columns.add(createCenterPanel(), BorderLayout.CENTER);
+        columns.add(right, BorderLayout.EAST);
+
+        mainContent.add(columns, BorderLayout.CENTER);
+        add(mainContent, BorderLayout.CENTER);
+    }
+
+    // =====================================================================
+    //  Sections
+    // =====================================================================
+
+    private JPanel createSubHeader() {
         JPanel subHeader = new JPanel(new BorderLayout());
         subHeader.setOpaque(false);
 
         JPanel subTitles = new JPanel(new GridLayout(3, 1, 0, 2));
         subTitles.setOpaque(false);
-
-        JLabel tag = new JLabel("GAME LOBBY");
-        tag.setFont(UIStyle.FONT_SMALL_BOLD);
-        tag.setForeground(UIStyle.PRIMARY_BLUE);
-
-        JLabel roomTitle = new JLabel("Room #01");
-        roomTitle.setFont(UIStyle.FONT_TITLE_LARGE);
-        roomTitle.setForeground(UIStyle.TEXT_DARK);
-
-        JLabel roomSub = new JLabel("Get ready while the host prepares the round.");
-        roomSub.setFont(UIStyle.FONT_BODY);
-        roomSub.setForeground(UIStyle.TEXT_MUTED);
-
-        subTitles.add(tag);
-        subTitles.add(roomTitle);
-        subTitles.add(roomSub);
+        subTitles.add(makeLabel("GAME LOBBY", FONT_SMALL_BOLD, PRIMARY_BLUE));
+        subTitles.add(makeLabel("Room #01", FONT_TITLE_LARGE, TEXT_DARK));
+        subTitles.add(makeLabel("Get ready while the host prepares the round.", FONT_BODY, TEXT_MUTED));
         subHeader.add(subTitles, BorderLayout.WEST);
 
-        // Room Code Badge on Top Right (two lines)
-        JPanel codeWrapper = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        // Room code badge: two plain labels stacked in one bordered box
+        JPanel roomCodeBadge = new JPanel(new GridLayout(2, 1, 0, 0));
+        roomCodeBadge.setOpaque(true);
+        roomCodeBadge.setBackground(BLUE_LIGHT_BG);
+        roomCodeBadge.setBorder(new CompoundBorder(
+            new LineBorder(BLUE_BORDER, 1),
+            new EmptyBorder(6, 16, 6, 16)));
+        roomCodeBadge.add(wrap(makeLabel("ROOM CODE", FONT_SMALL_BOLD, PRIMARY_BLUE), FlowLayout.CENTER));
+        roomCodeBadge.add(wrap(makeLabel("SHAPE-01", FONT_BODY_BOLD, PRIMARY_BLUE), FlowLayout.CENTER));
+
+        JPanel codeWrapper = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         codeWrapper.setOpaque(false);
-        UIStyle.PillBadge roomCodeBadge = new UIStyle.PillBadge("<html><center>ROOM CODE<br>SHAPE-01</center></html>", UIStyle.BLUE_LIGHT_BG, UIStyle.PRIMARY_BLUE, UIStyle.BLUE_BORDER);
-        roomCodeBadge.setFont(UIStyle.FONT_BODY_BOLD);
-        roomCodeBadge.setBorder(new EmptyBorder(8, 16, 8, 16));
         codeWrapper.add(roomCodeBadge);
         subHeader.add(codeWrapper, BorderLayout.EAST);
 
-        mainContent.add(subHeader, BorderLayout.NORTH);
-
-        // 3-Column Layout: Left, Center, Right
-        JPanel columnsPanel = new JPanel(new GridBagLayout());
-        columnsPanel.setOpaque(false);
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.fill = GridBagConstraints.BOTH;
-        gbc.insets = new Insets(8, 8, 8, 8);
-
-        // --- Column 1: Left (Players & Server Info) ---
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        gbc.weightx = 0.28;
-        gbc.weighty = 1.0;
-        columnsPanel.add(createLeftPanel(), gbc);
-
-        // --- Column 2: Center (Ready Preview & Start) ---
-        gbc.gridx = 1;
-        gbc.gridy = 0;
-        gbc.weightx = 0.44;
-        gbc.weighty = 1.0;
-        columnsPanel.add(createCenterPanel(), gbc);
-
-        // --- Column 3: Right (Chat & Settings) ---
-        gbc.gridx = 2;
-        gbc.gridy = 0;
-        gbc.weightx = 0.28;
-        gbc.weighty = 1.0;
-        columnsPanel.add(createRightPanel(), gbc);
-
-        mainContent.add(columnsPanel, BorderLayout.CENTER);
-        add(mainContent, BorderLayout.CENTER);
+        return subHeader;
     }
 
-    /**
-     * Left Column: Players List & Server Information
-     */
+    /** Left column: players list + server information. */
     private JPanel createLeftPanel() {
-        JPanel left = new JPanel();
+        JPanel left = new JPanel(new BorderLayout(0, 12));
         left.setOpaque(false);
-        left.setLayout(new BoxLayout(left, BoxLayout.Y_AXIS));
 
-        // Card 1: 3 Players
-        UIStyle.CardPanel playersCard = new UIStyle.CardPanel(16, UIStyle.CARD_BG, UIStyle.CARD_BORDER);
-        playersCard.setLayout(new BoxLayout(playersCard, BoxLayout.Y_AXIS));
-        playersCard.setAlignmentX(Component.LEFT_ALIGNMENT);
-        playersCard.setMaximumSize(new Dimension(Integer.MAX_VALUE, 320));
+        // --- Card 1: Players ---
+        JPanel playersCard = makeCard();
+        playersCard.setLayout(new BorderLayout(0, 12));
 
-        JPanel pHeader = new JPanel(new BorderLayout());
-        pHeader.setOpaque(false);
-        pHeader.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
-        pHeader.setAlignmentX(Component.LEFT_ALIGNMENT);
-        JLabel pTitle = new JLabel("3 Players");
-        pTitle.setFont(UIStyle.FONT_SUBTITLE);
-        pTitle.setForeground(UIStyle.TEXT_DARK);
+        JPanel playersHeader = new JPanel(new BorderLayout());
+        playersHeader.setOpaque(false);
+        playersHeader.add(makeLabel("3 Players", FONT_SUBTITLE, TEXT_DARK), BorderLayout.WEST);
+        playersHeader.add(wrap(makeBadge("3 / 8", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER), FlowLayout.RIGHT),
+            BorderLayout.EAST);
+        playersCard.add(playersHeader, BorderLayout.NORTH);
 
-        UIStyle.PillBadge pBadge = new UIStyle.PillBadge("3 / 8", UIStyle.SUCCESS_BG, UIStyle.SUCCESS_TEXT);
-        pHeader.add(pTitle, BorderLayout.WEST);
-        pHeader.add(pBadge, BorderLayout.EAST);
+        JPanel playerRows = new JPanel(new GridLayout(0, 1, 0, 8));
+        playerRows.setOpaque(false);
+        playerRows.add(createPlayerRow("A", new Color(37, 99, 235), "Aim", "Ready", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER));
+        playerRows.add(createPlayerRow("P", new Color(139, 92, 246), "Player 2", "Ready", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER));
+        playerRows.add(createPlayerRow("P", new Color(236, 72, 153), "Player 3", "Waiting", WARNING_BG, WARNING_TEXT, WARNING_BORDER));
+        playerRows.add(createEmptySlot());
+        playersCard.add(playerRows, BorderLayout.CENTER);
 
-        playersCard.add(pHeader);
-        playersCard.add(Box.createVerticalStrut(12));
+        // --- Card 2: Server information ---
+        JPanel serverCard = makeCard();
+        serverCard.setLayout(new BorderLayout(0, 10));
+        serverCard.add(makeLabel("Server information", FONT_SUBTITLE, TEXT_DARK), BorderLayout.NORTH);
 
-        // Player items
-        playersCard.add(createPlayerRow("A", new Color(37, 99, 235), "Aim", "Ready", UIStyle.SUCCESS_BG, UIStyle.SUCCESS_TEXT));
-        playersCard.add(Box.createVerticalStrut(8));
-        playersCard.add(createPlayerRow("P", new Color(139, 92, 246), "Player 2", "Ready", UIStyle.SUCCESS_BG, UIStyle.SUCCESS_TEXT));
-        playersCard.add(Box.createVerticalStrut(8));
-        playersCard.add(createPlayerRow("P", new Color(236, 72, 153), "Player 3", "Waiting", UIStyle.WARNING_BG, UIStyle.WARNING_TEXT));
-        playersCard.add(Box.createVerticalStrut(10));
+        JPanel serverRows = new JPanel(new GridLayout(0, 1, 0, 6));
+        serverRows.setOpaque(false);
+        serverRows.add(createInfoRow("Address", "192.168.1.24"));
+        serverRows.add(createInfoRow("Ping", "24 ms"));
+        serverRows.add(createInfoRow("Host", "Aim"));
 
-        // Slot: Waiting for player...
-        JPanel emptySlot = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 8)) {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(new Color(241, 245, 249));
-                if (UIStyle.ENABLE_ROUNDED_CORNERS) {
-                    g2.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
-                } else {
-                    g2.fillRect(0, 0, getWidth() - 1, getHeight() - 1);
-                }
-                Stroke dashed = new BasicStroke(1.2f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10.0f, new float[]{4.0f}, 0.0f);
-                g2.setStroke(dashed);
-                g2.setColor(new Color(203, 213, 225));
-                if (UIStyle.ENABLE_ROUNDED_CORNERS) {
-                    g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
-                } else {
-                    g2.drawRect(0, 0, getWidth() - 1, getHeight() - 1);
-                }
-                g2.dispose();
-                super.paintComponent(g);
-            }
-        };
-        emptySlot.setOpaque(false);
-        emptySlot.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
-        emptySlot.setAlignmentX(Component.LEFT_ALIGNMENT);
-        JLabel emptyLabel = new JLabel("Waiting for player...");
-        emptyLabel.setFont(UIStyle.FONT_SMALL);
-        emptyLabel.setForeground(UIStyle.TEXT_MUTED);
-        emptySlot.add(emptyLabel);
+        JPanel serverBody = new JPanel(new BorderLayout(0, 12));
+        serverBody.setOpaque(false);
+        serverBody.add(serverRows, BorderLayout.NORTH);
+        serverBody.add(wrap(makeBadge("Minimum 3 players reached", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER),
+            FlowLayout.LEFT), BorderLayout.CENTER);
+        serverCard.add(serverBody, BorderLayout.CENTER);
 
-        playersCard.add(emptySlot);
-        left.add(playersCard);
-        left.add(Box.createVerticalStrut(12));
+        // Both cards keep their natural height; leftover space stays empty at the bottom
+        JPanel leftRest = new JPanel(new BorderLayout());
+        leftRest.setOpaque(false);
+        leftRest.add(serverCard, BorderLayout.NORTH);
 
-        // Card 2: Server information
-        UIStyle.CardPanel serverCard = new UIStyle.CardPanel(16, UIStyle.CARD_BG, UIStyle.CARD_BORDER);
-        serverCard.setLayout(new BoxLayout(serverCard, BoxLayout.Y_AXIS));
-        serverCard.setAlignmentX(Component.LEFT_ALIGNMENT);
-        serverCard.setMaximumSize(new Dimension(Integer.MAX_VALUE, 220));
-
-        JLabel sTitle = new JLabel("Server information");
-        sTitle.setFont(UIStyle.FONT_SUBTITLE);
-        sTitle.setForeground(UIStyle.TEXT_DARK);
-        sTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        sTitle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 24));
-
-        serverCard.add(sTitle);
-        serverCard.add(Box.createVerticalStrut(10));
-        serverCard.add(createInfoRow("Address", "192.168.1.24"));
-        serverCard.add(Box.createVerticalStrut(6));
-        serverCard.add(createInfoRow("Ping", "24 ms"));
-        serverCard.add(Box.createVerticalStrut(6));
-        serverCard.add(createInfoRow("Host", "Aim"));
-        serverCard.add(Box.createVerticalStrut(12));
-
-        UIStyle.PillBadge minReached = new UIStyle.PillBadge("Minimum 3 players reached", UIStyle.SUCCESS_BG, UIStyle.SUCCESS_TEXT);
-        minReached.setAlignmentX(Component.LEFT_ALIGNMENT);
-        minReached.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
-        serverCard.add(minReached);
-
-        left.add(serverCard);
-        left.add(Box.createVerticalGlue());
+        left.add(playersCard, BorderLayout.NORTH);
+        left.add(leftRest, BorderLayout.CENTER);
         return left;
     }
 
-    /**
-     * Center Column: Shapes preview, ready status, and action buttons.
-     */
+    /** Center column: shapes preview, ready progress and the action buttons. */
     private JPanel createCenterPanel() {
         JPanel center = new JPanel(new BorderLayout(0, 14));
         center.setOpaque(false);
 
-        UIStyle.CardPanel previewCard = new UIStyle.CardPanel(20, UIStyle.CARD_BG, UIStyle.CARD_BORDER);
-        previewCard.setLayout(new BoxLayout(previewCard, BoxLayout.Y_AXIS));
+        JPanel previewCard = makeCard();
+        previewCard.setLayout(new BorderLayout(0, 20));
 
-        // Preview canvas: light-blue panel with 3 flat vector shapes
-        JPanel canvasBox = new JPanel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                int w = getWidth();
-                int h = getHeight();
-                int s = 80;
-                int cy = (h - s) / 2;
-                int cx = w / 2;
-                // Cyan triangle on the left
-                g2.setColor(new Color(34, 211, 238));
-                int tx = cx - 90;
-                int[] xp = {tx - 40, tx, tx + 40};
-                int[] yp = {cy + s, cy, cy + s};
-                g2.fillPolygon(xp, yp, 3);
-                // Yellow circle in the middle
-                g2.setColor(new Color(250, 204, 21));
-                g2.fillOval(cx - 40, cy, s, s);
-                // Pink square on the right
-                g2.setColor(new Color(244, 114, 182));
-                g2.fillRect(cx + 50, cy, s, s);
-                g2.dispose();
-            }
-        };
-        canvasBox.setBackground(UIStyle.BLUE_LIGHT_BG);
+        // Preview canvas: light-blue panel with 3 shape pictures
+        JPanel canvasBox = new JPanel(new FlowLayout(FlowLayout.CENTER, 40, 30));
         canvasBox.setOpaque(true);
-        canvasBox.setBorder(BorderFactory.createLineBorder(UIStyle.BLUE_BORDER));
-        canvasBox.setMaximumSize(new Dimension(Integer.MAX_VALUE, 160));
-        canvasBox.setPreferredSize(new Dimension(380, 140));
-        canvasBox.setAlignmentX(Component.CENTER_ALIGNMENT);
+        canvasBox.setBackground(BLUE_LIGHT_BG);
+        canvasBox.setBorder(new LineBorder(BLUE_BORDER, 1));
+        canvasBox.add(new JLabel(TextureManager.getIcon("Triangle.png", PREVIEW_ICON, PREVIEW_ICON)));
+        canvasBox.add(new JLabel(TextureManager.getIcon("Circle.png", PREVIEW_ICON, PREVIEW_ICON)));
+        canvasBox.add(new JLabel(TextureManager.getIcon("Rectangle.png", PREVIEW_ICON, PREVIEW_ICON)));
+        previewCard.add(canvasBox, BorderLayout.NORTH);
 
-        previewCard.add(canvasBox);
-        previewCard.add(Box.createVerticalStrut(20));
+        // Headings
+        JPanel headings = new JPanel(new GridLayout(2, 1, 0, 6));
+        headings.setOpaque(false);
+        headings.add(wrap(makeLabel("Almost ready!", FONT_TITLE, TEXT_DARK), FlowLayout.CENTER));
+        headings.add(wrap(makeLabel("Every player must press READY before the host can start the game.",
+            FONT_BODY, TEXT_MUTED), FlowLayout.CENTER));
 
-        // Headings (centered text)
-        JLabel head = new JLabel("Almost ready!", SwingConstants.CENTER);
-        head.setFont(UIStyle.FONT_TITLE);
-        head.setForeground(UIStyle.TEXT_DARK);
-        head.setAlignmentX(Component.CENTER_ALIGNMENT);
-        head.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
-
-        JLabel sub = new JLabel("Every player must press READY before the host can start the game.", SwingConstants.CENTER);
-        sub.setFont(UIStyle.FONT_BODY);
-        sub.setForeground(UIStyle.TEXT_MUTED);
-        sub.setAlignmentX(Component.CENTER_ALIGNMENT);
-        sub.setMaximumSize(new Dimension(Integer.MAX_VALUE, 24));
-
-        previewCard.add(head);
-        previewCard.add(Box.createVerticalStrut(6));
-        previewCard.add(sub);
-        previewCard.add(Box.createVerticalStrut(20));
-
-        // Progress bar container
+        // Progress: label row + three-segment track (filled segments = ready players)
         JPanel progressHeader = new JPanel(new BorderLayout());
         progressHeader.setOpaque(false);
-        progressHeader.setMaximumSize(new Dimension(Integer.MAX_VALUE, 20));
-        progressHeader.setAlignmentX(Component.LEFT_ALIGNMENT);
+        progressHeader.add(makeLabel("Players ready", FONT_SMALL_BOLD, TEXT_DARK), BorderLayout.WEST);
+        progressHeader.add(makeLabel(PLAYERS_READY + " of " + PLAYERS_TOTAL, FONT_SMALL_BOLD, PRIMARY_BLUE),
+            BorderLayout.EAST);
 
-        JLabel pReady = new JLabel("Players ready");
-        pReady.setFont(UIStyle.FONT_SMALL_BOLD);
-        pReady.setForeground(UIStyle.TEXT_DARK);
+        JPanel track = new JPanel(new GridLayout(1, PLAYERS_TOTAL, 0, 0));
+        track.setOpaque(true);
+        track.setBackground(TRACK_GREY);
+        track.setPreferredSize(new Dimension(0, 8));
+        for (int i = 0; i < PLAYERS_TOTAL; i++) {
+            JPanel segment = new JPanel();
+            segment.setOpaque(true);
+            segment.setBackground(i < PLAYERS_READY ? PRIMARY_BLUE : TRACK_GREY);
+            track.add(segment);
+        }
+        JPanel trackSlot = new JPanel(new BorderLayout());
+        trackSlot.setOpaque(false);
+        trackSlot.add(track, BorderLayout.NORTH);
 
-        JLabel pCount = new JLabel("2 of 3");
-        pCount.setFont(UIStyle.FONT_SMALL_BOLD);
-        pCount.setForeground(UIStyle.PRIMARY_BLUE);
+        JPanel progress = new JPanel(new BorderLayout(0, 6));
+        progress.setOpaque(false);
+        progress.add(progressHeader, BorderLayout.NORTH);
+        progress.add(trackSlot, BorderLayout.CENTER);
 
-        progressHeader.add(pReady, BorderLayout.WEST);
-        progressHeader.add(pCount, BorderLayout.EAST);
+        JPanel info = new JPanel(new BorderLayout(0, 18));
+        info.setOpaque(false);
+        info.add(headings, BorderLayout.NORTH);
+        info.add(progress, BorderLayout.CENTER);
 
-        // Custom progress bar (rounded or sharp)
-        JComponent progressBar = new JComponent() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                int h = getHeight();
-                int w = getWidth();
-                int fillW = (int) (w * 0.66f);
-                g2.setColor(new Color(226, 232, 240));
-                if (UIStyle.ENABLE_ROUNDED_CORNERS) {
-                    g2.fillRoundRect(0, 0, w, h, h, h);
-                    g2.setColor(UIStyle.PRIMARY_BLUE);
-                    g2.fillRoundRect(0, 0, fillW, h, h, h);
-                } else {
-                    g2.fillRect(0, 0, w, h);
-                    g2.setColor(UIStyle.PRIMARY_BLUE);
-                    g2.fillRect(0, 0, fillW, h);
-                }
-                g2.dispose();
-            }
-        };
-        progressBar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 8));
-        progressBar.setPreferredSize(new Dimension(380, 8));
-        progressBar.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        previewCard.add(progressHeader);
-        previewCard.add(Box.createVerticalStrut(6));
-        previewCard.add(progressBar);
-        previewCard.add(Box.createVerticalGlue());
+        JPanel infoSlot = new JPanel(new BorderLayout());
+        infoSlot.setOpaque(false);
+        infoSlot.add(info, BorderLayout.NORTH);
+        previewCard.add(infoSlot, BorderLayout.CENTER);
 
         center.add(previewCard, BorderLayout.CENTER);
 
         // Buttons at bottom
-        JPanel btnPanel = new JPanel(new GridLayout(1, 2, 12, 0));
-        btnPanel.setOpaque(false);
+        JPanel buttonRow = new JPanel(new GridLayout(1, 2, 12, 0));
+        buttonRow.setOpaque(false);
 
-        UIStyle.ModernButton readyBtn = UIStyle.ModernButton.primary("READY");
+        JButton readyBtn = makeButton("READY", true, 12, 18);
         readyBtn.setPreferredSize(new Dimension(160, 44));
 
-        UIStyle.ModernButton startBtn = UIStyle.ModernButton.secondary("START GAME");
+        JButton startBtn = makeButton("START GAME", false, 12, 18);
         startBtn.setPreferredSize(new Dimension(160, 44));
         if (onStartGameAction != null) {
             startBtn.addActionListener(onStartGameAction);
         }
 
-        btnPanel.add(readyBtn);
-        btnPanel.add(startBtn);
-
-        center.add(btnPanel, BorderLayout.SOUTH);
+        buttonRow.add(readyBtn);
+        buttonRow.add(startBtn);
+        center.add(buttonRow, BorderLayout.SOUTH);
         return center;
     }
 
-    /**
-     * Right Column: Chat & Round Settings
-     */
+    /** Right column: chat, round settings and the leave button. */
     private JPanel createRightPanel() {
-        JPanel right = new JPanel();
+        JPanel right = new JPanel(new BorderLayout(0, 12));
         right.setOpaque(false);
-        right.setLayout(new BoxLayout(right, BoxLayout.Y_AXIS));
 
-        // Card 1: Chat
-        UIStyle.CardPanel chatCard = new UIStyle.CardPanel(16, UIStyle.CARD_BG, UIStyle.CARD_BORDER);
+        // --- Card 1: Chat ---
+        JPanel chatCard = makeCard();
         chatCard.setLayout(new BorderLayout(0, 10));
-        chatCard.setAlignmentX(Component.LEFT_ALIGNMENT);
-        chatCard.setMaximumSize(new Dimension(Integer.MAX_VALUE, 300));
+        chatCard.add(makeLabel("Chat", FONT_SUBTITLE, TEXT_DARK), BorderLayout.NORTH);
 
-        JPanel chatHeader = new JPanel(new BorderLayout());
-        chatHeader.setOpaque(false);
-        chatHeader.setMaximumSize(new Dimension(Integer.MAX_VALUE, 24));
-        JLabel chatTitle = new JLabel("Chat");
-        chatTitle.setFont(UIStyle.FONT_SUBTITLE);
-        chatTitle.setForeground(UIStyle.TEXT_DARK);
-        chatHeader.add(chatTitle, BorderLayout.WEST);
-
-        chatCard.add(chatHeader, BorderLayout.NORTH);
-
-        // Chat messages area
-        JPanel chatList = new JPanel();
+        JPanel chatList = new JPanel(new GridLayout(0, 1, 0, 6));
         chatList.setOpaque(false);
-        chatList.setLayout(new BoxLayout(chatList, BoxLayout.Y_AXIS));
-
         chatList.add(createChatMessage("Aim", "Ready for a shape challenge?", true));
-        chatList.add(Box.createVerticalStrut(6));
         chatList.add(createChatMessage("Player 2", "Let's go!", false));
-        chatList.add(Box.createVerticalStrut(6));
         chatList.add(createChatMessage("System", "Player 3 joined the room.", false));
 
-        JScrollPane scroll = new JScrollPane(chatList);
-        scroll.setOpaque(false);
-        scroll.getViewport().setOpaque(false);
+        JPanel chatSlot = new JPanel(new BorderLayout());
+        chatSlot.setOpaque(false);
+        chatSlot.add(chatList, BorderLayout.NORTH);
+
+        JScrollPane scroll = new JScrollPane(chatSlot);
         scroll.setBorder(null);
-        scroll.setPreferredSize(new Dimension(220, 110));
+        scroll.getViewport().setBackground(CARD_BG);
+        scroll.setPreferredSize(new Dimension(220, 130));
         chatCard.add(scroll, BorderLayout.CENTER);
 
-        // Chat input row
         JPanel inputRow = new JPanel(new BorderLayout(6, 0));
         inputRow.setOpaque(false);
-        inputRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
-        inputRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        JTextField chatInput = UIStyle.createStyledTextField("Type a message...");
-        UIStyle.ModernButton sendBtn = UIStyle.ModernButton.primary("Send");
-        sendBtn.setBorder(new EmptyBorder(6, 14, 6, 14));
-
-        inputRow.add(chatInput, BorderLayout.CENTER);
-        inputRow.add(sendBtn, BorderLayout.EAST);
+        inputRow.add(makeTextField("Type a message..."), BorderLayout.CENTER);
+        inputRow.add(makeButton("Send", true, 8, 14), BorderLayout.EAST);
         chatCard.add(inputRow, BorderLayout.SOUTH);
 
-        right.add(chatCard);
-        right.add(Box.createVerticalStrut(12));
+        // --- Card 2: Round settings ---
+        JPanel settingsCard = makeCard();
+        settingsCard.setLayout(new BorderLayout(0, 10));
+        settingsCard.add(makeLabel("Round settings", FONT_SUBTITLE, TEXT_DARK), BorderLayout.NORTH);
 
-        // Card 2: Round settings
-        UIStyle.CardPanel settingsCard = new UIStyle.CardPanel(16, UIStyle.CARD_BG, UIStyle.CARD_BORDER);
-        settingsCard.setLayout(new BoxLayout(settingsCard, BoxLayout.Y_AXIS));
-        settingsCard.setAlignmentX(Component.LEFT_ALIGNMENT);
-        settingsCard.setMaximumSize(new Dimension(Integer.MAX_VALUE, 180));
+        JPanel settingRows = new JPanel(new GridLayout(0, 1, 0, 6));
+        settingRows.setOpaque(false);
+        settingRows.add(createInfoRow("Target", "3 shapes"));
+        settingRows.add(createInfoRow("Round time", "30 sec"));
+        settingRows.add(createInfoRow("Rounds", "4"));
+        settingsCard.add(settingRows, BorderLayout.CENTER);
 
-        JLabel sTitle = new JLabel("Round settings");
-        sTitle.setFont(UIStyle.FONT_SUBTITLE);
-        sTitle.setForeground(UIStyle.TEXT_DARK);
-        sTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        sTitle.setMaximumSize(new Dimension(Integer.MAX_VALUE, 24));
-
-        settingsCard.add(sTitle);
-        settingsCard.add(Box.createVerticalStrut(10));
-        settingsCard.add(createInfoRow("Target", "3 shapes"));
-        settingsCard.add(Box.createVerticalStrut(6));
-        settingsCard.add(createInfoRow("Round time", "30 sec"));
-        settingsCard.add(Box.createVerticalStrut(6));
-        settingsCard.add(createInfoRow("Rounds", "4"));
-
-        right.add(settingsCard);
-        right.add(Box.createVerticalStrut(12));
-
-        // Leave Room Button
-        UIStyle.ModernButton leaveBtn = UIStyle.ModernButton.secondary("LEAVE ROOM");
-        leaveBtn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
-        leaveBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
+        // --- Leave button ---
+        JButton leaveBtn = makeButton("LEAVE ROOM", false, 10, 18);
         if (onLeaveAction != null) {
             leaveBtn.addActionListener(onLeaveAction);
         }
 
-        right.add(leaveBtn);
-        right.add(Box.createVerticalGlue());
+        // Each block keeps its natural height; leftover space stays empty at the bottom
+        JPanel leaveSlot = new JPanel(new BorderLayout());
+        leaveSlot.setOpaque(false);
+        leaveSlot.add(leaveBtn, BorderLayout.NORTH);
+
+        JPanel settingsAndLeave = new JPanel(new BorderLayout(0, 12));
+        settingsAndLeave.setOpaque(false);
+        settingsAndLeave.add(settingsCard, BorderLayout.NORTH);
+        settingsAndLeave.add(leaveSlot, BorderLayout.CENTER);
+
+        right.add(chatCard, BorderLayout.NORTH);
+        right.add(settingsAndLeave, BorderLayout.CENTER);
         return right;
     }
 
-    private JPanel createPlayerRow(String initial, Color avatarColor, String name, String status, Color bg, Color fg) {
+    // =====================================================================
+    //  Rows
+    // =====================================================================
+
+    private JPanel createPlayerRow(String initial, Color avatarColor, String name,
+                                   String status, Color bg, Color fg, Color border) {
         JPanel row = new JPanel(new BorderLayout(8, 0));
         row.setOpaque(false);
-        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 2));
-        left.setOpaque(false);
-        left.add(new UIStyle.AvatarCircle(initial, avatarColor, 26));
+        JPanel who = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        who.setOpaque(false);
+        who.add(makeAvatar(initial, avatarColor, 26));
+        who.add(makeLabel(name, FONT_BODY_BOLD, TEXT_DARK));
 
-        JLabel nameLabel = new JLabel(name);
-        nameLabel.setFont(UIStyle.FONT_BODY_BOLD);
-        nameLabel.setForeground(UIStyle.TEXT_DARK);
-        left.add(nameLabel);
-
-        row.add(left, BorderLayout.WEST);
-
-        UIStyle.PillBadge statusBadge = new UIStyle.PillBadge(status, bg, fg);
-        row.add(statusBadge, BorderLayout.EAST);
+        row.add(who, BorderLayout.WEST);
+        row.add(wrap(makeBadge(status, bg, fg, border), FlowLayout.RIGHT), BorderLayout.EAST);
         return row;
+    }
+
+    /** Solid-border slot for the next player to join. */
+    private JPanel createEmptySlot() {
+        JPanel slot = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 8));
+        slot.setOpaque(true);
+        slot.setBackground(EMPTY_SLOT_BG);
+        slot.setBorder(new LineBorder(EMPTY_SLOT_BORDER, 1));
+        slot.add(makeLabel("Waiting for player...", FONT_SMALL, TEXT_MUTED));
+        return slot;
     }
 
     private JPanel createInfoRow(String label, String value) {
         JPanel row = new JPanel(new BorderLayout());
         row.setOpaque(false);
-        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 20));
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        JLabel l = new JLabel(label);
-        l.setFont(UIStyle.FONT_BODY);
-        l.setForeground(UIStyle.TEXT_MUTED);
-
-        JLabel v = new JLabel(value);
-        v.setFont(UIStyle.FONT_BODY_BOLD);
-        v.setForeground(UIStyle.TEXT_DARK);
-
-        row.add(l, BorderLayout.WEST);
-        row.add(v, BorderLayout.EAST);
+        row.add(makeLabel(label, FONT_BODY, TEXT_MUTED), BorderLayout.WEST);
+        row.add(makeLabel(value, FONT_BODY_BOLD, TEXT_DARK), BorderLayout.EAST);
         return row;
     }
 
     private JPanel createChatMessage(String sender, String text, boolean isUser) {
-        JPanel msg = new JPanel();
+        JPanel msg = new JPanel(new GridLayout(2, 1, 0, 0));
         msg.setOpaque(false);
-        msg.setLayout(new BoxLayout(msg, BoxLayout.Y_AXIS));
-        msg.setAlignmentX(Component.LEFT_ALIGNMENT);
-        msg.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
-
-        JLabel s = new JLabel(sender);
-        s.setFont(UIStyle.FONT_SMALL_BOLD);
-        s.setForeground(isUser ? UIStyle.PRIMARY_BLUE : UIStyle.TEXT_MUTED);
-        s.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        JLabel t = new JLabel(text);
-        t.setFont(UIStyle.FONT_SMALL);
-        t.setForeground(UIStyle.TEXT_DARK);
-        t.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        msg.add(s);
-        msg.add(t);
+        msg.add(makeLabel(sender, FONT_SMALL_BOLD, isUser ? PRIMARY_BLUE : TEXT_MUTED));
+        msg.add(makeLabel(text, FONT_SMALL, TEXT_DARK));
         return msg;
     }
 
+    // =====================================================================
+    //  Small factories
+    // =====================================================================
+
+    private static JPanel makeCard() {
+        JPanel card = new JPanel();
+        card.setOpaque(true);
+        card.setBackground(CARD_BG);
+        card.setBorder(new CompoundBorder(
+            new LineBorder(CARD_BORDER, 1),
+            new EmptyBorder(16, 16, 16, 16)));
+        return card;
+    }
+
+    private static JLabel makeLabel(String text, Font font, Color color) {
+        JLabel label = new JLabel(text);
+        label.setFont(font);
+        label.setForeground(color);
+        return label;
+    }
+
+    /** Small label with fill + border. It hugs its text when wrapped (see wrap). */
+    private static JLabel makeBadge(String text, Color bg, Color fg, Color border) {
+        JLabel badge = new JLabel(text);
+        badge.setFont(FONT_SMALL_BOLD);
+        badge.setForeground(fg);
+        badge.setBackground(bg);
+        badge.setOpaque(true);
+        badge.setBorder(new CompoundBorder(
+            new LineBorder(border, 1),
+            new EmptyBorder(4, 10, 4, 10)));
+        return badge;
+    }
+
+    /**
+     * Square colored tile with the player's initial. The letter is centered by a
+     * FlowLayout: horizontally by the CENTER alignment, vertically by the gap.
+     */
+    private static JPanel makeAvatar(String text, Color bg, int size) {
+        JLabel letter = new JLabel(text);
+        letter.setFont(new Font("Segoe UI", Font.BOLD, size / 2));
+        letter.setForeground(Color.WHITE);
+
+        int gap = Math.max(0, (size - letter.getPreferredSize().height) / 2);
+        JPanel avatar = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, gap));
+        avatar.setOpaque(true);
+        avatar.setBackground(bg);
+        Dimension d = new Dimension(size, size);
+        avatar.setPreferredSize(d);
+        avatar.setMinimumSize(d);
+        avatar.setMaximumSize(d);
+        avatar.add(letter);
+        return avatar;
+    }
+
+    /** Lets a label keep its own size and sit left, center or right in its row. */
+    private static JPanel wrap(JLabel label, int alignment) {
+        JPanel holder = new JPanel(new FlowLayout(alignment, 0, 0));
+        holder.setOpaque(false);
+        holder.add(label);
+        return holder;
+    }
+
+    /**
+     * Plain JButton with a flat fill and thin border. The fill changes with
+     * hover / press through ButtonStateListener.
+     */
+    private static JButton makeButton(String text, boolean primary, int padV, int padH) {
+        Color normal = primary ? PRIMARY_BLUE : Color.WHITE;
+        Color hover = primary ? PRIMARY_HOVER : BG_LIGHT;
+        Color pressed = primary ? PRIMARY_PRESSED : SECONDARY_PRESSED;
+        Color edge = primary ? PRIMARY_BLUE : CARD_BORDER;
+
+        JButton button = new JButton(text);
+        button.setFont(FONT_BODY_BOLD);
+        button.setForeground(primary ? Color.WHITE : TEXT_DARK);
+        button.setBackground(normal);
+        button.setContentAreaFilled(false); // call first: some look and feels reset opaque when it changes
+        button.setOpaque(true);
+        button.setBorderPainted(true);
+        button.setBorder(new CompoundBorder(
+            new LineBorder(edge, 1),
+            new EmptyBorder(padV, padH, padV, padH)));
+        button.setFocusPainted(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setRolloverEnabled(true);
+        button.getModel().addChangeListener(new ButtonStateListener(button, normal, hover, pressed));
+        return button;
+    }
+
+    private static JTextField makeTextField(String text) {
+        JTextField field = new JTextField(text);
+        field.setBackground(Color.WHITE);
+        field.setForeground(TEXT_DARK);
+        field.setFont(FONT_BODY);
+        field.setBorder(new CompoundBorder(
+            new LineBorder(CARD_BORDER, 1),
+            new EmptyBorder(8, 12, 8, 12)));
+        return field;
+    }
+
+    // =====================================================================
+    //  Inner classes
+    // =====================================================================
+
+    /** Repaints a button in the right color whenever its model changes. */
+    private static class ButtonStateListener implements ChangeListener {
+        private final JButton button;
+        private final Color normal;
+        private final Color hover;
+        private final Color pressed;
+
+        ButtonStateListener(JButton button, Color normal, Color hover, Color pressed) {
+            this.button = button;
+            this.normal = normal;
+            this.hover = hover;
+            this.pressed = pressed;
+        }
+
+        @Override
+        public void stateChanged(ChangeEvent event) {
+            ButtonModel model = button.getModel();
+            if (model.isPressed() || model.isArmed()) {
+                button.setBackground(pressed);
+            } else if (model.isRollover()) {
+                button.setBackground(hover);
+            } else {
+                button.setBackground(normal);
+            }
+        }
+    }
+
+    // =====================================================================
+
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            JFrame frame = new JFrame("Guess What It Looks Like? - Game Lobby");
-            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            frame.setSize(1280, 750);
-            frame.setLocationRelativeTo(null);
-            frame.setContentPane(new LobbyScreen());
-            frame.setVisible(true);
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                JFrame frame = new JFrame("Guess What It Looks Like? - Game Lobby");
+                frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+                frame.setSize(1280, 750);
+                frame.setLocationRelativeTo(null);
+                frame.setContentPane(new LobbyScreen());
+                frame.setVisible(true);
+            }
         });
     }
 }
