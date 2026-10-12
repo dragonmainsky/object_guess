@@ -10,11 +10,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import javax.swing.*;
-import javax.swing.border.CompoundBorder;
-import javax.swing.border.EmptyBorder;
-import javax.swing.border.LineBorder;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
+import javax.swing.border.*;
+import javax.swing.event.*;
 
 /**
  * QuestionerScreen: Screen 3 - Questioner Mode where the player selects secret shapes.
