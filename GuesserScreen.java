@@ -3,9 +3,7 @@ import java.awt.event.*;
 import java.util.*;
 import java.util.List;
 import javax.swing.*;
-import javax.swing.border.CompoundBorder;
-import javax.swing.border.EmptyBorder;
-import javax.swing.border.LineBorder;
+import javax.swing.border.*;
 
 /**
  * GuesserScreen: Screen 4 - Guesser Mode where players try to guess the secret shapes.
