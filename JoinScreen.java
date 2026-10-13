@@ -316,10 +316,6 @@ public class JoinScreen extends JPanel {
     // =====================================================================
 
     private void onCreateGame() {
-        if (listener == null) {
-            showStatus("No listener attached (preview mode).", true);
-            return;
-        }
         String name = getPlayerName();
         if (name.isEmpty()) {
             showStatus("Enter your player name first.", true);
@@ -339,10 +335,6 @@ public class JoinScreen extends JPanel {
     }
 
     private void onJoinGame() {
-        if (listener == null) {
-            showStatus("No listener attached (preview mode).", true);
-            return;
-        }
         String name = getPlayerName();
         String ip = getServerIp();
 
