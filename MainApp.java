@@ -150,16 +150,11 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
             }
         );
 
-        // Round result: no buttons any more. Its 10s countdown only reports when it reaches
-        // zero; the server owns the actual switch to the next round (or the final scoreboard).
-        roundResultScreen = new RoundResultScreen(
-            new ActionListener() {
-                @Override
-                public void actionPerformed(ActionEvent event) {
-                    onRoundCountdownFinished();
-                }
-            }
-        );
+        // Round result: no buttons any more. Its countdown is display-only - the server is the
+        // single source of truth for when the tournament is over, and only SHOW_SCOREBOARD opens
+        // the final scoreboard (see handleShowScoreboard). A stale countdown from a previous round
+        // must never be allowed to decide anything, so no callback is wired here.
+        roundResultScreen = new RoundResultScreen(null);
 
         // Add to CardPanel
         cardPanel.add(joinScreen, SCREEN_JOIN);
@@ -520,6 +515,10 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         // Fourth field: the random shape count the server drew for this round (1-5).
         int requiredShapes = parseInt(arg(args, 3), GameServer.MIN_SHAPES);
 
+        // A new round is starting, so the previous round-result countdown is finished with.
+        // Cancelling it here stops a late tick from a previous round's screen firing later.
+        roundResultScreen.stopCountdown();
+
         currentRound = round;
         knownTotalRounds = total;
         roundInProgress = true;
@@ -638,23 +637,14 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
 
     /**
      * The server says the tournament is over (sent once, right after the last round's
-     * intermission): open the final standings for every player at the same moment.
+     * intermission): open the final standings for every player at the same moment. This is the
+     * ONLY place the scoreboard is opened at the end of a game.
      */
     private void handleShowScoreboard() {
+        roundResultScreen.stopCountdown();
         roundInProgress = false;
         pushScoreboards();
         showScreen(SCREEN_SCOREBOARD);
-    }
-
-    /**
-     * The round-result countdown reached zero. On the final round we open the scoreboard;
-     * between rounds we stay put, because the server sends ROUND_INFO at the same moment and
-     * that is what actually starts the next round.
-     */
-    private void onRoundCountdownFinished() {
-        if (knownTotalRounds > 0 && currentRound >= knownTotalRounds) {
-            showScreen(SCREEN_SCOREBOARD);
-        }
     }
 
     private void handleServerClosed() {

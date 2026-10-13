@@ -46,13 +46,16 @@ public class GameServer {
     // ===== Configuration =====
     public static final int DEFAULT_PORT = 5000;
     public static final int MIN_PLAYERS = 2;      // host + 1 other keeps LAN testing possible
-    public static final int MIN_SHAPES = 1;       // the secret shape count is drawn once per cycle (see nextRound)...
+    public static final int MIN_SHAPES = 1;       // each cycle draws one shape count...
     public static final int MAX_SHAPES = 5;       // ...randomly between these two values, inclusive
     public static final int ROUND_SECONDS = 30;         // guessing window, opens when the secret is locked
     public static final int BONUS_WINDOW_SECONDS = 10;  // "+2 when every shape is right within 10 sec"
     public static final int INTERMISSION_SECONDS = 10;  // round-result countdown before the next round
     public static final int MAX_NAME_LENGTH = 16;
-    /** Rounds in one tournament: every player is the questioner exactly twice. */
+    /**
+     * Number of cycles in one tournament. One cycle is one full pass through the players:
+     * everybody is the questioner exactly once. totalRounds = players * ROUNDS_PER_PLAYER.
+     */
     public static final int ROUNDS_PER_PLAYER = 2;
 
     /** The eight shapes the game knows about. Names must match the files in shape/. */
@@ -160,7 +163,7 @@ public class GameServer {
     private String questioner;
     private String[] secret;
     private boolean secretLocked;
-    private int expectedShapes;           // random 1..MAX_SHAPES, drawn at the start of every round
+    private int expectedShapes;           // shape count for the current cycle (1..MAX_SHAPES)
     private boolean tournamentActive;     // whole tournament in progress (blocks new joins)
     private boolean roundRunning;         // one round in progress
     private boolean roundEnded;           // guards against ending the same round twice
@@ -168,6 +171,15 @@ public class GameServer {
     private RoundTimerThread roundTimerThread;
     private Thread intermissionThread;    // sleeps INTERMISSION_SECONDS, then starts the next round
     private final Random random = new Random();
+
+    // ===== Per-cycle questioner rotation =====
+    // A cycle is one full pass through the players: everyone is questioner exactly once.
+    // cycleSize is the player count at the moment the tournament starts, so the cycle boundaries
+    // stay put even if somebody leaves mid-tournament. All of these are guarded by lock.
+    private int cycleSize;                // players per cycle, locked at tournament start
+    private int cycleIndex = -1;          // index of the cycle being played, -1 = none yet
+    private int lastCycleShapes;          // shape count used by the previous cycle, 0 = none yet
+    private final List<String> cycleOrder = new ArrayList<>();  // who still has to be questioner
 
     public GameServer() {
         this(DEFAULT_PORT);
@@ -493,6 +505,7 @@ public class GameServer {
             if (newTournament) {
                 totalRounds = clients.size() * ROUNDS_PER_PLAYER;
                 resetScoresLocked();
+                cycleSize = clients.size();
                 tournamentActive = true;
                 round = 0;
             }
@@ -555,6 +568,12 @@ public class GameServer {
         secret = null;
         secretLocked = false;
         expectedShapes = 0;
+        // Forget the cycle rotation too: a fresh tournament draws its own shape counts and order
+        // (a new tournament is allowed to reuse a count the previous tournament ended on).
+        cycleSize = 0;
+        cycleIndex = -1;
+        lastCycleShapes = 0;
+        cycleOrder.clear();
         guesses.clear();
         guessTimes.clear();
         correctCounts.clear();
@@ -579,15 +598,6 @@ public class GameServer {
             roundRunning = true;
             secret = null;
             secretLocked = false;
-            // Questioner order: every player takes one turn, then the order starts over.
-            // index == 0 is the first round of a new cycle.
-            int index = (round - 1) % clients.size();
-            // The secret count is drawn once per cycle and reused for every round of that cycle,
-            // so every player is questioner at the same difficulty and all guessers face the same
-            // count. The questioner and every guesser must end up with exactly this many shapes.
-            if (index == 0 || expectedShapes < MIN_SHAPES) {
-                expectedShapes = MIN_SHAPES + random.nextInt(MAX_SHAPES - MIN_SHAPES + 1);
-            }
             guesses.clear();
             guessTimes.clear();
             deltas.clear();
@@ -595,10 +605,25 @@ public class GameServer {
             bonusFlags.clear();
             // roundStartMillis is stamped when the secret is locked: that is when guessing begins.
 
-            // With totalRounds = players * 2, index (round-1) % players hands every player
-            // exactly two turns as the questioner before the tournament ends.
-            questioner = clients.get(index).playerName;
-            selectedQuestioner = questioner;
+            // A cycle is one full pass through the players. A new cycle gets a freshly shuffled
+            // questioner order and a shape count that differs from the previous cycle's, and every
+            // round of the cycle shares that same count. cycleSize was locked when the tournament
+            // started, so (round-1)/cycleSize stays a stable cycle boundary even if a player leaves.
+            int cycle = (cycleSize > 0) ? (round - 1) / cycleSize : 0;
+            if (cycle != cycleIndex) {
+                startNewCycleLocked(cycle);
+            }
+            expectedShapes = lastCycleShapes;   // every round of this cycle uses the same count
+
+            // Questioners are stored by name, so a player leaving simply drops out of the order.
+            selectedQuestioner = takeNextQuestionerLocked();
+            if (selectedQuestioner == null) {
+                // No players left to ask: stop the tournament cleanly.
+                tournamentActive = false;
+                roundRunning = false;
+                return;
+            }
+            questioner = selectedQuestioner;
             currentRound = round;
             lockedTotal = totalRounds;
             shapesThisRound = expectedShapes;
@@ -614,6 +639,60 @@ public class GameServer {
                 String.valueOf(lockedTotal),
                 selectedQuestioner,
                 String.valueOf(shapesThisRound));
+    }
+
+    /**
+     * Starts a new cycle: draws a shape count for it (never the same as the previous cycle) and
+     * builds a freshly shuffled questioner order from the players currently in the room.
+     * Caller must hold the lock.
+     */
+    private void startNewCycleLocked(int cycle) {
+        cycleIndex = cycle;
+        lastCycleShapes = drawCycleShapeCountLocked();
+        cycleOrder.clear();
+        List<String> names = new ArrayList<>();
+        for (ClientHandler client : clients) {
+            names.add(client.playerName);
+        }
+        Collections.shuffle(names, random);
+        cycleOrder.addAll(names);
+    }
+
+    /**
+     * A shape count in [MIN_SHAPES, MAX_SHAPES] that is different from the previous cycle's count
+     * whenever that is possible. Caller must hold the lock.
+     */
+    private int drawCycleShapeCountLocked() {
+        int range = MAX_SHAPES - MIN_SHAPES + 1;
+        if (range < 2) {
+            return MIN_SHAPES; // fallback: not enough distinct values to avoid a repeat, never crash
+        }
+        int count = MIN_SHAPES + random.nextInt(range);
+        if (count == lastCycleShapes) {
+            // Step to another value in [MIN_SHAPES, MAX_SHAPES], skipping the previous one.
+            int offset = count - MIN_SHAPES;
+            offset = (offset + 1 + random.nextInt(range - 1)) % range;
+            count = MIN_SHAPES + offset;
+        }
+        return count;
+    }
+
+    /**
+     * Pops the next questioner from this cycle's shuffled order, skipping players who have left.
+     * If the whole order has already been used (everyone queued has left) it falls back to any
+     * present player, so a round can always start. Caller must hold the lock.
+     */
+    private String takeNextQuestionerLocked() {
+        while (!cycleOrder.isEmpty()) {
+            String candidate = cycleOrder.remove(0);
+            if (findByNameLocked(candidate) != null) {
+                return candidate;
+            }
+        }
+        if (!clients.isEmpty()) {
+            return clients.get(0).playerName;
+        }
+        return null;
     }
 
     /** The questioner left with enough players still in: replay the round with the next questioner. */
