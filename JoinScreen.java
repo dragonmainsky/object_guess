@@ -316,6 +316,13 @@ public class JoinScreen extends JPanel {
     // =====================================================================
 
     private void onCreateGame() {
+<<<<<<< HEAD
+=======
+        if (listener == null) {
+            showStatus("Preview mode - run MainApp to play.");
+            return;
+        }
+>>>>>>> 0a6e9615cc10fd26bf03c5f0265a2d4473e67e1d
         String name = getPlayerName();
         if (name.isEmpty()) {
             showStatus("Enter your player name first.", true);
@@ -335,6 +342,13 @@ public class JoinScreen extends JPanel {
     }
 
     private void onJoinGame() {
+<<<<<<< HEAD
+=======
+        if (listener == null) {
+            showStatus("Preview mode - run MainApp to play.");
+            return;
+        }
+>>>>>>> 0a6e9615cc10fd26bf03c5f0265a2d4473e67e1d
         String name = getPlayerName();
         String ip = getServerIp();
 
