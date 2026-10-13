@@ -39,10 +39,10 @@ public class GuesserScreen extends JPanel {
     private static final Color TEXT_DARK = new Color(15, 23, 42), TEXT_MUTED = new Color(100, 116, 139);
     private static final Color EMPTY_SLOT_BG = new Color(248, 250, 252), EMPTY_SLOT_BORDER = new Color(203, 213, 225), KEYCAP_TEXT = new Color(51, 65, 85);
 
-    private static final Font FONT_TITLE = new Font("Segoe UI", Font.BOLD, 18), FONT_SUBTITLE = new Font("Segoe UI", Font.BOLD, 14);
-    private static final Font FONT_BODY = new Font("Segoe UI", Font.PLAIN, 13), FONT_BODY_BOLD = new Font("Segoe UI", Font.BOLD, 13);
-    private static final Font FONT_SMALL = new Font("Segoe UI", Font.PLAIN, 11), FONT_SMALL_BOLD = new Font("Segoe UI", Font.BOLD, 11);
-    private static final Font FONT_KEYCAP = new Font("Segoe UI", Font.BOLD, 9);
+    private static final Font FONT_TITLE = new Font("Tahoma", Font.BOLD, 18), FONT_SUBTITLE = new Font("Tahoma", Font.BOLD, 14);
+    private static final Font FONT_BODY = new Font("Tahoma", Font.PLAIN, 13), FONT_BODY_BOLD = new Font("Tahoma", Font.BOLD, 13);
+    private static final Font FONT_SMALL = new Font("Tahoma", Font.PLAIN, 11), FONT_SMALL_BOLD = new Font("Tahoma", Font.BOLD, 11);
+    private static final Font FONT_KEYCAP = new Font("Tahoma", Font.BOLD, 9);
 
     // ==================== State ====================
     private final List<String> guessedShapes = new ArrayList<>();   // empty at the start of every round
@@ -814,7 +814,7 @@ public class GuesserScreen extends JPanel {
             g.fillRect(x, y, size, size);
             g.setColor(new Color(70, 90, 120));
             g.drawRect(x, y, size - 1, size - 1);
-            g.setFont(new Font("Segoe UI", Font.BOLD, Math.max(10, size / 6)));
+            g.setFont(new Font("Tahoma", Font.BOLD, Math.max(10, size / 6)));
             FontMetrics fm = g.getFontMetrics();
             String text = name.length() > 6 ? name.substring(0, 6) : name;
             g.drawString(text, x + (size - fm.stringWidth(text)) / 2, y + (size - fm.getHeight()) / 2 + fm.getAscent());
@@ -871,7 +871,7 @@ public class GuesserScreen extends JPanel {
 
     /** Square avatar tile with the player's initial. */
     private static JLabel createAvatar(String letter, Color bg, int size) {
-        JLabel avatar = label(letter, new Font("Segoe UI", Font.BOLD, size / 2), Color.WHITE, SwingConstants.CENTER);
+        JLabel avatar = label(letter, new Font("Tahoma", Font.BOLD, size / 2), Color.WHITE, SwingConstants.CENTER);
         avatar.setBackground(bg);
         avatar.setOpaque(true);
         avatar.setPreferredSize(new Dimension(size, size));

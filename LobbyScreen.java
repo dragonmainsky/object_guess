@@ -59,13 +59,13 @@ public class LobbyScreen extends JPanel {
     private static final Color DISABLED_BG       = new Color(226, 232, 240);
 
     // ===== Fonts =====
-    private static final Font FONT_TITLE_LARGE = new Font("Segoe UI", Font.BOLD, 24);
-    private static final Font FONT_TITLE       = new Font("Segoe UI", Font.BOLD, 18);
-    private static final Font FONT_SUBTITLE    = new Font("Segoe UI", Font.BOLD, 14);
-    private static final Font FONT_BODY        = new Font("Segoe UI", Font.PLAIN, 13);
-    private static final Font FONT_BODY_BOLD   = new Font("Segoe UI", Font.BOLD, 13);
-    private static final Font FONT_SMALL       = new Font("Segoe UI", Font.PLAIN, 11);
-    private static final Font FONT_SMALL_BOLD  = new Font("Segoe UI", Font.BOLD, 11);
+    private static final Font FONT_TITLE_LARGE = new Font("Tahoma", Font.BOLD, 24);
+    private static final Font FONT_TITLE       = new Font("Tahoma", Font.BOLD, 18);
+    private static final Font FONT_SUBTITLE    = new Font("Tahoma", Font.BOLD, 14);
+    private static final Font FONT_BODY        = new Font("Tahoma", Font.PLAIN, 13);
+    private static final Font FONT_BODY_BOLD   = new Font("Tahoma", Font.BOLD, 13);
+    private static final Font FONT_SMALL       = new Font("Tahoma", Font.PLAIN, 11);
+    private static final Font FONT_SMALL_BOLD  = new Font("Tahoma", Font.BOLD, 11);
 
     // ===== Sizes =====
     private static final int SIDE_WIDTH = 320;
@@ -771,7 +771,7 @@ public class LobbyScreen extends JPanel {
         avatar.setOpaque(true);
         avatar.setBackground(bg);
         avatar.setForeground(Color.WHITE);
-        avatar.setFont(new Font("Segoe UI", Font.BOLD, size / 2));
+        avatar.setFont(new Font("Tahoma", Font.BOLD, size / 2));
         Dimension d = new Dimension(size, size);
         avatar.setPreferredSize(d);
         avatar.setMinimumSize(d);

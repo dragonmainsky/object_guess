@@ -65,13 +65,13 @@ public class RoundResultScreen extends JPanel {
     private static final Color PLACEHOLDER_BG = new Color(220, 230, 242);
 
     // ===== Fonts =====
-    private static final Font FONT_TITLE_LARGE = new Font("Segoe UI", Font.BOLD, 24);
-    private static final Font FONT_TITLE       = new Font("Segoe UI", Font.BOLD, 18);
-    private static final Font FONT_SUBTITLE    = new Font("Segoe UI", Font.BOLD, 14);
-    private static final Font FONT_BODY        = new Font("Segoe UI", Font.PLAIN, 13);
-    private static final Font FONT_BODY_BOLD   = new Font("Segoe UI", Font.BOLD, 13);
-    private static final Font FONT_SMALL       = new Font("Segoe UI", Font.PLAIN, 11);
-    private static final Font FONT_SMALL_BOLD  = new Font("Segoe UI", Font.BOLD, 11);
+    private static final Font FONT_TITLE_LARGE = new Font("Tahoma", Font.BOLD, 24);
+    private static final Font FONT_TITLE       = new Font("Tahoma", Font.BOLD, 18);
+    private static final Font FONT_SUBTITLE    = new Font("Tahoma", Font.BOLD, 14);
+    private static final Font FONT_BODY        = new Font("Tahoma", Font.PLAIN, 13);
+    private static final Font FONT_BODY_BOLD   = new Font("Tahoma", Font.BOLD, 13);
+    private static final Font FONT_SMALL       = new Font("Tahoma", Font.PLAIN, 11);
+    private static final Font FONT_SMALL_BOLD  = new Font("Tahoma", Font.BOLD, 11);
 
     // ===== Sizes =====
     private static final int SECRET_ICON = 110;
@@ -500,7 +500,7 @@ public class RoundResultScreen extends JPanel {
         score.add(buildDeltaBadge(delta));
 
         JLabel totalLabel = new JLabel(String.valueOf(total));
-        totalLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        totalLabel.setFont(new Font("Tahoma", Font.BOLD, 16));
         totalLabel.setPreferredSize(new Dimension(46, 24));
         totalLabel.setHorizontalAlignment(JLabel.RIGHT);
         if (total > 0) {
@@ -573,7 +573,7 @@ public class RoundResultScreen extends JPanel {
 
     private static JLabel buildAvatar(String initial, Color color, int size) {
         JLabel avatar = new JLabel(initial, JLabel.CENTER);
-        avatar.setFont(new Font("Segoe UI", Font.BOLD, size / 2));
+        avatar.setFont(new Font("Tahoma", Font.BOLD, size / 2));
         avatar.setForeground(Color.WHITE);
         avatar.setBackground(color);
         avatar.setOpaque(true);

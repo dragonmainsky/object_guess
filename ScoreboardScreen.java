@@ -61,11 +61,11 @@ public class ScoreboardScreen extends JPanel {
     private static final Color TEXT_LIGHT     = new Color(148, 163, 184);
 
     // ===================== ฟอนต์ =====================
-    private static final Font FONT_TITLE_LARGE = new Font("Segoe UI", Font.BOLD, 24);
-    private static final Font FONT_BODY        = new Font("Segoe UI", Font.PLAIN, 13);
-    private static final Font FONT_BODY_BOLD   = new Font("Segoe UI", Font.BOLD, 13);
-    private static final Font FONT_SMALL       = new Font("Segoe UI", Font.PLAIN, 11);
-    private static final Font FONT_SMALL_BOLD  = new Font("Segoe UI", Font.BOLD, 11);
+    private static final Font FONT_TITLE_LARGE = new Font("Tahoma", Font.BOLD, 24);
+    private static final Font FONT_BODY        = new Font("Tahoma", Font.PLAIN, 13);
+    private static final Font FONT_BODY_BOLD   = new Font("Tahoma", Font.BOLD, 13);
+    private static final Font FONT_SMALL       = new Font("Tahoma", Font.PLAIN, 11);
+    private static final Font FONT_SMALL_BOLD  = new Font("Tahoma", Font.BOLD, 11);
 
     // โฟลเดอร์ที่เก็บไฟล์ PNG ทั้งหมด: <โฟลเดอร์โปรเจกต์>/shape
     private static final String SHAPE_DIR = System.getProperty("user.dir") + "/shape/";
@@ -214,7 +214,7 @@ public class ScoreboardScreen extends JPanel {
         gameOverBadge = buildBadge("GAME OVER", BG_DARK_HEADER, Color.WHITE, null, 4, 14);
 
         congratsLabel = new JLabel("Congratulations, " + playerNames[0] + "!", JLabel.CENTER);
-        congratsLabel.setFont(new Font("Segoe UI", Font.BOLD, 26));
+        congratsLabel.setFont(new Font("Tahoma", Font.BOLD, 26));
         congratsLabel.setForeground(TEXT_DARK);
 
         JLabel sub = new JLabel(
@@ -250,7 +250,7 @@ public class ScoreboardScreen extends JPanel {
         } else {
             // ไม่เจอไฟล์ ใช้ข้อความแทน
             trophyLabel = new JLabel("TROPHY", JLabel.CENTER);
-            trophyLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
+            trophyLabel.setFont(new Font("Tahoma", Font.BOLD, 20));
             trophyLabel.setForeground(GOLD_TEXT);
         }
         trophy.add(trophyLabel, BorderLayout.CENTER);
@@ -270,7 +270,7 @@ public class ScoreboardScreen extends JPanel {
         fsLabel.setForeground(BLUE_SOFT_TEXT);
 
         finalScoreValue = new JLabel(String.valueOf(playerScores[0]), JLabel.CENTER);
-        finalScoreValue.setFont(new Font("Segoe UI", Font.BOLD, 36));
+        finalScoreValue.setFont(new Font("Tahoma", Font.BOLD, 36));
         finalScoreValue.setForeground(Color.WHITE);
 
         JLabel fsPoints = new JLabel("POINTS", JLabel.CENTER);
@@ -458,7 +458,7 @@ public class ScoreboardScreen extends JPanel {
 
         // คะแนน
         JLabel scoreLabel = new JLabel(String.valueOf(score), JLabel.RIGHT);
-        scoreLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        scoreLabel.setFont(new Font("Tahoma", Font.BOLD, 18));
         scoreLabel.setForeground(scoreColor);
         scoreLabel.setPreferredSize(new Dimension(50, 26));
         row.add(scoreLabel, BorderLayout.EAST);
@@ -536,7 +536,7 @@ public class ScoreboardScreen extends JPanel {
     /** avatar สี่เหลี่ยมจัตุรัสพื้นสี ตัวอักษรขาวอยู่กลาง (แทน AvatarCircle) */
     private JLabel buildAvatar(String initial, Color color, int size) {
         JLabel avatar = new JLabel(initial, JLabel.CENTER);
-        avatar.setFont(new Font("Segoe UI", Font.BOLD, size / 2));
+        avatar.setFont(new Font("Tahoma", Font.BOLD, size / 2));
         avatar.setForeground(Color.WHITE);
         avatar.setBackground(color);
         avatar.setOpaque(true);

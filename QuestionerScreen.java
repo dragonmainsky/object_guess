@@ -29,9 +29,9 @@ public class QuestionerScreen extends JPanel {
     private static final Color TEXT_DARK = new Color(15, 23, 42), TEXT_MUTED = new Color(100, 116, 139);
     private static final Color CANVAS_BG = new Color(250, 252, 255), CANVAS_LINE = new Color(226, 232, 240), STEP_INACTIVE = new Color(203, 213, 225);
 
-    private static final Font FONT_TITLE = new Font("Segoe UI", Font.BOLD, 18), FONT_SUBTITLE = new Font("Segoe UI", Font.BOLD, 14);
-    private static final Font FONT_BODY = new Font("Segoe UI", Font.PLAIN, 13), FONT_BODY_BOLD = new Font("Segoe UI", Font.BOLD, 13);
-    private static final Font FONT_SMALL = new Font("Segoe UI", Font.PLAIN, 11), FONT_SMALL_BOLD = new Font("Segoe UI", Font.BOLD, 11);
+    private static final Font FONT_TITLE = new Font("Tahoma", Font.BOLD, 18), FONT_SUBTITLE = new Font("Tahoma", Font.BOLD, 14);
+    private static final Font FONT_BODY = new Font("Tahoma", Font.PLAIN, 13), FONT_BODY_BOLD = new Font("Tahoma", Font.BOLD, 13);
+    private static final Font FONT_SMALL = new Font("Tahoma", Font.PLAIN, 11), FONT_SMALL_BOLD = new Font("Tahoma", Font.BOLD, 11);
 
     // ===== Sizes =====
     private static final int SMALL_ICON = 36;   // picture inside a picker card
@@ -730,7 +730,7 @@ public class QuestionerScreen extends JPanel {
 
     /** Square colored label with a letter or number, locked to size x size. */
     private static JLabel makeAvatar(String text, Color bg, int size) {
-        JLabel avatar = label(text, new Font("Segoe UI", Font.BOLD, size / 2), Color.WHITE, SwingConstants.CENTER);
+        JLabel avatar = label(text, new Font("Tahoma", Font.BOLD, size / 2), Color.WHITE, SwingConstants.CENTER);
         avatar.setOpaque(true);
         avatar.setBackground(bg);
         Dimension d = new Dimension(size, size);
@@ -802,7 +802,7 @@ public class QuestionerScreen extends JPanel {
             g.fillRect(x, y, size, size);
             g.setColor(new Color(70, 90, 120));
             g.drawRect(x, y, size - 1, size - 1);
-            g.setFont(new Font("Segoe UI", Font.BOLD, Math.max(10, size / 6)));
+            g.setFont(new Font("Tahoma", Font.BOLD, Math.max(10, size / 6)));
             FontMetrics fm = g.getFontMetrics();
             String text = label.length() > 6 ? label.substring(0, 6) : label;
             g.drawString(text, x + (size - fm.stringWidth(text)) / 2, y + (size - fm.getHeight()) / 2 + fm.getAscent());
