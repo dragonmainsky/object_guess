@@ -1,16 +1,13 @@
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Dimension;
-import java.awt.EventQueue;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Graphics;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Image;
-import java.awt.Insets;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -24,14 +21,14 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
-import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 
 /**
  * JoinScreen: Screen 1 - Server connection and player join screen.
- * 
+ *
  * Standard AWT/Swing implementation without Graphics2D or GradientPaint.
+ * Layouts: BorderLayout, FlowLayout and GridLayout only.
  * Uses Toolkit to load images from the "shape" folder.
  */
 public class JoinScreen extends JPanel {
@@ -85,32 +82,6 @@ public class JoinScreen extends JPanel {
         }
     }
 
-    /** Card panel with rounded corners using standard Graphics. */
-    private static class RoundedPanel extends JPanel {
-        private final int radius;
-        private final Color fill;
-        private final Color border;
-
-        RoundedPanel(int radius, Color fill, Color border) {
-            this.radius = radius;
-            this.fill = fill;
-            this.border = border;
-            setOpaque(false);
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            super.paintComponent(g);
-            int w = getWidth() - 1;
-            int h = getHeight() - 1;
-
-            g.setColor(fill);
-            g.fillRoundRect(0, 0, w, h, radius * 2, radius * 2);
-            g.setColor(border);
-            g.drawRoundRect(0, 0, w, h, radius * 2, radius * 2);
-        }
-    }
-
     public JoinScreen() {
         this(null);
     }
@@ -142,8 +113,8 @@ public class JoinScreen extends JPanel {
 
         leftBrandPanel.add(brandHeader, BorderLayout.NORTH);
 
-        // Center: logo, title, description
-        JPanel brandCenter = new JPanel(new GridBagLayout());
+        // Center: logo, title, description (empty first/last rows keep the group vertically centered)
+        JPanel brandCenter = new JPanel(new GridLayout(5, 1, 0, 8));
         brandCenter.setOpaque(false);
 
         JLabel brandTitle = new JLabel("<html>Guess What<br>It Looks Like?</html>");
@@ -154,42 +125,13 @@ public class JoinScreen extends JPanel {
         brandDesc.setFont(new Font("Segoe UI", Font.PLAIN, 15));
         brandDesc.setForeground(new Color(186, 203, 236));
 
-        JPanel brandLogo = makeImageView("logo.png", 140, 140);
+        JPanel brandLogo = makeImageView("logo.png", 100, 100);
 
-        JPanel topSpacer = new JPanel();
-        topSpacer.setOpaque(false);
-        JPanel bottomSpacer = new JPanel();
-        bottomSpacer.setOpaque(false);
-
-        GridBagConstraints c = new GridBagConstraints();
-        c.gridx = 0;
-        c.weightx = 1;
-        c.anchor = GridBagConstraints.WEST;
-
-        // Spacers for vertical centering
-        c.gridy = 0;
-        c.weighty = 1;
-        c.fill = GridBagConstraints.BOTH;
-        brandCenter.add(topSpacer, c);
-
-        c.gridy = 1;
-        c.weighty = 0;
-        c.fill = GridBagConstraints.NONE;
-        c.insets = new Insets(0, 0, 24, 0);
-        brandCenter.add(brandLogo, c);
-
-        c.gridy = 2;
-        c.insets = new Insets(0, 0, 12, 0);
-        brandCenter.add(brandTitle, c);
-
-        c.gridy = 3;
-        c.insets = new Insets(0, 0, 0, 0);
-        brandCenter.add(brandDesc, c);
-
-        c.gridy = 4;
-        c.weighty = 1;
-        c.fill = GridBagConstraints.BOTH;
-        brandCenter.add(bottomSpacer, c);
+        brandCenter.add(makeSpacer());
+        brandCenter.add(leftAligned(brandLogo));
+        brandCenter.add(leftAligned(brandTitle));
+        brandCenter.add(leftAligned(brandDesc));
+        brandCenter.add(makeSpacer());
 
         leftBrandPanel.add(brandCenter, BorderLayout.CENTER);
 
@@ -213,61 +155,68 @@ public class JoinScreen extends JPanel {
     }
 
     private JPanel buildRightPanel(ActionListener onJoinAction) {
-        JPanel rightWrapper = new JPanel(new GridBagLayout());
+        // Margin around the card keeps it centered; the card scales with the window
+        JPanel rightWrapper = new JPanel(new GridLayout(1, 1));
         rightWrapper.setBackground(BG_LIGHT);
+        rightWrapper.setBorder(new EmptyBorder(40, 60, 40, 60));
 
-        RoundedPanel formCard = new RoundedPanel(20, Color.WHITE, CARD_BORDER);
-        formCard.setLayout(new GridBagLayout());
-        formCard.setPreferredSize(new Dimension(460, 520));
-        formCard.setBorder(new EmptyBorder(36, 36, 36, 36));
+        JPanel formContent = new JPanel(new BorderLayout());
+        formContent.setOpaque(false);
 
-        int row = 0;
+        // NORTH: header text
+        JPanel header = new JPanel(new GridLayout(3, 1, 0, 4));
+        header.setOpaque(false);
+        header.setBorder(new EmptyBorder(0, 0, 24, 0));
 
-        // Header text
         JLabel joinServerTag = new JLabel("JOIN SERVER");
         joinServerTag.setFont(FONT_SMALL_BOLD);
         joinServerTag.setForeground(PRIMARY_BLUE);
-        formCard.add(joinServerTag, rowConstraints(row, 6));
-        row++;
+        header.add(joinServerTag);
 
         JLabel formTitle = new JLabel("Find your party");
         formTitle.setFont(FONT_TITLE_LARGE);
         formTitle.setForeground(TEXT_DARK);
-        formCard.add(formTitle, rowConstraints(row, 4));
-        row++;
+        header.add(formTitle);
 
         JLabel formSub = new JLabel("Enter your name and the host address to join a game.");
         formSub.setFont(FONT_BODY);
         formSub.setForeground(TEXT_MUTED);
-        formCard.add(formSub, rowConstraints(row, 24));
-        row++;
+        header.add(formSub);
 
-        // Inputs: Name, Server IP
+        formContent.add(header, BorderLayout.NORTH);
+
+        // CENTER: inputs (Name, Server IP)
         String[] labels = {"Name", "Server IP"};
         String[] defaults = {"Aim", FALLBACK_IP};
         JTextField[] fields = new JTextField[labels.length];
+
+        JPanel inputs = new JPanel(new GridLayout(labels.length, 1, 0, 16));
+        inputs.setOpaque(false);
 
         for (int i = 0; i < labels.length; i++) {
             JLabel label = new JLabel(labels[i]);
             label.setFont(FONT_BODY_BOLD);
             label.setForeground(TEXT_DARK);
-            formCard.add(label, rowConstraints(row, 6));
-            row++;
+            label.setVerticalAlignment(JLabel.BOTTOM);
 
             fields[i] = makeField(defaults[i]);
+            JPanel fieldBox = framed(fields[i], Color.WHITE, CARD_BORDER, 0, 12, 0, 12);
+            fieldBox.setPreferredSize(new Dimension(100, 42));
 
-            int gapBelow = (i < labels.length - 1) ? 16 : 18;
-            formCard.add(fields[i], rowConstraints(row, gapBelow));
-            row++;
+            JPanel block = new JPanel(new GridLayout(2, 1, 0, 6));
+            block.setOpaque(false);
+            block.add(label);
+            block.add(fieldBox);
+            inputs.add(block);
         }
         nameField = fields[0];
         ipField = fields[1];
 
-        // Status banner
-        RoundedPanel statusBanner = new RoundedPanel(10, WARNING_BG, WARNING_BORDER);
-        statusBanner.setLayout(new BorderLayout());
-        statusBanner.setBorder(new EmptyBorder(6, 12, 6, 12));
-        statusBanner.setPreferredSize(new Dimension(100, 38));
+        formContent.add(inputs, BorderLayout.CENTER);
+
+        // SOUTH: status banner + action buttons
+        JPanel bannerContent = new JPanel(new BorderLayout());
+        bannerContent.setOpaque(false);
 
         JLabel playersCount = new JLabel("Players: 0 / 3 minimum");
         playersCount.setFont(FONT_SMALL_BOLD);
@@ -277,13 +226,12 @@ public class JoinScreen extends JPanel {
         waitingBadge.setFont(FONT_SMALL_BOLD);
         waitingBadge.setForeground(WARNING_TEXT);
 
-        statusBanner.add(playersCount, BorderLayout.WEST);
-        statusBanner.add(waitingBadge, BorderLayout.EAST);
+        bannerContent.add(playersCount, BorderLayout.WEST);
+        bannerContent.add(waitingBadge, BorderLayout.EAST);
 
-        formCard.add(statusBanner, rowConstraints(row, 24));
-        row++;
+        JPanel statusBanner = framed(bannerContent, WARNING_BG, WARNING_BORDER, 6, 12, 6, 12);
+        statusBanner.setPreferredSize(new Dimension(100, 38));
 
-        // Action Buttons
         joinBtn = makeButton("JOIN GAME", PRIMARY_BLUE, Color.WHITE, PRIMARY_HOVER, false);
         joinBtn.setPreferredSize(new Dimension(100, 44));
 
@@ -307,20 +255,49 @@ public class JoinScreen extends JPanel {
             }
         });
 
-        formCard.add(joinBtn, rowConstraints(row, 10));
-        row++;
-        formCard.add(exitBtn, rowConstraints(row, 0));
-        row++;
+        JPanel actions = new JPanel(new GridLayout(3, 1, 0, 10));
+        actions.setOpaque(false);
+        actions.setBorder(new EmptyBorder(20, 0, 0, 0));
+        actions.add(statusBanner);
+        actions.add(joinBtn);
+        actions.add(exitBtn);
 
-        JPanel spacer = new JPanel();
-        spacer.setOpaque(false);
-        GridBagConstraints sc = rowConstraints(row, 0);
-        sc.weighty = 1;
-        sc.fill = GridBagConstraints.BOTH;
-        formCard.add(spacer, sc);
+        formContent.add(actions, BorderLayout.SOUTH);
 
-        rightWrapper.add(formCard);
+        rightWrapper.add(framed(formContent, Color.WHITE, CARD_BORDER, 36, 36, 36, 36));
         return rightWrapper;
+    }
+
+    /**
+     * Wraps content in a filled box with a 1px line border and inner padding.
+     * Uses two nested panels (LineBorder outside, EmptyBorder inside) so no compound border is needed.
+     */
+    private static JPanel framed(Component content, Color fill, Color line,
+                                 int top, int left, int bottom, int right) {
+        JPanel inner = new JPanel(new BorderLayout());
+        inner.setOpaque(false);
+        inner.setBorder(new EmptyBorder(top, left, bottom, right));
+        inner.add(content, BorderLayout.CENTER);
+
+        JPanel outer = new JPanel(new BorderLayout());
+        outer.setBackground(fill);
+        outer.setBorder(new LineBorder(line, 1));
+        outer.add(inner, BorderLayout.CENTER);
+        return outer;
+    }
+
+    /** Keeps a component at its preferred size, aligned left, inside a GridLayout cell. */
+    private static JPanel leftAligned(Component c) {
+        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        p.setOpaque(false);
+        p.add(c);
+        return p;
+    }
+
+    private static JPanel makeSpacer() {
+        JPanel p = new JPanel();
+        p.setOpaque(false);
+        return p;
     }
 
     /** Loads image from "shape/" directory using Toolkit without Graphics2D. */
@@ -359,27 +336,13 @@ public class JoinScreen extends JPanel {
         return view;
     }
 
-    private static GridBagConstraints rowConstraints(int row, int bottomGap) {
-        GridBagConstraints c = new GridBagConstraints();
-        c.gridx = 0;
-        c.gridy = row;
-        c.weightx = 1;
-        c.weighty = 0;
-        c.fill = GridBagConstraints.HORIZONTAL;
-        c.anchor = GridBagConstraints.WEST;
-        c.insets = new Insets(0, 0, bottomGap, 0);
-        return c;
-    }
-
+    /** Borderless text field; the surrounding box and padding come from framed(). */
     private static JTextField makeField(String initialText) {
         JTextField f = new JTextField(initialText);
         f.setFont(FONT_BODY);
         f.setForeground(TEXT_DARK);
         f.setBackground(Color.WHITE);
-        f.setBorder(new CompoundBorder(
-                new LineBorder(CARD_BORDER, 1),
-                new EmptyBorder(0, 12, 0, 12)));
-        f.setPreferredSize(new Dimension(100, 42));
+        f.setBorder(new EmptyBorder(0, 0, 0, 0));
         return f;
     }
 
@@ -442,16 +405,12 @@ public class JoinScreen extends JPanel {
     }
 
     public static void main(String[] args) {
-        EventQueue.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                JFrame frame = new JFrame("Guess What It Looks Like? - Join Server");
-                frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-                frame.setSize(1280, 720);
-                frame.setLocationRelativeTo(null);
-                frame.setContentPane(new JoinScreen());
-                frame.setVisible(true);
-            }
-        });
+        JFrame frame = new JFrame("Guess What It Looks Like? - Join Server");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setSize(1280, 720);
+        frame.setMinimumSize(new Dimension(1100, 650));
+        frame.setLocationRelativeTo(null);
+        frame.setContentPane(new JoinScreen());
+        frame.setVisible(true);
     }
 }
