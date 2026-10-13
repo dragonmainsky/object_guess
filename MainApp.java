@@ -12,11 +12,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import javax.swing.*;
-import javax.swing.border.CompoundBorder;
-import javax.swing.border.EmptyBorder;
-import javax.swing.border.LineBorder;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
 
 /**
  * MainApp: master window that owns the CardLayout and, in multiplayer mode, the two
@@ -40,14 +35,6 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     public static final String SCREEN_QUESTIONER = "QUESTIONER";
     public static final String SCREEN_GUESSER = "GUESSER";
     public static final String SCREEN_SCOREBOARD = "SCOREBOARD";
-
-    // Preview bar colors
-    private static final Color NAV_BAR_BG = new Color(15, 23, 42);
-    private static final Color NAV_LABEL_FG = new Color(148, 163, 184);
-    private static final Color NAV_BTN_NORMAL = Color.BLACK;
-    private static final Color NAV_BTN_HOVER = new Color(30, 41, 59);
-    private static final Color NAV_BTN_PRESSED = new Color(51, 65, 85);
-    private static final Color NAV_BTN_BORDER = new Color(51, 65, 85);
 
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel cardPanel = new JPanel(cardLayout);
@@ -165,8 +152,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         cardPanel.add(guesserScreen, SCREEN_GUESSER);
         cardPanel.add(scoreboardScreen, SCREEN_SCOREBOARD);
 
-        // --- Top Preview/Switcher Control Bar ---
-        add(createQuickSwitcherBar(), BorderLayout.NORTH);
+        // The card panel fills the whole window; screens change only through the game flow.
         add(cardPanel, BorderLayout.CENTER);
 
         // Show initial screen (Join)
@@ -682,108 +668,6 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         @Override
         public void onDisconnected(final String reason) {
             onEdt(() -> handleDisconnected(reason));
-        }
-    }
-
-    // =====================================================================
-    //  Top preview / switcher bar
-    // =====================================================================
-
-    /**
-     * Design/preview bar: it only flips between the five screens so the UI can be reviewed
-     * without a room. It never fakes a connection, and the label makes that explicit.
-     */
-    private JPanel createQuickSwitcherBar() {
-        JPanel bar = new JPanel(new BorderLayout());
-        bar.setBackground(NAV_BAR_BG);
-        bar.setBorder(new EmptyBorder(6, 16, 6, 16));
-
-        // Label on left
-        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        left.setOpaque(false);
-        JLabel navLabel = new JLabel("UI PREVIEW SWITCHER (design preview only - no connection is made):");
-        navLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        navLabel.setForeground(NAV_LABEL_FG);
-        left.add(navLabel);
-        bar.add(left, BorderLayout.WEST);
-
-        // Switcher Buttons
-        JPanel navButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
-        navButtons.setOpaque(false);
-
-        navButtons.add(createNavButton("1. Join / Host", SCREEN_JOIN));
-        navButtons.add(createNavButton("2. Game Lobby", SCREEN_LOBBY));
-        navButtons.add(createNavButton("3. Questioner Mode", SCREEN_QUESTIONER));
-        navButtons.add(createNavButton("4. Guesser Mode", SCREEN_GUESSER));
-        navButtons.add(createNavButton("5. Scoreboard / Results", SCREEN_SCOREBOARD));
-
-        bar.add(navButtons, BorderLayout.EAST);
-        return bar;
-    }
-
-    /**
-     * Plain JButton: black fill, thin slate border, white bold text.
-     * Fill color changes with hover/press through NavButtonStateListener.
-     */
-    private JButton createNavButton(String title, String screenName) {
-        JButton btn = new JButton(title);
-        btn.setFont(new Font("Segoe UI", Font.BOLD, 11));
-        btn.setForeground(Color.WHITE);
-        btn.setBackground(NAV_BTN_NORMAL);
-        btn.setContentAreaFilled(false); // call this first: some look and feels reset opaque when it changes
-        btn.setOpaque(true);             // the opaque background is what shows the black fill
-        btn.setBorderPainted(true);
-        btn.setBorder(new CompoundBorder(
-            new LineBorder(NAV_BTN_BORDER, 1),
-            new EmptyBorder(4, 11, 4, 11)));
-        btn.setFocusPainted(false);
-        btn.setFocusable(false); // keep keyboard focus on the visible screen
-        btn.setRolloverEnabled(true);
-        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-
-        btn.getModel().addChangeListener(new NavButtonStateListener(btn));
-        btn.addActionListener(new ScreenSwitcher(screenName));
-        return btn;
-    }
-
-    /**
-     * Switches the CardLayout to a fixed screen. One small class replaces
-     * every inline listener, so each screen gets its own instance with its target name.
-     */
-    private class ScreenSwitcher implements ActionListener {
-        private final String screenName;
-
-        ScreenSwitcher(String screenName) {
-            this.screenName = screenName;
-        }
-
-        @Override
-        public void actionPerformed(ActionEvent event) {
-            showScreen(screenName);
-        }
-    }
-
-    /**
-     * Repaints a preview bar button in the right color whenever its model changes:
-     * pressed/armed is lightest, rollover is in between, normal is black.
-     */
-    private static class NavButtonStateListener implements ChangeListener {
-        private final JButton button;
-
-        NavButtonStateListener(JButton button) {
-            this.button = button;
-        }
-
-        @Override
-        public void stateChanged(ChangeEvent event) {
-            ButtonModel model = button.getModel();
-            if (model.isPressed() || model.isArmed()) {
-                button.setBackground(NAV_BTN_PRESSED);
-            } else if (model.isRollover()) {
-                button.setBackground(NAV_BTN_HOVER);
-            } else {
-                button.setBackground(NAV_BTN_NORMAL);
-            }
         }
     }
 
