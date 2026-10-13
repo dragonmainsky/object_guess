@@ -856,21 +856,9 @@ public class GameServer {
     //  Network helpers (used by JoinScreen to show a reachable address)
     // =====================================================================
 
-    /** Adapter name/description markers that almost always mean a virtual or overlay device. */
-    private static final String[] VIRTUAL_INTERFACE_MARKERS = {
-        "virtualbox", "vmware", "vethernet", "wsl", "hyper-v", "hyperv",
-        "docker", "vpn", "tap", "tun", "wireguard", "tailscale", "zerotier",
-        "hamachi", "radmin", "nordlynx"
-    };
-
-    /**
-     * Every non-loopback IPv4 address this machine can be reached on over LAN/Wi-Fi,
-     * ordered so a real LAN address comes first:
-     * 192.168.x.x, then 10.x.x.x, then 172.16-31.x.x, then anything else.
-     * Addresses that only exist inside a virtual network are left out.
-     */
+    /** Every non-loopback IPv4 address this machine can be reached on over LAN/Wi-Fi. */
     public static List<String> getLanAddresses() {
-        List<String> result = new ArrayList<>();
+        final Map<String, Integer> ranks = new LinkedHashMap<>();
         try {
             Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
             while (interfaces != null && interfaces.hasMoreElements()) {
@@ -878,9 +866,7 @@ public class GameServer {
                 if (!networkInterface.isUp() || networkInterface.isLoopback() || networkInterface.isVirtual()) {
                     continue;
                 }
-                if (isVirtualInterface(networkInterface)) {
-                    continue;
-                }
+                String label = (networkInterface.getDisplayName() + " " + networkInterface.getName()).toLowerCase();
                 Enumeration<InetAddress> addresses = networkInterface.getInetAddresses();
                 while (addresses.hasMoreElements()) {
                     InetAddress address = addresses.nextElement();
@@ -888,18 +874,62 @@ public class GameServer {
                         continue;
                     }
                     if (address instanceof Inet4Address) {
-                        String ip = address.getHostAddress();
-                        if (!isVirtualRange(ip) && !result.contains(ip)) {
-                            result.add(ip);
-                        }
+                        String text = address.getHostAddress();
+                        ranks.put(text, Integer.valueOf(addressRank(text, label)));
                     }
                 }
             }
         } catch (SocketException e) {
             // no interfaces available
         }
-        Collections.sort(result, new LanAddressComparator());
+        List<String> result = new ArrayList<>(ranks.keySet());
+        // Best address first; equal ranks fall back to plain text order so the result is stable.
+        Collections.sort(result, new java.util.Comparator<String>() {
+            @Override
+            public int compare(String a, String b) {
+                int byRank = ranks.get(a).compareTo(ranks.get(b));
+                return byRank != 0 ? byRank : a.compareTo(b);
+            }
+        });
         return result;
+    }
+
+    /**
+     * Lower is better. Home/office LAN ranges come first (192.168, then 10, then 172.16-31); adapters that
+     * belong to VirtualBox, VMware, WSL, Docker, VPNs and the like are pushed to the back, because other
+     * machines on the Wi-Fi cannot reach those addresses.
+     */
+    private static int addressRank(String ip, String interfaceLabel) {
+        int rank;
+        if (ip.startsWith("192.168.")) {
+            rank = 0;
+        } else if (ip.startsWith("10.")) {
+            rank = 1;
+        } else if (ip.startsWith("172.")) {
+            int second = 0;
+            try {
+                second = Integer.parseInt(ip.split("\\.")[1]);
+            } catch (NumberFormatException e) {
+                second = 0;
+            }
+            rank = (second >= 16 && second <= 31) ? 2 : 3;
+        } else {
+            rank = 3;
+        }
+
+        String[] virtualMarkers = {"virtualbox", "vmware", "vmnet", "vbox", "hyper-v", "vethernet", "wsl",
+            "docker", "tap-", "tun", "vpn", "tailscale", "zerotier", "loopback pseudo", "bluetooth"};
+        for (String marker : virtualMarkers) {
+            if (interfaceLabel.contains(marker)) {
+                rank += 10;
+                break;
+            }
+        }
+        // Default host-only ranges used by VirtualBox (192.168.56.x) and similar tools.
+        if (ip.startsWith("192.168.56.") || ip.startsWith("192.168.99.")) {
+            rank += 10;
+        }
+        return rank;
     }
 
     /** Best-guess LAN address for the "others connect here" hint, or "" when none is available. */
@@ -909,67 +939,6 @@ public class GameServer {
             return "";
         }
         return addresses.get(0);
-    }
-
-    /** True when the adapter's name or description marks it as a virtual/overlay device. */
-    private static boolean isVirtualInterface(NetworkInterface networkInterface) {
-        String name = networkInterface.getName();
-        String display = networkInterface.getDisplayName();
-        String haystack = ((name == null ? "" : name) + " " + (display == null ? "" : display)).toLowerCase();
-        for (String marker : VIRTUAL_INTERFACE_MARKERS) {
-            if (haystack.contains(marker)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** True for addresses that only exist inside a virtual network (VirtualBox host-only range). */
-    private static boolean isVirtualRange(String ip) {
-        return ip.startsWith("192.168.56.");
-    }
-
-    /** Orders addresses by how likely each one is to be the real LAN address. */
-    private static class LanAddressComparator implements java.util.Comparator<String> {
-        @Override
-        public int compare(String first, String second) {
-            int rankFirst = rank(first);
-            int rankSecond = rank(second);
-            if (rankFirst != rankSecond) {
-                return rankFirst - rankSecond;
-            }
-            return first.compareTo(second);
-        }
-
-        private int rank(String ip) {
-            if (ip.startsWith("192.168.")) {
-                return 0;
-            }
-            if (ip.startsWith("10.")) {
-                return 1;
-            }
-            if (isPrivate172(ip)) {
-                return 2;
-            }
-            return 3;
-        }
-
-        private boolean isPrivate172(String ip) {
-            if (!ip.startsWith("172.")) {
-                return false;
-            }
-            int firstDot = ip.indexOf('.');
-            int secondDot = ip.indexOf('.', firstDot + 1);
-            if (firstDot < 0 || secondDot < 0) {
-                return false;
-            }
-            try {
-                int secondOctet = Integer.parseInt(ip.substring(firstDot + 1, secondDot));
-                return secondOctet >= 16 && secondOctet <= 31;
-            } catch (NumberFormatException e) {
-                return false;
-            }
-        }
     }
 
     // =====================================================================

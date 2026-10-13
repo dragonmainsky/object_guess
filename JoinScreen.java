@@ -331,6 +331,10 @@ public class JoinScreen extends JPanel {
         if (port < 0) {
             return;
         }
+        if (listener == null) {
+            showPreviewOnly();
+            return;
+        }
         listener.onCreateGame(name, port);
     }
 
@@ -358,7 +362,17 @@ public class JoinScreen extends JPanel {
         if (port < 0) {
             return;
         }
+        if (listener == null) {
+            showPreviewOnly();
+            return;
+        }
         listener.onJoinGame(name, ip, port);
+    }
+
+    /** Shown when this screen was launched on its own (no MainApp), so there is no network layer behind the buttons. */
+    private void showPreviewOnly() {
+        fail("Preview mode: this screen was started on its own. Run MainApp to host or join a game.",
+                "Preview mode");
     }
 
     private int parsePort() {

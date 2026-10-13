@@ -66,22 +66,17 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         return thread;
     });
 
-    /** How long to wait for JOIN_SUCCESS / JOIN_FAILED before giving up on an attempt. */
-    private static final int JOIN_TIMEOUT_MS = 8000;
-
     private GameClient client;
     private GameServer server;
     private String myName = "";
     private boolean isHost = false;
-    // Volatile: written on the network thread, read later on the Event Dispatch Thread.
-    private volatile String connectAddress = "";
-    private volatile String pendingAddress = "";
+    private String connectAddress = "";
     private boolean intentionalLeave = false;
     private String currentScreen = SCREEN_JOIN;
 
-    // Guards a single join attempt: bumped whenever an attempt ends, so a stale timeout is ignored.
-    private int joinAttemptId = 0;
-    private javax.swing.Timer joinTimeoutTimer;
+    /** How long we wait for JOIN_SUCCESS / JOIN_FAILED before giving up and re-enabling the buttons. */
+    private static final int JOIN_REPLY_TIMEOUT_MS = 8000;
+    private javax.swing.Timer joinTimeout;   // EDT only
 
     private final List<String> playerNames = new ArrayList<>();
     private final Map<String, Boolean> readyStates = new LinkedHashMap<>();
@@ -91,12 +86,12 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     public MainApp() {
         setTitle("Guess What It Looks Like? - Multiplayer Party Game (LAN)");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        // Size to the screen so the bottom action buttons never fall off a small or scaled display.
-        Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
-        int frameWidth = Math.min(1360, Math.max(900, screen.width - 40));
-        int frameHeight = Math.min(800, Math.max(560, screen.height - 60));
-        setSize(frameWidth, frameHeight);
-        setMinimumSize(new Dimension(Math.min(1000, frameWidth), Math.min(620, frameHeight)));
+        // Fit the window to the usable screen so the bottom buttons are never pushed off a small display.
+        Rectangle usable = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
+        int width = Math.min(1360, usable.width);
+        int height = Math.min(800, usable.height);
+        setSize(width, height);
+        setMinimumSize(new Dimension(Math.min(1100, width), Math.min(680, height)));
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
 
@@ -201,11 +196,10 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
             joinScreen.showStatus("This machine is already hosting a room. Leave it first.", true);
             return;
         }
-        final int attempt = ++joinAttemptId;
         joinScreen.setBusy(true);
         joinScreen.setHostInfo(port);
         joinScreen.showStatus("Starting the room on port " + port + "...");
-        netExecutor.submit(() -> startHost(playerName, port, attempt));
+        netExecutor.submit(() -> startHost(playerName, port));
     }
 
     @Override
@@ -215,18 +209,16 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
             joinScreen.showStatus("Already connected. Leave the room before joining another.", true);
             return;
         }
-        final int attempt = ++joinAttemptId;
-        pendingAddress = serverIp + ":" + port;
         joinScreen.setBusy(true);
         joinScreen.showStatus("Connecting to " + serverIp + ":" + port + "...");
-        netExecutor.submit(() -> connectAndJoin(playerName, serverIp, port, false, attempt));
+        netExecutor.submit(() -> connectAndJoin(playerName, serverIp, port, false));
     }
 
     // =====================================================================
     //  Network lifecycle (all methods below run off the EDT)
     // =====================================================================
 
-    private void startHost(final String playerName, final int port, final int attempt) {
+    private void startHost(final String playerName, final int port) {
         GameServer newServer = new GameServer(port);
         try {
             newServer.start();
@@ -234,11 +226,10 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
             onEdt(() -> {
                 joinScreen.setBusy(false);
                 joinScreen.showStatus("Could not host on port " + port + ": " + e.getMessage() + ". "
-                        + "Another program may be using it, or the firewall blocked it. Try port 5050.", true);
+                        + "Another program may be using it, or the firewall blocked it.", true);
                 showError("Could not start the room",
                         "Port " + port + " could not be opened on this machine.\n"
-                        + e.getMessage() + "\n\nTry a different port (for example 5050), "
-                        + "or allow Java through your firewall.");
+                        + e.getMessage() + "\n\nTry a different port, or allow Java through your firewall.");
             });
             return;
         }
@@ -247,11 +238,10 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
 
         // The host joins its own room through the normal loopback path, so it behaves exactly
         // like any other player. Only the address shown to other machines must be the LAN IP.
-        connectAndJoin(playerName, "127.0.0.1", port, true, attempt);
+        connectAndJoin(playerName, "127.0.0.1", port, true);
     }
 
-    private void connectAndJoin(final String playerName, final String ip, final int port,
-                                final boolean host, final int attempt) {
+    private void connectAndJoin(final String playerName, final String ip, final int port, final boolean host) {
         GameClient newClient = new GameClient(ip, port, new NetworkListener());
         try {
             newClient.connect();
@@ -278,50 +268,40 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         } else {
             displayAddress = ip + ":" + port;
         }
-        connectAddress = displayAddress;
-        pendingAddress = displayAddress;
+        onEdt(() -> connectAddress = displayAddress);
         newClient.join(playerName);
         onEdt(() -> {
             joinScreen.showStatus("Connected. Asking the host to let you in...");
-            startJoinTimeout(attempt);
+            startJoinTimeout();
         });
     }
 
-    /**
-     * Starts the deadline for one join attempt. If no JOIN_SUCCESS / JOIN_FAILED arrives the
-     * attempt is torn down, so the buttons can never stay disabled forever. Runs on the EDT;
-     * the attempt id makes a stale timer a no-op if the reply already arrived.
-     */
-    private void startJoinTimeout(final int attempt) {
-        stopJoinTimeout();
-        joinTimeoutTimer = new javax.swing.Timer(JOIN_TIMEOUT_MS, new ActionListener() {
+    /** If the host never answers the JOIN request, stop waiting and give the buttons back to the player. */
+    private void startJoinTimeout() {
+        cancelJoinTimeout();
+        joinTimeout = new javax.swing.Timer(JOIN_REPLY_TIMEOUT_MS, new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent event) {
-                if (attempt != joinAttemptId || client == null || !myName.isEmpty()) {
-                    return;
+                joinTimeout = null;
+                if (!alreadyAtJoinScreen()) {
+                    return; // the join already succeeded
                 }
                 teardownSession();
                 joinScreen.setBusy(false);
-                String address = pendingAddress.isEmpty() ? "the host" : pendingAddress;
-                joinScreen.showStatus("No reply from " + address + " after "
-                        + (JOIN_TIMEOUT_MS / 1000) + " seconds.", true);
-                showError("No reply from the host",
-                        "Connected to " + address + " but the host never answered within "
-                        + (JOIN_TIMEOUT_MS / 1000) + " seconds.\n\n"
-                        + "- Check both machines are on the same Wi-Fi/LAN.\n"
-                        + "- Check the host's firewall allows Java on that port.\n"
-                        + "- Check the IP and port are exactly what the host shows.");
-                showScreen(SCREEN_JOIN);
+                String message = "The host did not answer the join request. "
+                        + "Check that the IP and port are right and that the host's firewall allows Java.";
+                joinScreen.showStatus(message, true);
+                showError("No reply from the host", message);
             }
         });
-        joinTimeoutTimer.setRepeats(false);
-        joinTimeoutTimer.start();
+        joinTimeout.setRepeats(false);
+        joinTimeout.start();
     }
 
-    private void stopJoinTimeout() {
-        if (joinTimeoutTimer != null) {
-            joinTimeoutTimer.stop();
-            joinTimeoutTimer = null;
+    private void cancelJoinTimeout() {
+        if (joinTimeout != null) {
+            joinTimeout.stop();
+            joinTimeout = null;
         }
     }
 
@@ -343,8 +323,6 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     /** Closes everything and returns to the join screen. Safe to call when already offline. */
     private void leaveRoom() {
         intentionalLeave = true;
-        joinAttemptId++;      // cancel any pending join timeout
-        stopJoinTimeout();
         if (client != null) {
             client.leave();
             client = null;
@@ -456,8 +434,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     }
 
     private void handleJoinSuccess(String[] args) {
-        joinAttemptId++;      // invalidate the pending timeout for this attempt
-        stopJoinTimeout();
+        cancelJoinTimeout();
         myName = args.length > 0 ? args[0] : "";
         isHost = args.length > 1 && "1".equals(args[1]);
         hostName = myName; // corrected by the first PLAYER_LIST
@@ -487,8 +464,6 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     }
 
     private void handleJoinFailed(String[] args) {
-        joinAttemptId++;      // the attempt is over; a pending timeout must not fire
-        stopJoinTimeout();
         String reason = args.length > 0 ? args[0] : "The host refused the connection.";
         teardownSession();
         joinScreen.setBusy(false);
@@ -642,7 +617,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
 
     /** Closes the client and the server (when this machine was hosting) and forgets the room. */
     private void teardownSession() {
-        stopJoinTimeout();
+        cancelJoinTimeout();
         if (client != null) {
             client.close();
             client = null;
