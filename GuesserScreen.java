@@ -1,101 +1,58 @@
 import java.awt.*;
 import java.awt.datatransfer.StringSelection;
-import java.awt.datatransfer.Transferable;
 import java.awt.dnd.*;
 import java.awt.event.*;
-import java.awt.image.BufferedImage;
-import java.io.File;
 import java.util.*;
 import java.util.List;
+import java.util.function.*;
 import javax.swing.*;
 import javax.swing.border.*;
 
 /**
  * GuesserScreen: Screen 4 - Guesser Mode where players try to guess the secret shapes.
  *
- * Remake: built only from standard Swing components (JPanel / JLabel / JButton)
- * and standard borders. Layout is done with BorderLayout, GridLayout and FlowLayout only.
+ * Layout: left = Scoreboard + Scoring cards, center = "Your guess" card (3 guess slots),
+ * right = Objects picker (2x4 grid + submit button) with the ENTER hint below.
  *
- * Layout:
- *   Left   (WEST)   - Scoreboard card + Scoring guide card, stacked at the top.
- *   Center (CENTER) - "Your guess" card. Inner stage = 3 equal rows:
- *                     correct banner (top-right), guess slots (middle), incorrect banner (bottom-left).
- *   Right  (EAST)   - Objects picker card (2x4 grid + submit button) with the ENTER hint below.
- *
- * Interaction: drag a shape from the Objects picker and drop it on a guess slot.
- *   - Drop on an empty slot   -> adds the shape.
- *   - Drop on a filled slot   -> replaces it (or swaps, if the shape is already in another slot).
- *   - Drag a placed shape back onto the Objects card -> removes it from the guess.
- *
- * Stacking trick used everywhere: a card placed at BorderLayout.NORTH keeps its
- * preferred height, and the leftover space below stays empty.
+ * Drag a shape from Objects onto a guess slot (empty slot = add, filled slot = replace or swap).
+ * Drag a placed shape back onto the Objects card to remove it.
  */
 public class GuesserScreen extends JPanel {
     private static final int MAX_PICKS = 3;
+    private static final int GHOST_SIZE = 64;
+    private static final String SHAPE_DIR = System.getProperty("user.dir") + "/shape/";
+    private static final String[][] AVAILABLE_SHAPES = {
+        {"Circle", "Circle.png"}, {"Triangle", "Triangle.png"}, {"Rectangle", "Rectangle.png"}, {"Oval", "Oval.png"},
+        {"Hexagon", "Hexagon.png"}, {"Diamond", "diamond.png"}, {"Star", "star.png"}, {"Square", "Square.png"}
+    };
 
-    // ==================== Colors ====================
-    private static final Color BG_LIGHT       = new Color(241, 245, 249);
-    private static final Color CARD_BG        = Color.WHITE;
-    private static final Color CARD_BORDER    = new Color(226, 232, 240);
-    private static final Color STAGE_BG       = new Color(247, 250, 255);
-    private static final Color STAGE_BORDER   = new Color(226, 232, 240);
+    // ==================== Colors and fonts ====================
+    private static final Color BG_LIGHT = new Color(241, 245, 249), CARD_BG = Color.WHITE, CARD_BORDER = new Color(226, 232, 240);
+    private static final Color STAGE_BG = new Color(247, 250, 255), STAGE_BORDER = new Color(226, 232, 240);
+    private static final Color PRIMARY_BLUE = new Color(37, 99, 235), PRIMARY_HOVER = new Color(29, 78, 216);
+    private static final Color BLUE_LIGHT_BG = new Color(239, 246, 255), BLUE_BORDER = new Color(191, 219, 254);
+    private static final Color SUCCESS_BG = new Color(220, 252, 231), SUCCESS_TEXT = new Color(22, 101, 52), SUCCESS_BORDER = new Color(187, 247, 208);
+    private static final Color WARNING_BG = new Color(254, 249, 195), WARNING_TEXT = new Color(133, 77, 14), WARNING_BORDER = new Color(254, 240, 138);
+    private static final Color DANGER_BG = new Color(254, 226, 226), DANGER_TEXT = new Color(153, 27, 27), DANGER_BORDER = new Color(254, 202, 202);
+    private static final Color GOLD_BG = new Color(254, 243, 199), GOLD_TEXT = new Color(180, 83, 9), GOLD_BORDER = new Color(253, 230, 138);
+    private static final Color TEXT_DARK = new Color(15, 23, 42), TEXT_MUTED = new Color(100, 116, 139);
+    private static final Color EMPTY_SLOT_BG = new Color(248, 250, 252), EMPTY_SLOT_BORDER = new Color(203, 213, 225), KEYCAP_TEXT = new Color(51, 65, 85);
 
-    private static final Color PRIMARY_BLUE   = new Color(37, 99, 235);
-    private static final Color PRIMARY_HOVER  = new Color(29, 78, 216);
-    private static final Color BLUE_LIGHT_BG  = new Color(239, 246, 255);
-    private static final Color BLUE_BORDER    = new Color(191, 219, 254);
-
-    private static final Color SUCCESS_BG     = new Color(220, 252, 231);
-    private static final Color SUCCESS_TEXT   = new Color(22, 101, 52);
-    private static final Color SUCCESS_BORDER = new Color(187, 247, 208);
-
-    private static final Color WARNING_BG     = new Color(254, 249, 195);
-    private static final Color WARNING_TEXT   = new Color(133, 77, 14);
-    private static final Color WARNING_BORDER = new Color(254, 240, 138);
-
-    private static final Color DANGER_BG      = new Color(254, 226, 226);
-    private static final Color DANGER_TEXT    = new Color(153, 27, 27);
-    private static final Color DANGER_BORDER  = new Color(254, 202, 202);
-
-    private static final Color GOLD_BG        = new Color(254, 243, 199);
-    private static final Color GOLD_TEXT      = new Color(180, 83, 9);
-    private static final Color GOLD_BORDER    = new Color(253, 230, 138);
-
-    private static final Color TEXT_DARK      = new Color(15, 23, 42);
-    private static final Color TEXT_MUTED     = new Color(100, 116, 139);
-
-    private static final Color EMPTY_SLOT_BG     = new Color(248, 250, 252);
-    private static final Color EMPTY_SLOT_BORDER = new Color(203, 213, 225);
-    private static final Color KEYCAP_TEXT       = new Color(51, 65, 85);
-
-    // ==================== Fonts ====================
-    private static final Font FONT_TITLE      = new Font("Segoe UI", Font.BOLD, 18);
-    private static final Font FONT_SUBTITLE   = new Font("Segoe UI", Font.BOLD, 14);
-    private static final Font FONT_BODY       = new Font("Segoe UI", Font.PLAIN, 13);
-    private static final Font FONT_BODY_BOLD  = new Font("Segoe UI", Font.BOLD, 13);
-    private static final Font FONT_SMALL      = new Font("Segoe UI", Font.PLAIN, 11);
-    private static final Font FONT_SMALL_BOLD = new Font("Segoe UI", Font.BOLD, 11);
-    private static final Font FONT_KEYCAP     = new Font("Segoe UI", Font.BOLD, 9);
+    private static final Font FONT_TITLE = new Font("Segoe UI", Font.BOLD, 18), FONT_SUBTITLE = new Font("Segoe UI", Font.BOLD, 14);
+    private static final Font FONT_BODY = new Font("Segoe UI", Font.PLAIN, 13), FONT_BODY_BOLD = new Font("Segoe UI", Font.BOLD, 13);
+    private static final Font FONT_SMALL = new Font("Segoe UI", Font.PLAIN, 11), FONT_SMALL_BOLD = new Font("Segoe UI", Font.BOLD, 11);
+    private static final Font FONT_KEYCAP = new Font("Segoe UI", Font.BOLD, 9);
 
     // ==================== State ====================
     private final List<String> guessedShapes = new ArrayList<>(Arrays.asList("Circle", "Triangle", "Diamond"));
-    private JPanel guessSlotsPanel;
-    private JLabel selectedBadge;
-    private JLabel pickCounterLabel;
-    private JButton submitBtn;
-    private final Map<String, PickerItem> shapeCards = new HashMap<>();
+    private final List<PickerItem> pickers = new ArrayList<>();
+    private final Map<String, Image> images = new HashMap<>();   // loaded pictures, key = shape name + size
     private final ActionListener onSubmitAction;
-
-    private static final String[][] AVAILABLE_SHAPES = {
-        {"Circle", "Circle.png"},
-        {"Triangle", "Triangle.png"},
-        {"Rectangle", "Rectangle.png"},
-        {"Oval", "Oval.png"},
-        {"Hexagon", "Hexagon.png"},
-        {"Diamond", "diamond.png"},
-        {"Star", "star.png"},
-        {"Square", "Square.png"}
-    };
+    private JPanel guessSlotsPanel;
+    private JLabel selectedBadge, pickCounterLabel;
+    private JButton submitBtn;
+    private boolean dragFromBoard;   // the drag in progress started from a placed shape (not from the picker)
+    private String dragShape;        // shape being dragged right now (null when no drag is in progress)
 
     public GuesserScreen() {
         this(null);
@@ -106,59 +63,47 @@ public class GuesserScreen extends JPanel {
         setLayout(new BorderLayout());
         setBackground(BG_LIGHT);
 
-        JPanel mainContent = new JPanel(new BorderLayout(14, 14));
-        mainContent.setOpaque(false);
+        JPanel mainContent = panel(new BorderLayout(14, 14));
         mainContent.setBorder(new EmptyBorder(14, 24, 14, 24));
-
         mainContent.add(createSubHeader(), BorderLayout.NORTH);
         mainContent.add(createColumns(), BorderLayout.CENTER);
         add(mainContent, BorderLayout.CENTER);
 
-        installEnterShortcut();
+        // ENTER submits the guess while this screen is showing
+        getInputMap(WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "submitGuess");
+        getActionMap().put("submitGuess", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                submitBtn.doClick();
+            }
+        });
     }
 
     // ==================== Sub header + columns ====================
 
     private JPanel createSubHeader() {
-        JPanel subHeader = new JPanel(new BorderLayout());
-        subHeader.setOpaque(false);
+        JPanel titles = panel(new GridLayout(2, 1, 0, 2));
+        titles.add(label("Guess what the Questioner selected!", FONT_TITLE, TEXT_DARK));
+        titles.add(label("Choose the same three shapes before time runs out.", FONT_BODY, TEXT_MUTED));
 
-        JPanel titles = new JPanel(new GridLayout(2, 1, 0, 2));
-        titles.setOpaque(false);
-
-        JLabel title = new JLabel("Guess what the Questioner selected!");
-        title.setFont(FONT_TITLE);
-        title.setForeground(TEXT_DARK);
-
-        JLabel sub = new JLabel("Choose the same three shapes before time runs out.");
-        sub.setFont(FONT_BODY);
-        sub.setForeground(TEXT_MUTED);
-
-        titles.add(title);
-        titles.add(sub);
-        subHeader.add(titles, BorderLayout.WEST);
-
-        JPanel badges = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        badges.setOpaque(false);
+        JPanel badges = panel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         badges.add(createBadge("Target: Guess 3 Shapes", BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER));
         badges.add(createBadge("Time: 00:30", WARNING_BG, WARNING_TEXT, WARNING_BORDER));
         badges.add(createBadge("Score: 0", BG_LIGHT, TEXT_DARK, CARD_BORDER));
         badges.add(createBadge("Correct: 0/3", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER));
-        subHeader.add(badges, BorderLayout.EAST);
 
+        JPanel subHeader = panel(new BorderLayout());
+        subHeader.add(titles, BorderLayout.WEST);
+        subHeader.add(badges, BorderLayout.EAST);
         return subHeader;
     }
 
     private JPanel createColumns() {
-        JPanel columns = new JPanel(new BorderLayout(14, 0));
-        columns.setOpaque(false);
-
-        JPanel left = createLeftPanel();
+        JPanel left = createLeftPanel(), right = createRightPanel();
         left.setPreferredSize(new Dimension(240, 0));
-
-        JPanel right = createRightPanel();
         right.setPreferredSize(new Dimension(300, 0));
 
+        JPanel columns = panel(new BorderLayout(14, 0));
         columns.add(left, BorderLayout.WEST);
         columns.add(createCenterPanel(), BorderLayout.CENTER);
         columns.add(right, BorderLayout.EAST);
@@ -168,266 +113,154 @@ public class GuesserScreen extends JPanel {
     // ==================== Left column ====================
 
     private JPanel createLeftPanel() {
-        JPanel left = new JPanel(new BorderLayout(0, 12));
-        left.setOpaque(false);
-
-        // --- Card 1: Scoreboard ---
-        JPanel scoreCard = createCard();
-        scoreCard.setLayout(new BorderLayout(0, 12));
-        scoreCard.add(createHeader("Scoreboard", FONT_SUBTITLE, "Round 1 of 4", FONT_SMALL, null),
-            BorderLayout.NORTH);
-
-        JPanel scoreRows = new JPanel(new GridLayout(0, 1, 0, 8));
-        scoreRows.setOpaque(false);
+        JPanel scoreRows = panel(new GridLayout(0, 1, 0, 8));
         scoreRows.add(createScoreRow("A", new Color(37, 99, 235), "Aim", 0, true));
         scoreRows.add(createScoreRow("P", new Color(139, 92, 246), "Player 2", 2, false));
         scoreRows.add(createScoreRow("P", new Color(236, 72, 153), "Player 3", 1, false));
+        JPanel scoreCard = card(new BorderLayout(0, 12));
+        scoreCard.add(createHeader("Scoreboard", FONT_SUBTITLE, "Round 1 of 4", FONT_SMALL, null), BorderLayout.NORTH);
         scoreCard.add(scoreRows, BorderLayout.CENTER);
 
-        // --- Card 2: Scoring guide ---
-        JPanel guideCard = createCard();
-        guideCard.setLayout(new BorderLayout(0, 12));
-        guideCard.add(createHeader("Scoring", FONT_SUBTITLE, null, null, null), BorderLayout.NORTH);
-
-        JPanel ruleRows = new JPanel(new GridLayout(0, 1, 0, 8));
-        ruleRows.setOpaque(false);
+        JPanel ruleRows = panel(new GridLayout(0, 1, 0, 8));
         ruleRows.add(createRuleRow("+1", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER, "for each correct shape"));
         ruleRows.add(createRuleRow("+2", GOLD_BG, GOLD_TEXT, GOLD_BORDER, "all correct under 10 sec"));
         ruleRows.add(createRuleRow("0", DANGER_BG, DANGER_TEXT, DANGER_BORDER, "for an incorrect shape"));
+        JPanel guideCard = card(new BorderLayout(0, 12));
+        guideCard.add(createHeader("Scoring", FONT_SUBTITLE, null, null, null), BorderLayout.NORTH);
         guideCard.add(ruleRows, BorderLayout.CENTER);
 
         // Both cards keep their natural height; leftover space stays empty at the bottom
-        JPanel leftRest = new JPanel(new BorderLayout());
-        leftRest.setOpaque(false);
-        leftRest.add(guideCard, BorderLayout.NORTH);
-
+        JPanel left = panel(new BorderLayout(0, 12));
         left.add(scoreCard, BorderLayout.NORTH);
-        left.add(leftRest, BorderLayout.CENTER);
+        left.add(pin(guideCard, BorderLayout.NORTH), BorderLayout.CENTER);
         return left;
     }
 
     private JPanel createScoreRow(String initial, Color avatarColor, String name, int score, boolean highlight) {
-        JPanel row = new JPanel(new BorderLayout());
-        if (highlight) {
-            row.setOpaque(true);
-            row.setBackground(BLUE_LIGHT_BG);
-            row.setBorder(createBoxBorder(BLUE_BORDER, 1, 4, 8));
-        } else {
-            row.setOpaque(false);
-            row.setBorder(new EmptyBorder(5, 9, 5, 9)); // same total insets as the highlighted row
-        }
+        JPanel row = panel(new BorderLayout());
+        row.setOpaque(highlight);
+        row.setBackground(BLUE_LIGHT_BG);
+        row.setBorder(highlight ? box(BLUE_BORDER, 1, 4, 8) : new EmptyBorder(5, 9, 5, 9));
 
-        JPanel who = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        who.setOpaque(false);
+        JPanel who = panel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         who.add(createAvatar(initial, avatarColor, 24));
-
-        JLabel nameLabel = new JLabel(name);
-        nameLabel.setFont(FONT_BODY_BOLD);
-        nameLabel.setForeground(TEXT_DARK);
-        who.add(nameLabel);
-
-        JLabel scoreLabel = new JLabel(String.valueOf(score), SwingConstants.RIGHT);
-        scoreLabel.setFont(FONT_BODY_BOLD);
-        scoreLabel.setForeground(TEXT_DARK);
+        who.add(label(name, FONT_BODY_BOLD, TEXT_DARK));
 
         row.add(who, BorderLayout.WEST);
-        row.add(scoreLabel, BorderLayout.EAST);
+        row.add(label(String.valueOf(score), FONT_BODY_BOLD, TEXT_DARK, SwingConstants.RIGHT), BorderLayout.EAST);
         return row;
     }
 
     private JPanel createRuleRow(String badgeText, Color bg, Color fg, Color border, String ruleText) {
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        row.setOpaque(false);
-
         JLabel badge = createBadge(badgeText, bg, fg, border);
-        badge.setBorder(createBoxBorder(border, 1, 2, 6));
+        badge.setBorder(box(border, 1, 2, 6));
         badge.setPreferredSize(new Dimension(34, 22));
 
-        JLabel label = new JLabel(ruleText);
-        label.setFont(FONT_SMALL);
-        label.setForeground(TEXT_DARK);
-
+        JPanel row = panel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         row.add(badge);
-        row.add(label);
+        row.add(label(ruleText, FONT_SMALL, TEXT_DARK));
         return row;
     }
 
     // ==================== Center column ====================
 
     private JPanel createCenterPanel() {
-        JPanel center = new JPanel(new BorderLayout(0, 10));
-        center.setOpaque(false);
-
-        JPanel centerCard = createCard();
-        centerCard.setLayout(new BorderLayout(0, 12));
-
-        selectedBadge = createBadge(guessedShapes.size() + " / " + MAX_PICKS + " selected",
-            BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER);
-
-        centerCard.add(createHeader("Your guess", FONT_TITLE,
-            "Drag shapes here from Objects", FONT_BODY, selectedBadge), BorderLayout.NORTH);
+        selectedBadge = createBadge(guessedShapes.size() + " / " + MAX_PICKS + " selected", BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER);
+        JPanel centerCard = card(new BorderLayout(0, 12));
+        centerCard.add(createHeader("Your guess", FONT_TITLE, "Drag shapes here from Objects", FONT_BODY, selectedBadge), BorderLayout.NORTH);
         centerCard.add(createStagePanel(), BorderLayout.CENTER);
 
         // Helper hint sits outside the card, under its left edge
-        JPanel hintRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        hintRow.setOpaque(false);
+        JPanel hintRow = panel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        hintRow.add(label("TIP", FONT_SMALL_BOLD, WARNING_TEXT));
+        hintRow.add(label("Drag a shape back to Objects to remove it. You can change your choices until you submit.", FONT_SMALL, TEXT_MUTED));
 
-        JLabel tip = new JLabel("TIP");
-        tip.setFont(FONT_SMALL_BOLD);
-        tip.setForeground(WARNING_TEXT);
-
-        JLabel hintLabel = new JLabel("Drag a shape back to Objects to remove it. You can change your choices until you submit.");
-        hintLabel.setFont(FONT_SMALL);
-        hintLabel.setForeground(TEXT_MUTED);
-
-        hintRow.add(tip);
-        hintRow.add(hintLabel);
-
+        JPanel center = panel(new BorderLayout(0, 10));
         center.add(centerCard, BorderLayout.CENTER);
         center.add(hintRow, BorderLayout.SOUTH);
         return center;
     }
 
-    /**
-     * Tinted inner stage split into three equal rows, so the guess slots
-     * always sit in the vertical middle without any glue/filler components.
-     */
+    /** Tinted stage in 3 equal rows: correct banner (top-right), guess slots (middle), incorrect banner (bottom-left). */
     private JPanel createStagePanel() {
-        JPanel stage = new JPanel(new GridLayout(3, 1, 0, 0));
-        stage.setOpaque(true);
-        stage.setBackground(STAGE_BG);
-        stage.setBorder(createBoxBorder(STAGE_BORDER, 1, 14, 14));
-
-        // Row 1: correct banner pinned top-right
-        JPanel topRow = new JPanel(new BorderLayout());
-        topRow.setOpaque(false);
-        topRow.add(createBannerSlot(
-            createAlertBanner("Correct! +1 Point", "Circle matches the secret set.",
-                SUCCESS_BG, SUCCESS_BORDER, SUCCESS_TEXT),
-            FlowLayout.RIGHT), BorderLayout.NORTH);
-
-        // Row 2: three guess slots
-        guessSlotsPanel = new JPanel(new GridLayout(1, MAX_PICKS, 14, 0));
-        guessSlotsPanel.setOpaque(false);
+        guessSlotsPanel = panel(new GridLayout(1, MAX_PICKS, 14, 0));
         updateGuessSlots();
-
-        JPanel middleRow = new JPanel(new BorderLayout());
-        middleRow.setOpaque(false);
+        JPanel middleRow = panel(new BorderLayout());
         middleRow.setBorder(new EmptyBorder(6, 24, 6, 24));
         middleRow.add(guessSlotsPanel, BorderLayout.CENTER);
 
-        // Row 3: incorrect banner pinned bottom-left
-        JPanel bottomRow = new JPanel(new BorderLayout());
-        bottomRow.setOpaque(false);
-        bottomRow.add(createBannerSlot(
-            createAlertBanner("Incorrect!", "Diamond is not in the secret set.",
-                DANGER_BG, DANGER_BORDER, DANGER_TEXT),
-            FlowLayout.LEFT), BorderLayout.SOUTH);
-
-        stage.add(topRow);
+        JPanel stage = new JPanel(new GridLayout(3, 1));
+        stage.setBackground(STAGE_BG);
+        stage.setBorder(box(STAGE_BORDER, 1, 14, 14));
+        stage.add(pin(createAlertBanner("Correct! +1 Point", "Circle matches the secret set.",
+            SUCCESS_BG, SUCCESS_BORDER, SUCCESS_TEXT, FlowLayout.RIGHT), BorderLayout.NORTH));
         stage.add(middleRow);
-        stage.add(bottomRow);
+        stage.add(pin(createAlertBanner("Incorrect!", "Diamond is not in the secret set.",
+            DANGER_BG, DANGER_BORDER, DANGER_TEXT, FlowLayout.LEFT), BorderLayout.SOUTH));
         return stage;
     }
 
-    /** Wraps a banner so it hugs its content while still spanning the stage width. */
-    private JPanel createBannerSlot(JPanel banner, int alignment) {
-        JPanel slot = new JPanel(new FlowLayout(alignment, 0, 0));
-        slot.setOpaque(false);
+    /** A banner that hugs its content, wrapped in a row that spans the stage width. */
+    private static JPanel createAlertBanner(String title, String desc, Color bg, Color border, Color fg, int align) {
+        JPanel banner = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        banner.setBackground(bg);
+        banner.setBorder(box(border, 1, 6, 8));
+        banner.add(label(title, FONT_BODY_BOLD, fg));
+        banner.add(label(desc, FONT_SMALL, fg));
+
+        JPanel slot = panel(new FlowLayout(align, 0, 0));
         slot.add(banner);
         return slot;
-    }
-
-    private JPanel createAlertBanner(String title, String desc, Color bg, Color border, Color fg) {
-        JPanel banner = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        banner.setOpaque(true);
-        banner.setBackground(bg);
-        banner.setBorder(createBoxBorder(border, 1, 6, 8));
-
-        JLabel titleLabel = new JLabel(title);
-        titleLabel.setFont(FONT_BODY_BOLD);
-        titleLabel.setForeground(fg);
-
-        JLabel descLabel = new JLabel(desc);
-        descLabel.setFont(FONT_SMALL);
-        descLabel.setForeground(fg);
-
-        banner.add(titleLabel);
-        banner.add(descLabel);
-        return banner;
     }
 
     private void updateGuessSlots() {
         guessSlotsPanel.removeAll();
         for (int i = 0; i < MAX_PICKS; i++) {
-            JPanel slot;
-            boolean filled = i < guessedShapes.size();
-            if (filled) {
-                String shapeName = guessedShapes.get(i);
-                slot = createBigShapeCard(shapeName, getFileNameForShape(shapeName));
-                makeDraggable(slot, FROM_BOARD, shapeName); // drag it back to Objects to remove
-            } else {
-                slot = createEmptySlot();
-            }
-            makeSlotDropTarget(slot, i, filled);
-            guessSlotsPanel.add(slot);
+            guessSlotsPanel.add(createSlot(i));
         }
         guessSlotsPanel.revalidate();
         guessSlotsPanel.repaint();
     }
 
-    private JPanel createBigShapeCard(String name, String filename) {
-        JPanel card = new JPanel(new BorderLayout(0, 8));
-        card.setOpaque(true);
-        card.setBackground(Color.WHITE);
-        card.setBorder(createBoxBorder(PRIMARY_BLUE, 2, 14, 10));
-
-        JLabel iconLabel = new JLabel(loadIcon(filename, 78, 78), SwingConstants.CENTER);
-        JLabel textLabel = new JLabel(name, SwingConstants.CENTER);
-        textLabel.setFont(FONT_BODY_BOLD);
-        textLabel.setForeground(TEXT_DARK);
-
-        card.add(iconLabel, BorderLayout.CENTER);
-        card.add(textLabel, BorderLayout.SOUTH);
-        return card;
-    }
-
-    private JPanel createEmptySlot() {
-        JPanel slot = new JPanel(new BorderLayout());
-        slot.setOpaque(true);
-        slot.setBackground(EMPTY_SLOT_BG);
-        slot.setBorder(new LineBorder(EMPTY_SLOT_BORDER, 2));
-
-        JLabel label = new JLabel("Empty", SwingConstants.CENTER);
-        label.setFont(FONT_SMALL);
-        label.setForeground(TEXT_MUTED);
-        slot.add(label, BorderLayout.CENTER);
+    /** A big draggable shape card when filled, an "Empty" box otherwise. Both accept drops. */
+    private JPanel createSlot(int index) {
+        boolean filled = index < guessedShapes.size();
+        JPanel slot = new JPanel(new BorderLayout(0, filled ? 8 : 0));
+        if (filled) {
+            String name = guessedShapes.get(index);
+            slot.setBackground(Color.WHITE);
+            slot.setBorder(box(PRIMARY_BLUE, 2, 14, 10));
+            slot.add(new Pic(image(name, 78), 78, name), BorderLayout.CENTER);
+            slot.add(label(name, FONT_BODY_BOLD, TEXT_DARK, SwingConstants.CENTER), BorderLayout.SOUTH);
+            makeDraggable(slot, true, name); // drag it back to Objects to remove
+        } else {
+            slot.setBackground(EMPTY_SLOT_BG);
+            slot.setBorder(new LineBorder(EMPTY_SLOT_BORDER, 2));
+            slot.add(label("Empty", FONT_SMALL, TEXT_MUTED, SwingConstants.CENTER), BorderLayout.CENTER);
+        }
+        makeDropZone(slot, () -> true, on -> {
+            slot.setBackground(on ? BLUE_LIGHT_BG : (filled ? Color.WHITE : EMPTY_SLOT_BG));
+            if (!filled) {
+                slot.setBorder(new LineBorder(on ? PRIMARY_BLUE : EMPTY_SLOT_BORDER, 2));
+            }
+            slot.repaint();
+        }, shape -> placeShape(shape, index));
         return slot;
     }
 
     // ==================== Right column ====================
 
     private JPanel createRightPanel() {
-        JPanel right = new JPanel(new BorderLayout(0, 12));
-        right.setOpaque(false);
+        pickCounterLabel = label(guessedShapes.size() + " / " + MAX_PICKS, FONT_BODY_BOLD, PRIMARY_BLUE);
+        JPanel objectsCard = card(new BorderLayout(0, 12));
+        objectsCard.add(createHeader("Objects", FONT_SUBTITLE, "Drag " + MAX_PICKS + " shapes into your guess", FONT_BODY, pickCounterLabel), BorderLayout.NORTH);
 
-        final JPanel objectsCard = createCard();
-        objectsCard.setLayout(new BorderLayout(0, 12));
-
-        pickCounterLabel = new JLabel(guessedShapes.size() + " / " + MAX_PICKS);
-        pickCounterLabel.setFont(FONT_BODY_BOLD);
-        pickCounterLabel.setForeground(PRIMARY_BLUE);
-
-        objectsCard.add(createHeader("Objects", FONT_SUBTITLE,
-            "Drag " + MAX_PICKS + " shapes into your guess", FONT_BODY, pickCounterLabel), BorderLayout.NORTH);
-
-        // Shapes grid with a fixed height so the card keeps its original size
-        JPanel grid = new JPanel(new GridLayout(4, 2, 8, 8));
-        grid.setOpaque(false);
+        // Fixed height so the card keeps its original size
+        JPanel grid = panel(new GridLayout(4, 2, 8, 8));
         grid.setPreferredSize(new Dimension(0, 316));
         for (String[] shape : AVAILABLE_SHAPES) {
-            PickerItem item = new PickerItem(shape[0], shape[1]);
-            shapeCards.put(shape[0], item);
+            PickerItem item = new PickerItem(shape[0]);
+            pickers.add(item);
             grid.add(item);
         }
         objectsCard.add(grid, BorderLayout.CENTER);
@@ -440,61 +273,33 @@ public class GuesserScreen extends JPanel {
         objectsCard.add(submitBtn, BorderLayout.SOUTH);
 
         // The whole card is a "drop here to remove" zone for shapes dragged off the slots
-        new ShapeDropTarget(objectsCard) {
-            @Override
-            boolean accepts(String origin, String shapeName) {
-                return FROM_BOARD.equals(origin);
-            }
+        makeDropZone(objectsCard, () -> dragFromBoard, on -> {
+            objectsCard.setBackground(on ? DANGER_BG : CARD_BG);
+            objectsCard.setBorder(box(on ? DANGER_BORDER : CARD_BORDER, 1, 16, 16));
+        }, this::removeShape);
 
-            @Override
-            void setHighlight(boolean on) {
-                objectsCard.setBackground(on ? DANGER_BG : CARD_BG);
-                objectsCard.setBorder(createBoxBorder(on ? DANGER_BORDER : CARD_BORDER, 1, 16, 16));
-            }
-
-            @Override
-            void shapeDropped(String origin, String shapeName) {
-                removeShape(shapeName);
-            }
-        };
-
-        // Keyboard hint right below the card
-        JPanel hintRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 0));
-        hintRow.setOpaque(false);
+        JPanel hintRow = panel(new FlowLayout(FlowLayout.CENTER, 8, 0));
         hintRow.add(createKeyCap("ENTER"));
+        hintRow.add(label("to submit your guess", FONT_SMALL, TEXT_MUTED));
 
-        JLabel hintLabel = new JLabel("to submit your guess");
-        hintLabel.setFont(FONT_SMALL);
-        hintLabel.setForeground(TEXT_MUTED);
-        hintRow.add(hintLabel);
-
-        JPanel rightRest = new JPanel(new BorderLayout());
-        rightRest.setOpaque(false);
-        rightRest.add(hintRow, BorderLayout.NORTH);
-
+        JPanel right = panel(new BorderLayout(0, 12));
         right.add(objectsCard, BorderLayout.NORTH);
-        right.add(rightRest, BorderLayout.CENTER);
+        right.add(pin(hintRow, BorderLayout.NORTH), BorderLayout.CENTER);
         return right;
     }
 
-    /** One cell of the Objects picker: icon + label, restyled on selection. */
+    /** One cell of the Objects picker: picture + label, restyled on selection. */
     private class PickerItem extends JPanel {
         private final String shapeName;
         private final JLabel nameLabel;
 
-        PickerItem(String shapeName, String filename) {
+        PickerItem(String shapeName) {
+            super(new BorderLayout());
             this.shapeName = shapeName;
-            setLayout(new BorderLayout());
-            setOpaque(true);
-
-            JLabel iconLabel = new JLabel(loadIcon(filename, 34, 34), SwingConstants.CENTER);
-            nameLabel = new JLabel(shapeName, SwingConstants.CENTER);
-            nameLabel.setFont(FONT_SMALL_BOLD);
-
-            add(iconLabel, BorderLayout.CENTER);
+            nameLabel = label(shapeName, FONT_SMALL_BOLD, TEXT_DARK, SwingConstants.CENTER);
+            add(new Pic(image(shapeName, 34), 34, shapeName), BorderLayout.CENTER);
             add(nameLabel, BorderLayout.SOUTH);
-
-            makeDraggable(this, FROM_PICKER, shapeName);
+            makeDraggable(this, false, shapeName);
             applySelectionStyle();
         }
 
@@ -502,22 +307,16 @@ public class GuesserScreen extends JPanel {
             boolean selected = guessedShapes.contains(shapeName);
             setBackground(selected ? BLUE_LIGHT_BG : Color.WHITE);
             // Border thickness + padding always add up to 8px, so the tile never jumps in size
-            setBorder(selected
-                ? createBoxBorder(PRIMARY_BLUE, 2, 6, 4)
-                : createBoxBorder(CARD_BORDER, 1, 7, 5));
+            setBorder(selected ? box(PRIMARY_BLUE, 2, 6, 4) : box(CARD_BORDER, 1, 7, 5));
             nameLabel.setForeground(selected ? PRIMARY_BLUE : TEXT_DARK);
             repaint();
         }
     }
 
-    /**
-     * Puts a shape into the slot at slotIndex (0-based).
-     * The guess list never has gaps, so dropping on an empty slot appends to the end.
-     */
+    /** Puts a shape into the slot at slotIndex. The guess list has no gaps, so an empty slot appends to the end. */
     private void placeShape(String shapeName, int slotIndex) {
         int from = guessedShapes.indexOf(shapeName);
         if (from >= 0) {
-            // Already in the guess: just reorder
             if (slotIndex >= guessedShapes.size()) {
                 guessedShapes.remove(from);
                 guessedShapes.add(shapeName);
@@ -525,7 +324,7 @@ public class GuesserScreen extends JPanel {
                 Collections.swap(guessedShapes, from, slotIndex);
             }
         } else if (slotIndex < guessedShapes.size()) {
-            guessedShapes.set(slotIndex, shapeName);   // replace the shape in that slot
+            guessedShapes.set(slotIndex, shapeName);
         } else if (guessedShapes.size() < MAX_PICKS) {
             guessedShapes.add(shapeName);
         }
@@ -538,56 +337,49 @@ public class GuesserScreen extends JPanel {
         }
     }
 
+    /** Re-syncs every widget that depends on how many shapes are currently picked. */
+    private void refreshSelection() {
+        updateGuessSlots();
+        selectedBadge.setText(guessedShapes.size() + " / " + MAX_PICKS + " selected");
+        pickCounterLabel.setText(guessedShapes.size() + " / " + MAX_PICKS);
+        pickers.forEach(PickerItem::applySelectionStyle);
+    }
+
     // =====================================================================
     //  Drag and drop (java.awt.dnd)
     // =====================================================================
 
-    /** Where a drag started: a tile in the Objects picker, or a shape already placed in a slot. */
-    private static final String FROM_PICKER = "picker";
-    private static final String FROM_BOARD  = "board";
-    private static final int GHOST_SIZE = 64;
-
-    // What is being dragged right now (both null when no drag is in progress)
-    private String dragOrigin;
-    private String dragShape;
-
     /** Lets the user drag this component; the drag carries shapeName. */
-    private void makeDraggable(JComponent source, final String origin, final String shapeName) {
+    private void makeDraggable(JComponent source, boolean fromBoard, String shapeName) {
         source.setCursor(new Cursor(Cursor.MOVE_CURSOR));
-        DragSource.getDefaultDragSource().createDefaultDragGestureRecognizer(
-            source, DnDConstants.ACTION_MOVE, new DragGestureListener() {
-                @Override
-                public void dragGestureRecognized(DragGestureEvent event) {
-                    dragOrigin = origin;
-                    dragShape = shapeName;
-                    Transferable data = new StringSelection(shapeName);
-                    DragGhost ghost = new DragGhost(event.getComponent(), createDragGhost(shapeName));
-                    try {
-                        event.startDrag(null, data, ghost);
-                    } catch (InvalidDnDOperationException ex) {
-                        ghost.finish();
-                    }
-                }
-            });
+        DragSource.getDefaultDragSource().createDefaultDragGestureRecognizer(source, DnDConstants.ACTION_MOVE, e -> {
+            dragFromBoard = fromBoard;
+            dragShape = shapeName;
+            DragGhost ghost = new DragGhost(e.getComponent(), shapeName);
+            try {
+                e.startDrag(null, new StringSelection(shapeName), ghost);
+            } catch (InvalidDnDOperationException ex) {
+                ghost.finish();
+            }
+        });
     }
 
     /**
-     * The picture that follows the mouse while dragging. It is an ordinary lightweight component
-     * on the window's drag layer, kept centered exactly on the pointer, so it looks the same on
-     * every platform (the operating system's own drag image is not used). It never takes mouse
-     * or drop events itself.
+     * The picture that follows the mouse while dragging: an ordinary component on the window's drag layer,
+     * kept centered on the pointer, so it looks the same on every platform. It never takes mouse or drop events.
      */
     private class DragGhost extends DragSourceAdapter {
         private final JLayeredPane layer;
         private final JComponent picture;
 
-        DragGhost(Component source, final Image image) {
+        DragGhost(Component source, String shapeName) {
             JRootPane root = SwingUtilities.getRootPane(source);
             layer = (root == null) ? null : root.getLayeredPane();
-            picture = new JComponent() {
+            picture = new Pic(image(shapeName, GHOST_SIZE), GHOST_SIZE, shapeName) {
                 @Override
                 protected void paintComponent(Graphics g) {
-                    g.drawImage(image, 0, 0, this);
+                    ((Graphics2D) g).setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.8f));
+                    super.paintComponent(g);
                 }
 
                 @Override
@@ -608,9 +400,6 @@ public class GuesserScreen extends JPanel {
 
         /** Centers the picture on a point given in screen coordinates. */
         private void moveTo(Point screen) {
-            if (layer == null || screen == null) {
-                return;
-            }
             Point p = new Point(screen);
             SwingUtilities.convertPointFromScreen(p, layer);
             picture.setLocation(p.x - GHOST_SIZE / 2, p.y - GHOST_SIZE / 2);
@@ -634,180 +423,167 @@ public class GuesserScreen extends JPanel {
                 layer.remove(picture);
                 layer.repaint(area);
             }
-            dragOrigin = null;
             dragShape = null;
         }
     }
 
-    /** Semi-transparent picture shown under the mouse while dragging. */
-    private Image createDragGhost(String shapeName) {
-        BufferedImage ghost = new BufferedImage(GHOST_SIZE, GHOST_SIZE, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g2 = ghost.createGraphics();
-        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.8f));
-        ImageIcon icon = loadIcon(getFileNameForShape(shapeName), GHOST_SIZE, GHOST_SIZE);
-        if (icon != null) {
-            g2.drawImage(icon.getImage(), 0, 0, null);
-        } else {
-            // Placeholder when the picture file is missing
-            g2.setColor(new Color(220, 230, 242));
-            g2.fillRect(0, 0, GHOST_SIZE, GHOST_SIZE);
-            g2.setColor(new Color(70, 90, 120));
-            g2.drawRect(0, 0, GHOST_SIZE - 1, GHOST_SIZE - 1);
-            g2.setFont(FONT_SMALL_BOLD);
-            FontMetrics fm = g2.getFontMetrics();
-            String text = shapeName.length() > 6 ? shapeName.substring(0, 6) : shapeName;
-            g2.drawString(text, (GHOST_SIZE - fm.stringWidth(text)) / 2,
-                (GHOST_SIZE - fm.getHeight()) / 2 + fm.getAscent());
-        }
-        g2.dispose();
-        return ghost;
-    }
-
-    /** One guess slot accepts any dragged shape and lights up while a drag is over it. */
-    private void makeSlotDropTarget(final JPanel slot, final int index, final boolean filled) {
-        new ShapeDropTarget(slot) {
-            @Override
-            void setHighlight(boolean on) {
-                slot.setBackground(on ? BLUE_LIGHT_BG : (filled ? Color.WHITE : EMPTY_SLOT_BG));
-                if (!filled) {
-                    slot.setBorder(new LineBorder(on ? PRIMARY_BLUE : EMPTY_SLOT_BORDER, 2));
-                }
-                slot.repaint();
-            }
-
-            @Override
-            void shapeDropped(String origin, String shapeName) {
-                placeShape(shapeName, index);
-            }
-        };
-    }
-
     /**
-     * Turns a component into a drop zone. Subclasses say what to light up and what to do on a drop.
-     * Child components without their own drop target hand the drop to their parent, so
-     * installing this on a card covers everything inside it.
+     * Turns a component into a drop zone. accepts = may the drag in progress land here, highlight = light it up or off,
+     * onDrop = what to do with the dropped shape (runs after the drop event, because the UI gets rebuilt).
+     * Children without their own drop target hand the drop to their parent, so this covers everything inside.
      */
-    private abstract class ShapeDropTarget extends DropTargetAdapter {
-        ShapeDropTarget(JComponent target) {
-            new DropTarget(target, DnDConstants.ACTION_MOVE, this, true);
-        }
-
-        /** Whether the drag in progress may be dropped here (default: yes). */
-        boolean accepts(String origin, String shapeName) {
-            return true;
-        }
-
-        abstract void setHighlight(boolean on);
-
-        abstract void shapeDropped(String origin, String shapeName);
-
-        private boolean canDrop() {
-            return dragOrigin != null && accepts(dragOrigin, dragShape);
-        }
-
-        @Override
-        public void dragEnter(DropTargetDragEvent e) {
-            if (canDrop()) {
-                e.acceptDrag(DnDConstants.ACTION_MOVE);
-                setHighlight(true);
-            } else {
-                e.rejectDrag();
+    private void makeDropZone(JComponent target, BooleanSupplier accepts, Consumer<Boolean> highlight, Consumer<String> onDrop) {
+        new DropTarget(target, DnDConstants.ACTION_MOVE, new DropTargetAdapter() {
+            private boolean canDrop() {
+                return dragShape != null && accepts.getAsBoolean();
             }
-        }
 
-        @Override
-        public void dragOver(DropTargetDragEvent e) {
-            if (canDrop()) {
-                e.acceptDrag(DnDConstants.ACTION_MOVE);
-            } else {
-                e.rejectDrag();
+            @Override
+            public void dragEnter(DropTargetDragEvent e) {
+                dragOver(e);
+                if (canDrop()) {
+                    highlight.accept(true);
+                }
             }
+
+            @Override
+            public void dragOver(DropTargetDragEvent e) {
+                if (canDrop()) {
+                    e.acceptDrag(DnDConstants.ACTION_MOVE);
+                } else {
+                    e.rejectDrag();
+                }
+            }
+
+            @Override
+            public void dragExit(DropTargetEvent e) {
+                highlight.accept(false);
+            }
+
+            @Override
+            public void drop(DropTargetDropEvent e) {
+                highlight.accept(false);
+                if (!canDrop()) {
+                    e.rejectDrop();
+                    return;
+                }
+                String shapeName = dragShape;
+                e.acceptDrop(DnDConstants.ACTION_MOVE);
+                e.dropComplete(true);
+                SwingUtilities.invokeLater(() -> onDrop.accept(shapeName));
+            }
+        }, true);
+    }
+
+    // =====================================================================
+    //  Pictures (AWT Toolkit, folder: <project folder>/shape)
+    // =====================================================================
+
+    /** Picture of a shape scaled to size x size (cached). Null when the file is missing. */
+    private Image image(String shapeName, int size) {
+        String key = shapeName + size;
+        if (!images.containsKey(key)) {
+            String file = "Circle.png";
+            for (String[] s : AVAILABLE_SHAPES) {
+                if (s[0].equalsIgnoreCase(shapeName)) {
+                    file = s[1];
+                }
+            }
+            Image scaled = Toolkit.getDefaultToolkit().createImage(SHAPE_DIR + file).getScaledInstance(size, size, Image.SCALE_SMOOTH);
+            MediaTracker tracker = new MediaTracker(this);
+            tracker.addImage(scaled, 0);
+            try {
+                tracker.waitForID(0);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            images.put(key, tracker.isErrorID(0) ? null : scaled);
+        }
+        return images.get(key);
+    }
+
+    /** Draws a picture centered in its area (a gray box with the name when the file is missing). */
+    private static class Pic extends JComponent {
+        private final Image img;
+        private final int size;
+        private final String name;
+
+        Pic(Image img, int size, String name) {
+            this.img = img;
+            this.size = size;
+            this.name = name;
+            setPreferredSize(new Dimension(size, size));
         }
 
         @Override
-        public void dragExit(DropTargetEvent e) {
-            setHighlight(false);
-        }
-
-        @Override
-        public void drop(DropTargetDropEvent e) {
-            setHighlight(false);
-            if (!canDrop()) {
-                e.rejectDrop();
+        protected void paintComponent(Graphics g) {
+            int x = (getWidth() - size) / 2, y = (getHeight() - size) / 2;
+            if (img != null) {
+                g.drawImage(img, x, y, size, size, this);
                 return;
             }
-            final String origin = dragOrigin;
-            final String shapeName = dragShape;
-            e.acceptDrop(DnDConstants.ACTION_MOVE);
-            e.dropComplete(true);
-            // Slots are rebuilt after a drop, so wait until this event has finished
-            SwingUtilities.invokeLater(new Runnable() {
-                @Override
-                public void run() {
-                    shapeDropped(origin, shapeName);
-                }
-            });
+            g.setColor(new Color(220, 230, 242));
+            g.fillRect(x, y, size, size);
+            g.setColor(new Color(70, 90, 120));
+            g.drawRect(x, y, size - 1, size - 1);
+            g.setFont(new Font("Segoe UI", Font.BOLD, Math.max(10, size / 6)));
+            FontMetrics fm = g.getFontMetrics();
+            String text = name.length() > 6 ? name.substring(0, 6) : name;
+            g.drawString(text, x + (size - fm.stringWidth(text)) / 2, y + (size - fm.getHeight()) / 2 + fm.getAscent());
         }
-    }
-
-    /** Re-syncs every widget that depends on how many shapes are currently picked. */
-    private void refreshSelection() {
-        updateGuessSlots();
-        if (selectedBadge != null) {
-            selectedBadge.setText(guessedShapes.size() + " / " + MAX_PICKS + " selected");
-        }
-        if (pickCounterLabel != null) {
-            pickCounterLabel.setText(guessedShapes.size() + " / " + MAX_PICKS);
-        }
-        for (PickerItem item : shapeCards.values()) {
-            item.applySelectionStyle();
-        }
-    }
-
-    /** ENTER submits the guess while this screen is showing. */
-    private void installEnterShortcut() {
-        getInputMap(WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "submitGuess");
-        getActionMap().put("submitGuess", new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (submitBtn != null) {
-                    submitBtn.doClick();
-                }
-            }
-        });
     }
 
     // ==================== Shared helpers ====================
 
-    private static CompoundBorder createBoxBorder(Color line, int thickness, int vPad, int hPad) {
+    private static CompoundBorder box(Color line, int thickness, int vPad, int hPad) {
         return new CompoundBorder(new LineBorder(line, thickness), new EmptyBorder(vPad, hPad, vPad, hPad));
     }
 
-    /** White card with a thin border and padding. Caller picks the layout. */
-    private static JPanel createCard() {
-        JPanel card = new JPanel();
-        card.setOpaque(true);
+    /** Transparent panel with the given layout. */
+    private static JPanel panel(LayoutManager layout) {
+        JPanel p = new JPanel(layout);
+        p.setOpaque(false);
+        return p;
+    }
+
+    /** Transparent panel that keeps c at its natural size at the given edge (NORTH or SOUTH). */
+    private static JPanel pin(JComponent c, String edge) {
+        JPanel p = panel(new BorderLayout());
+        p.add(c, edge);
+        return p;
+    }
+
+    /** White card with a thin border and padding. */
+    private static JPanel card(LayoutManager layout) {
+        JPanel card = new JPanel(layout);
         card.setBackground(CARD_BG);
-        card.setBorder(createBoxBorder(CARD_BORDER, 1, 16, 16));
+        card.setBorder(box(CARD_BORDER, 1, 16, 16));
         return card;
+    }
+
+    private static JLabel label(String text, Font font, Color color, int align) {
+        JLabel label = new JLabel(text, align);
+        label.setFont(font);
+        label.setForeground(color);
+        return label;
+    }
+
+    private static JLabel label(String text, Font font, Color color) {
+        return label(text, font, color, SwingConstants.LEADING);
     }
 
     /** Small label with fill + border. Use setText() to update it later. */
     private static JLabel createBadge(String text, Color bg, Color fg, Color border) {
-        JLabel badge = new JLabel(text, SwingConstants.CENTER);
-        badge.setFont(FONT_SMALL_BOLD);
-        badge.setForeground(fg);
+        JLabel badge = label(text, FONT_SMALL_BOLD, fg, SwingConstants.CENTER);
         badge.setBackground(bg);
         badge.setOpaque(true);
-        badge.setBorder(createBoxBorder(border, 1, 4, 10));
+        badge.setBorder(box(border, 1, 4, 10));
         return badge;
     }
 
     /** Square avatar tile with the player's initial. */
     private static JLabel createAvatar(String letter, Color bg, int size) {
-        JLabel avatar = new JLabel(letter, SwingConstants.CENTER);
-        avatar.setFont(new Font("Segoe UI", Font.BOLD, size / 2));
-        avatar.setForeground(Color.WHITE);
+        JLabel avatar = label(letter, new Font("Segoe UI", Font.BOLD, size / 2), Color.WHITE, SwingConstants.CENTER);
         avatar.setBackground(bg);
         avatar.setOpaque(true);
         avatar.setPreferredSize(new Dimension(size, size));
@@ -815,17 +591,15 @@ public class GuesserScreen extends JPanel {
     }
 
     private static JLabel createKeyCap(String text) {
-        JLabel key = new JLabel(text, SwingConstants.CENTER);
-        key.setFont(FONT_KEYCAP);
-        key.setForeground(KEYCAP_TEXT);
+        JLabel key = label(text, FONT_KEYCAP, KEYCAP_TEXT, SwingConstants.CENTER);
         key.setBackground(Color.WHITE);
         key.setOpaque(true);
-        key.setBorder(createBoxBorder(EMPTY_SLOT_BORDER, 1, 3, 6));
+        key.setBorder(box(EMPTY_SLOT_BORDER, 1, 3, 6));
         return key;
     }
 
     private static JButton createPrimaryButton(String text) {
-        final JButton btn = new JButton(text);
+        JButton btn = new JButton(text);
         btn.setFont(FONT_BODY_BOLD);
         btn.setForeground(Color.WHITE);
         btn.setBackground(PRIMARY_BLUE);
@@ -849,58 +623,21 @@ public class GuesserScreen extends JPanel {
         return btn;
     }
 
-    /**
-     * Two-line card header: bold title with an optional muted sub line under it
-     * and an optional widget pinned to the right of the title line.
-     */
+    /** Two-line card header: bold title, optional muted sub line under it, optional widget pinned right of the title. */
     private static JPanel createHeader(String title, Font titleFont, String sub, Font subFont, JComponent right) {
-        JPanel header = new JPanel(new BorderLayout(0, 2));
-        header.setOpaque(false);
-
-        JLabel titleLabel = new JLabel(title);
-        titleLabel.setFont(titleFont);
-        titleLabel.setForeground(TEXT_DARK);
-
-        JPanel titleRow = new JPanel(new BorderLayout());
-        titleRow.setOpaque(false);
-        titleRow.add(titleLabel, BorderLayout.WEST);
-
+        JPanel titleRow = panel(new BorderLayout());
+        titleRow.add(label(title, titleFont, TEXT_DARK), BorderLayout.WEST);
         if (right != null) {
-            JPanel rightWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-            rightWrap.setOpaque(false);
+            JPanel rightWrap = panel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
             rightWrap.add(right);
             titleRow.add(rightWrap, BorderLayout.EAST);
         }
+        JPanel header = panel(new BorderLayout(0, 2));
         header.add(titleRow, BorderLayout.NORTH);
-
         if (sub != null) {
-            JLabel subLabel = new JLabel(sub);
-            subLabel.setFont(subFont);
-            subLabel.setForeground(TEXT_MUTED);
-            header.add(subLabel, BorderLayout.CENTER);
+            header.add(label(sub, subFont, TEXT_MUTED), BorderLayout.CENTER);
         }
         return header;
-    }
-
-    private String getFileNameForShape(String name) {
-        for (String[] s : AVAILABLE_SHAPES) {
-            if (s[0].equalsIgnoreCase(name)) return s[1];
-        }
-        return "Circle.png";
-    }
-
-    // =====================================================================
-    //  Picture loading (AWT Toolkit, folder: <project folder>/shape)
-    // =====================================================================
-
-    /** โหลด PNG จากโฟลเดอร์ shape แล้วย่อเป็น width x height (ไม่เจอไฟล์คืน null) */
-    private static ImageIcon loadIcon(String filename, int width, int height) {
-        ImageIcon icon = new ImageIcon(System.getProperty("user.dir") + "/shape/" + filename);
-        if (icon.getImageLoadStatus() != MediaTracker.COMPLETE) {
-            return null;
-        }
-        Image scaled = icon.getImage().getScaledInstance(width, height, Image.SCALE_SMOOTH);
-        return new ImageIcon(scaled);
     }
 
     public static void main(String[] args) {
