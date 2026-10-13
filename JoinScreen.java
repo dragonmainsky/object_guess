@@ -317,7 +317,7 @@ public class JoinScreen extends JPanel {
 
     private void onCreateGame() {
         if (listener == null) {
-            showStatus("No listener attached (preview mode).", true);
+            showStatus("Preview mode - run MainApp to play.");
             return;
         }
         String name = getPlayerName();
@@ -340,7 +340,7 @@ public class JoinScreen extends JPanel {
 
     private void onJoinGame() {
         if (listener == null) {
-            showStatus("No listener attached (preview mode).", true);
+            showStatus("Preview mode - run MainApp to play.");
             return;
         }
         String name = getPlayerName();
