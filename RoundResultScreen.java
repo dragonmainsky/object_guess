@@ -1,14 +1,20 @@
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridLayout;
+import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.Scrollable;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
@@ -17,9 +23,10 @@ import javax.swing.border.LineBorder;
  * RoundResultScreen: the scoreboard for ONE round, shown between rounds.
  *
  * It is built from the ROUND_RESULT payload only, so every machine shows the same numbers:
- *   - the secret shapes the questioner picked, as large pictures
- *   - per player: the shapes they guessed (green border = in the secret, red = not),
- *     the points won this round ("BONUS +2" when the speed bonus applied) and the running total
+ *   - the secret shapes the questioner picked, as large pictures in ONE full-width row on top
+ *   - below it, the round table: per player (in names[] order) the shapes they guessed
+ *     (green border = in the secret, red = not), the points won this round ("BONUS +2" when the
+ *     speed bonus applied) and the running total, inside a scroll pane so no player is cut off
  *
  * Style rules copied from ScoreboardScreen: no lambdas, no ternary expressions and no
  * custom paintComponent - everything is an ordinary JPanel / JLabel with an ImageIcon.
@@ -67,9 +74,14 @@ public class RoundResultScreen extends JPanel {
     private static final Font FONT_SMALL_BOLD  = new Font("Segoe UI", Font.BOLD, 11);
 
     // ===== Sizes =====
-    private static final int SECRET_ICON = 84;
-    private static final int GUESS_ICON = 26;
-    private static final int SECRET_WIDTH = 360;
+    private static final int SECRET_ICON = 110;
+    private static final int SECRET_GAP  = 16;
+    private static final int GUESS_ICON  = 42;
+    private static final int AVATAR_SIZE = 34;
+    private static final int ROW_GAP     = 6;
+
+    /** Card title; the thumbs-down is written as escapes so the source stays plain ASCII. */
+    private static final String SECRET_TITLE = "Secret shapes \uD83D\uDC4E";
 
     /** Avatar colors cycled by row order, matching the lobby palette. */
     private static final Color[] AVATAR_COLORS = {
@@ -115,7 +127,7 @@ public class RoundResultScreen extends JPanel {
         mainContent.setOpaque(false);
         mainContent.setBorder(new EmptyBorder(24, 32, 24, 32));
         mainContent.add(buildHeader(), BorderLayout.NORTH);
-        mainContent.add(buildColumns(), BorderLayout.CENTER);
+        mainContent.add(buildBody(), BorderLayout.CENTER);
         mainContent.add(buildFooter(), BorderLayout.SOUTH);
         add(mainContent, BorderLayout.CENTER);
     }
@@ -158,18 +170,16 @@ public class RoundResultScreen extends JPanel {
     }
 
     // =====================================================================
-    //  Columns: secret shapes (left) and the round table (right)
+    //  Body: the secret shapes on top, the round table under it
     // =====================================================================
 
-    private JPanel buildColumns() {
-        JPanel columns = new JPanel(new BorderLayout(20, 0));
-        columns.setOpaque(false);
-
-        JPanel secretCard = buildSecretCard();
-        secretCard.setPreferredSize(new Dimension(SECRET_WIDTH, 100));
-        columns.add(secretCard, BorderLayout.WEST);
-        columns.add(buildResultsCard(), BorderLayout.CENTER);
-        return columns;
+    /** Secret card (top, full width) over the round score card (below, full width). */
+    private JPanel buildBody() {
+        JPanel body = new JPanel(new BorderLayout(0, 16));
+        body.setOpaque(false);
+        body.add(buildSecretCard(), BorderLayout.NORTH);
+        body.add(buildResultsCard(), BorderLayout.CENTER);
+        return body;
     }
 
     private JPanel buildSecretCard() {
@@ -178,7 +188,7 @@ public class RoundResultScreen extends JPanel {
 
         JPanel titles = new JPanel(new GridLayout(2, 1, 0, 2));
         titles.setOpaque(false);
-        secretTitleLabel = new JLabel("Secret shapes");
+        secretTitleLabel = new JLabel(SECRET_TITLE);
         secretTitleLabel.setFont(FONT_SUBTITLE);
         secretTitleLabel.setForeground(TEXT_DARK);
         secretSubLabel = new JLabel("Chosen by -");
@@ -188,14 +198,26 @@ public class RoundResultScreen extends JPanel {
         titles.add(secretSubLabel);
         card.add(titles, BorderLayout.NORTH);
 
-        secretRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 10));
+        // One centred row with a fixed gap: 5 icons of SECRET_ICON plus 4 gaps fit the narrowest
+        // supported window (1100 px), so the row never wraps and never gets clipped.
+        secretRow = new JPanel(new FlowLayout(FlowLayout.CENTER, SECRET_GAP, 8));
         secretRow.setOpaque(false);
-        JPanel secretSlot = new JPanel(new BorderLayout());
-        secretSlot.setOpaque(false);
-        secretSlot.add(secretRow, BorderLayout.NORTH);
-        card.add(secretSlot, BorderLayout.CENTER);
+        card.add(secretRow, BorderLayout.CENTER);
 
         return card;
+    }
+
+    /** One secret shape: big picture with a name in small text underneath. */
+    private JPanel buildSecretItem(String shapeName) {
+        JPanel item = new JPanel(new BorderLayout(0, 6));
+        item.setOpaque(false);
+        item.add(shapeIcon(shapeName, SECRET_ICON, CARD_BORDER, 1), BorderLayout.CENTER);
+
+        JLabel nameLabel = new JLabel(shapeName, JLabel.CENTER);
+        nameLabel.setFont(FONT_SMALL);
+        nameLabel.setForeground(TEXT_MUTED);
+        item.add(nameLabel, BorderLayout.SOUTH);
+        return item;
     }
 
     private JPanel buildResultsCard() {
@@ -215,14 +237,24 @@ public class RoundResultScreen extends JPanel {
         titles.add(badgeHolder, BorderLayout.EAST);
         card.add(titles, BorderLayout.NORTH);
 
-        JPanel body = new JPanel(new BorderLayout(0, 10));
-        body.setOpaque(false);
-        body.add(buildTableHeader(), BorderLayout.NORTH);
-
-        rowsPanel = new JPanel(new GridLayout(0, 1, 0, 6));
+        // Rows keep their natural height (no stretching) and scroll when there are many players.
+        // The column header stays fixed above the scrolling rows, so it is always visible.
+        rowsPanel = new ScrollableRowsPanel();
+        rowsPanel.setLayout(new BoxLayout(rowsPanel, BoxLayout.Y_AXIS));
         rowsPanel.setOpaque(false);
-        body.add(rowsPanel, BorderLayout.CENTER);
-        card.add(body, BorderLayout.CENTER);
+
+        JScrollPane scroll = new JScrollPane(rowsPanel);
+        scroll.setBorder(null);
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
+        scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+        scroll.setColumnHeaderView(buildTableHeader());
+        if (scroll.getColumnHeader() != null) {
+            scroll.getColumnHeader().setOpaque(false);
+        }
+        card.add(scroll, BorderLayout.CENTER);
 
         return card;
     }
@@ -230,7 +262,8 @@ public class RoundResultScreen extends JPanel {
     private JPanel buildTableHeader() {
         JPanel header = new JPanel(new BorderLayout(10, 0));
         header.setOpaque(false);
-        header.setBorder(new EmptyBorder(0, 13, 0, 13));
+        // 15 px matches a row's border (1) plus padding (14) so headers line up with the columns.
+        header.setBorder(new EmptyBorder(0, 15, 0, 15));
 
         JLabel playerHeader = new JLabel("PLAYER");
         playerHeader.setFont(FONT_SMALL_BOLD);
@@ -294,6 +327,7 @@ public class RoundResultScreen extends JPanel {
     /**
      * Draws the whole screen from one ROUND_RESULT. The arrays are parallel and every one of
      * them has one entry per player; guesses[i] is empty when that player did not submit.
+     * Players are shown in the same order as names[] (never re-sorted).
      */
     public void showResult(int round, int totalRounds, boolean isFinal, String[] secret, String reason,
                            String questioner, String[] names, int[] deltas, int[] totals,
@@ -315,15 +349,15 @@ public class RoundResultScreen extends JPanel {
         secretRow.removeAll();
         if (secret != null && secret.length > 0) {
             for (String shapeName : secret) {
-                secretRow.add(shapeIcon(shapeName, SECRET_ICON, CARD_BORDER, 1));
+                secretRow.add(buildSecretItem(shapeName));
             }
-            secretTitleLabel.setText("Secret shapes (" + secret.length + ")");
+            secretTitleLabel.setText(SECRET_TITLE + " (" + secret.length + ")");
         } else {
             JLabel none = new JLabel("No secret shapes were locked in this round.");
             none.setFont(FONT_BODY);
             none.setForeground(TEXT_MUTED);
             secretRow.add(none);
-            secretTitleLabel.setText("Secret shapes");
+            secretTitleLabel.setText(SECRET_TITLE);
         }
         secretRow.revalidate();
         secretRow.repaint();
@@ -331,7 +365,6 @@ public class RoundResultScreen extends JPanel {
         resultsBadge.setText(names.length + (names.length == 1 ? " player" : " players"));
 
         rowsPanel.removeAll();
-        rowsPanel.setLayout(new GridLayout(Math.max(1, names.length), 1, 0, 6));
         for (int i = 0; i < names.length; i++) {
             String name = names[i];
             int delta = (i < deltas.length) ? deltas[i] : 0;
@@ -340,7 +373,15 @@ public class RoundResultScreen extends JPanel {
             int correct = (i < correctCounts.length) ? correctCounts[i] : 0;
             boolean bonus = (i < bonuses.length) && bonuses[i];
             boolean isQuestioner = name.equals(questionerName);
-            rowsPanel.add(buildPlayerRow(i, name, delta, total, guess, correct, bonus, isQuestioner, secret));
+            JPanel row = buildPlayerRow(i, name, delta, total, guess, correct, bonus, isQuestioner, secret);
+            // BoxLayout only stretches up to the max size, so locking the height to the row's own
+            // preferred height keeps rows natural instead of filling the whole viewport.
+            row.setAlignmentX(Component.LEFT_ALIGNMENT);
+            row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
+            rowsPanel.add(row);
+            if (i < names.length - 1) {
+                rowsPanel.add(Box.createVerticalStrut(ROW_GAP));
+            }
         }
         rowsPanel.revalidate();
         rowsPanel.repaint();
@@ -413,12 +454,12 @@ public class RoundResultScreen extends JPanel {
         row.setBackground(ROW_BG);
         row.setBorder(new CompoundBorder(
             new LineBorder(ROW_BG, 1),
-            new EmptyBorder(6, 12, 6, 12)));
+            new EmptyBorder(10, 14, 10, 14)));
 
         // --- who ---
         JPanel who = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         who.setOpaque(false);
-        who.add(buildAvatar(initialOf(name), avatarColor(index), 26));
+        who.add(buildAvatar(initialOf(name), avatarColor(index), AVATAR_SIZE));
 
         JLabel nameLabel = new JLabel(name);
         nameLabel.setFont(FONT_BODY_BOLD);
@@ -431,7 +472,7 @@ public class RoundResultScreen extends JPanel {
         row.add(who, BorderLayout.WEST);
 
         // --- guessed shapes ---
-        JPanel guessed = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        JPanel guessed = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         guessed.setOpaque(false);
         if (isQuestioner) {
             guessed.add(mutedLabel("picked the secret"));
@@ -577,5 +618,42 @@ public class RoundResultScreen extends JPanel {
 
     private static Color avatarColor(int index) {
         return AVATAR_COLORS[Math.abs(index) % AVATAR_COLORS.length];
+    }
+
+    // =====================================================================
+    //  Inner classes
+    // =====================================================================
+
+    /**
+     * The row container for the scroll pane: its width follows the viewport (so rows line up with
+     * the fixed column header) while its height stays its own preferred height, which lets the
+     * rows keep their natural size and makes the pane scroll instead of squashing them.
+     */
+    private static class ScrollableRowsPanel extends JPanel implements Scrollable {
+
+        @Override
+        public Dimension getPreferredScrollableViewportSize() {
+            return getPreferredSize();
+        }
+
+        @Override
+        public int getScrollableUnitIncrement(Rectangle visibleRect, int orientation, int direction) {
+            return 16;
+        }
+
+        @Override
+        public int getScrollableBlockIncrement(Rectangle visibleRect, int orientation, int direction) {
+            return 80;
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportWidth() {
+            return true;
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportHeight() {
+            return false;
+        }
     }
 }
