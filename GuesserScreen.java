@@ -54,6 +54,17 @@ public class GuesserScreen extends JPanel {
     private boolean dragFromBoard;   // the drag in progress started from a placed shape (not from the picker)
     private String dragShape;        // shape being dragged right now (null when no drag is in progress)
 
+    // ===== Multiplayer state (filled from the server) =====
+    private JPanel scoreRowsPanel;   // left scoreboard, rebuilt from server scores
+    private JLabel roundLabel;       // "Round 1 of 4" in the scoreboard header
+    private JLabel scoreBadge;       // my own total, straight from the server
+    private JLabel submittedBadge;   // submitted yes/no for this round
+    private JLabel statusLabel;      // hint line under the guess card, doubles as the status line
+    private boolean submitted;       // true once this round's guess has been sent
+    private boolean secretLocked;    // guesses are only accepted after the questioner locks in
+    private String myName = "";
+    private String questionerName = "";
+
     public GuesserScreen() {
         this(null);
     }
@@ -87,10 +98,14 @@ public class GuesserScreen extends JPanel {
         titles.add(label("Choose the same three shapes before time runs out.", FONT_BODY, TEXT_MUTED));
 
         JPanel badges = panel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        badges.add(createBadge("Target: Guess 3 Shapes", BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER));
-        badges.add(createBadge("Time: 00:30", WARNING_BG, WARNING_TEXT, WARNING_BORDER));
-        badges.add(createBadge("Score: 0", BG_LIGHT, TEXT_DARK, CARD_BORDER));
-        badges.add(createBadge("Correct: 0/3", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER));
+        badges.add(createBadge("Target: Guess " + GameServer.TARGET_SHAPES + " Shapes",
+            BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER));
+        badges.add(createBadge(String.format("Time: %02d:%02d", GameServer.ROUND_SECONDS / 60, GameServer.ROUND_SECONDS % 60),
+            WARNING_BG, WARNING_TEXT, WARNING_BORDER));
+        scoreBadge = createBadge("Score: 0", BG_LIGHT, TEXT_DARK, CARD_BORDER);
+        badges.add(scoreBadge);
+        submittedBadge = createBadge("Not submitted", WARNING_BG, WARNING_TEXT, WARNING_BORDER);
+        badges.add(submittedBadge);
 
         JPanel subHeader = panel(new BorderLayout());
         subHeader.add(titles, BorderLayout.WEST);
@@ -113,13 +128,15 @@ public class GuesserScreen extends JPanel {
     // ==================== Left column ====================
 
     private JPanel createLeftPanel() {
-        JPanel scoreRows = panel(new GridLayout(0, 1, 0, 8));
-        scoreRows.add(createScoreRow("A", new Color(37, 99, 235), "Aim", 0, true));
-        scoreRows.add(createScoreRow("P", new Color(139, 92, 246), "Player 2", 2, false));
-        scoreRows.add(createScoreRow("P", new Color(236, 72, 153), "Player 3", 1, false));
+        scoreRowsPanel = panel(new GridLayout(0, 1, 0, 8));
+        roundLabel = label("Round 1 of " + GameServer.TOTAL_ROUNDS, FONT_SMALL, TEXT_MUTED);
+        JPanel scoreHeader = panel(new BorderLayout());
+        scoreHeader.add(label("Scoreboard", FONT_SUBTITLE, TEXT_DARK), BorderLayout.WEST);
+        scoreHeader.add(roundLabel, BorderLayout.EAST);
+
         JPanel scoreCard = card(new BorderLayout(0, 12));
-        scoreCard.add(createHeader("Scoreboard", FONT_SUBTITLE, "Round 1 of 4", FONT_SMALL, null), BorderLayout.NORTH);
-        scoreCard.add(scoreRows, BorderLayout.CENTER);
+        scoreCard.add(scoreHeader, BorderLayout.NORTH);
+        scoreCard.add(scoreRowsPanel, BorderLayout.CENTER);
 
         JPanel ruleRows = panel(new GridLayout(0, 1, 0, 8));
         ruleRows.add(createRuleRow("+1", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER, "for each correct shape"));
@@ -170,10 +187,11 @@ public class GuesserScreen extends JPanel {
         centerCard.add(createHeader("Your guess", FONT_TITLE, "Drag shapes here from Objects", FONT_BODY, selectedBadge), BorderLayout.NORTH);
         centerCard.add(createStagePanel(), BorderLayout.CENTER);
 
-        // Helper hint sits outside the card, under its left edge
+        // Helper hint sits outside the card, under its left edge; it doubles as the status line
         JPanel hintRow = panel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         hintRow.add(label("TIP", FONT_SMALL_BOLD, WARNING_TEXT));
-        hintRow.add(label("Drag a shape back to Objects to remove it. You can change your choices until you submit.", FONT_SMALL, TEXT_MUTED));
+        statusLabel = label("Waiting for the questioner to lock in the secret shapes...", FONT_SMALL, TEXT_MUTED);
+        hintRow.add(statusLabel);
 
         JPanel center = panel(new BorderLayout(0, 10));
         center.add(centerCard, BorderLayout.CENTER);
@@ -192,11 +210,11 @@ public class GuesserScreen extends JPanel {
         JPanel stage = new JPanel(new GridLayout(3, 1));
         stage.setBackground(STAGE_BG);
         stage.setBorder(box(STAGE_BORDER, 1, 14, 14));
-        stage.add(pin(createAlertBanner("Correct! +1 Point", "Circle matches the secret set.",
-            SUCCESS_BG, SUCCESS_BORDER, SUCCESS_TEXT, FlowLayout.RIGHT), BorderLayout.NORTH));
+        stage.add(pin(createAlertBanner("How to play", "Pick the three shapes you think are in the secret set.",
+            BLUE_LIGHT_BG, BLUE_BORDER, PRIMARY_BLUE, FlowLayout.RIGHT), BorderLayout.NORTH));
         stage.add(middleRow);
-        stage.add(pin(createAlertBanner("Incorrect!", "Diamond is not in the secret set.",
-            DANGER_BG, DANGER_BORDER, DANGER_TEXT, FlowLayout.LEFT), BorderLayout.SOUTH));
+        stage.add(pin(createAlertBanner("Scoring", "+1 per correct shape, +2 if all three are right within 10 seconds.",
+            SUCCESS_BG, SUCCESS_BORDER, SUCCESS_TEXT, FlowLayout.LEFT), BorderLayout.SOUTH));
         return stage;
     }
 
@@ -267,9 +285,12 @@ public class GuesserScreen extends JPanel {
 
         submitBtn = createPrimaryButton("SUBMIT GUESS");
         submitBtn.setPreferredSize(new Dimension(0, 44));
-        if (onSubmitAction != null) {
-            submitBtn.addActionListener(onSubmitAction);
-        }
+        submitBtn.addActionListener(new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                submitGuess();
+            }
+        });
         objectsCard.add(submitBtn, BorderLayout.SOUTH);
 
         // The whole card is a "drop here to remove" zone for shapes dragged off the slots
@@ -315,6 +336,9 @@ public class GuesserScreen extends JPanel {
 
     /** Puts a shape into the slot at slotIndex. The guess list has no gaps, so an empty slot appends to the end. */
     private void placeShape(String shapeName, int slotIndex) {
+        if (submitted) {
+            return; // the guess is already locked in for this round
+        }
         int from = guessedShapes.indexOf(shapeName);
         if (from >= 0) {
             if (slotIndex >= guessedShapes.size()) {
@@ -332,9 +356,154 @@ public class GuesserScreen extends JPanel {
     }
 
     private void removeShape(String shapeName) {
+        if (submitted) {
+            return;
+        }
         if (guessedShapes.remove(shapeName)) {
             refreshSelection();
         }
+    }
+
+    // =====================================================================
+    //  Multiplayer hooks (called by MainApp from the network listener)
+    // =====================================================================
+
+    public void setMyName(String name) {
+        this.myName = (name == null) ? "" : name;
+    }
+
+    /** Prepares an empty guess for a new round; the submit button stays locked until the secret is set. */
+    public void startRound(int roundNumber, int totalRounds, String questioner) {
+        submitted = false;
+        secretLocked = false;
+        questionerName = (questioner == null) ? "" : questioner;
+        guessedShapes.clear();
+        if (roundLabel != null) {
+            roundLabel.setText("Round " + roundNumber + " of " + totalRounds);
+        }
+        setStatus("Questioner: " + questionerName + ". Waiting for the secret shapes to be locked in...");
+        updateSubmittedBadge();
+        refreshSelection();
+        setSubmitEnabled(false);
+    }
+
+    /** Called when the server confirms the questioner locked in the secret: guesses are now allowed. */
+    public void onSecretLocked(String questioner) {
+        secretLocked = true;
+        questionerName = (questioner == null) ? "" : questioner;
+        setStatus("The questioner locked the shapes. Pick " + MAX_PICKS + " shapes, then press SUBMIT GUESS.");
+        setSubmitEnabled(!submitted);
+        if (!submitted) {
+            setSubmittedBadge("Not submitted", WARNING_BG, WARNING_TEXT, WARNING_BORDER);
+        }
+    }
+
+    public boolean isSubmitted() {
+        return submitted;
+    }
+
+    public java.util.List<String> getGuessedShapes() {
+        return new ArrayList<>(guessedShapes);
+    }
+
+    /** Locks the guess after the server accepted it, so it cannot be sent twice. */
+    public void markSubmitted() {
+        submitted = true;
+        setSubmitEnabled(false);
+        setStatus("Guess submitted. Waiting for the other players...");
+        setSubmittedBadge("Submitted", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER);
+    }
+
+    /** Updates the hint line under the guess card. */
+    public void setStatus(String text) {
+        if (statusLabel != null) {
+            statusLabel.setText(text);
+        }
+    }
+
+    /** Rebuilds the left scoreboard straight from the server's numbers. */
+    public void setScoreboard(String[] names, int[] scores) {
+        if (scoreRowsPanel == null) {
+            return;
+        }
+        scoreRowsPanel.removeAll();
+        for (int i = 0; i < names.length; i++) {
+            int score = (i < scores.length) ? scores[i] : 0;
+            boolean me = names[i].equals(myName);
+            if (me && scoreBadge != null) {
+                scoreBadge.setText("Score: " + score);
+            }
+            scoreRowsPanel.add(createScoreRow(initialOf(names[i]), avatarColor(i), names[i], score, me));
+        }
+        scoreRowsPanel.revalidate();
+        scoreRowsPanel.repaint();
+    }
+
+    private void submitGuess() {
+        if (submitted) {
+            JOptionPane.showMessageDialog(this, "You already submitted a guess this round.",
+                "Already submitted", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        if (!secretLocked) {
+            JOptionPane.showMessageDialog(this,
+                "Wait for the questioner to lock in the secret shapes first.",
+                "Not yet", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        if (guessedShapes.size() != MAX_PICKS) {
+            JOptionPane.showMessageDialog(this,
+                "Pick exactly " + MAX_PICKS + " shapes before submitting.",
+                "Not ready yet", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        if (onSubmitAction == null) {
+            markSubmitted(); // preview mode with no network attached
+            return;
+        }
+        onSubmitAction.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "submit"));
+    }
+
+    private void setSubmitEnabled(boolean enabled) {
+        if (submitBtn != null) {
+            submitBtn.setEnabled(enabled);
+            submitBtn.setBackground(enabled ? PRIMARY_BLUE : new Color(203, 213, 225));
+        }
+    }
+
+    private void updateSubmittedBadge() {
+        if (submitted) {
+            setSubmittedBadge("Submitted", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER);
+        } else {
+            setSubmittedBadge("Not submitted", WARNING_BG, WARNING_TEXT, WARNING_BORDER);
+        }
+    }
+
+    private void setSubmittedBadge(String text, Color bg, Color fg, Color border) {
+        if (submittedBadge == null) {
+            return;
+        }
+        submittedBadge.setText(text);
+        submittedBadge.setBackground(bg);
+        submittedBadge.setForeground(fg);
+        submittedBadge.setBorder(box(border, 1, 4, 10));
+        submittedBadge.repaint();
+    }
+
+    private static String initialOf(String name) {
+        if (name == null || name.isEmpty()) {
+            return "?";
+        }
+        return name.substring(0, 1).toUpperCase();
+    }
+
+    private static Color avatarColor(int index) {
+        Color[] palette = {
+            new Color(37, 99, 235), new Color(139, 92, 246), new Color(236, 72, 153),
+            new Color(16, 185, 129), new Color(245, 158, 11), new Color(14, 165, 233),
+            new Color(244, 63, 94), new Color(99, 102, 241)
+        };
+        return palette[Math.abs(index) % palette.length];
     }
 
     /** Re-syncs every widget that depends on how many shapes are currently picked. */
@@ -353,6 +522,9 @@ public class GuesserScreen extends JPanel {
     private void makeDraggable(JComponent source, boolean fromBoard, String shapeName) {
         source.setCursor(new Cursor(Cursor.MOVE_CURSOR));
         DragSource.getDefaultDragSource().createDefaultDragGestureRecognizer(source, DnDConstants.ACTION_MOVE, e -> {
+            if (submitted) {
+                return; // the guess is locked in for this round
+            }
             dragFromBoard = fromBoard;
             dragShape = shapeName;
             DragGhost ghost = new DragGhost(e.getComponent(), shapeName);

@@ -70,9 +70,23 @@ public class ScoreboardScreen extends JPanel {
     // โฟลเดอร์ที่เก็บไฟล์ PNG ทั้งหมด: <โฟลเดอร์โปรเจกต์>/shape
     private static final String SHAPE_DIR = System.getProperty("user.dir") + "/shape/";
 
-    // ข้อมูลตัวอย่าง (เรียงตามอันดับ 1 -> 4)
-    private static final String[] PLAYER_NAMES  = {"Aim", "Player 2", "Player 3", "Player 4"};
-    private static final int[]    PLAYER_SCORES = {8, 6, 4, 3};
+    // ผลลัพธ์ปัจจุบัน (เรียงตามอันดับ 1 -> n) ค่าเริ่มต้นใช้เมื่อเปิดหน้านี้เดี่ยว ๆ โดยไม่เชื่อมต่อ
+    // MainApp จะเรียก setResults() เพื่อใส่คะแนนจริงจาก Server แทน
+    private String[] playerNames  = {"Aim", "Player 2", "Player 3", "Player 4"};
+    private int[]    playerScores = {8, 6, 4, 3};
+    private int roundsPlayed = GameServer.TOTAL_ROUNDS;
+    private boolean finalRound = true;
+
+    // อ้างอิงชิ้นส่วนที่ต้องอัปเดตเมื่อได้คะแนนใหม่จาก Server
+    private JLabel congratsLabel;
+    private JLabel gameOverBadge;
+    private JLabel completeBadge;
+    private JLabel finalScoreValue;
+    private JPanel rowsPanel;
+    private JLabel roundsValue;
+    private JLabel playersValue;
+    private JLabel targetValue;
+    private JButton nextBtn;
 
     private final ActionListener onNewGameAction;
     private final ActionListener onQuitAction;
@@ -100,6 +114,88 @@ public class ScoreboardScreen extends JPanel {
         mainContent.add(buildRightColumn(), BorderLayout.CENTER);
 
         add(mainContent, BorderLayout.CENTER);
+
+        // เติมข้อความทุกจุดจากข้อมูลปัจจุบัน (ค่าเริ่มต้น หรือค่าที่ setResults() ส่งมา)
+        refresh();
+    }
+
+    // =====================================================================
+    //  ข้อมูลจริงจาก Server
+    // =====================================================================
+
+    /**
+     * ใส่ผลลัพธ์รอบล่าสุดที่ได้จาก Server แล้ววาดใหม่ทั้งหน้า
+     * ลำดับจะถูกเรียงจากคะแนนมากไปน้อยตามกติกาเดิมของโปรเจกต์
+     */
+    public void setResults(String[] names, int[] scores, int rounds, boolean isFinal) {
+        if (names != null && scores != null && names.length > 0) {
+            // เรียงคู่ (ชื่อ, คะแนน) จากมากไปน้อย ด้วย insertion sort ง่าย ๆ
+            String[] sortedNames = new String[names.length];
+            int[] sortedScores = new int[names.length];
+            for (int i = 0; i < names.length; i++) {
+                sortedNames[i] = names[i];
+                sortedScores[i] = (i < scores.length) ? scores[i] : 0;
+            }
+            for (int i = 1; i < sortedNames.length; i++) {
+                String name = sortedNames[i];
+                int score = sortedScores[i];
+                int j = i - 1;
+                while (j >= 0 && sortedScores[j] < score) {
+                    sortedNames[j + 1] = sortedNames[j];
+                    sortedScores[j + 1] = sortedScores[j];
+                    j--;
+                }
+                sortedNames[j + 1] = name;
+                sortedScores[j + 1] = score;
+            }
+            playerNames = sortedNames;
+            playerScores = sortedScores;
+        }
+        roundsPlayed = rounds;
+        finalRound = isFinal;
+        refresh();
+    }
+
+    /** ปุ่มไปต่อ/เริ่มใหม่กดได้เฉพาะ Host เท่านั้น */
+    public void setNextEnabled(boolean enabled) {
+        if (nextBtn != null) {
+            nextBtn.setEnabled(enabled);
+            nextBtn.setToolTipText(enabled
+                ? "Continue to the next round, or start a fresh tournament."
+                : "Only the host can continue or start a new game.");
+        }
+    }
+
+    /** วาดทุกชิ้นที่ขึ้นกับคะแนน/สถานะรอบใหม่ */
+    private void refresh() {
+        if (playerNames.length > 0) {
+            congratsLabel.setText("Congratulations, " + playerNames[0] + "!");
+            finalScoreValue.setText(String.valueOf(playerScores[0]));
+        } else {
+            congratsLabel.setText("No players yet");
+            finalScoreValue.setText("0");
+        }
+
+        gameOverBadge.setText(finalRound ? "GAME OVER" : "ROUND SUMMARY");
+        completeBadge.setText(finalRound
+            ? "TOURNAMENT COMPLETE"
+            : ("ROUND " + roundsPlayed + " OF " + GameServer.TOTAL_ROUNDS + " COMPLETE"));
+        nextBtn.setText(finalRound ? "NEW GAME" : "CONTINUE");
+
+        roundsValue.setText(String.valueOf(roundsPlayed));
+        playersValue.setText(String.valueOf(playerNames.length));
+        targetValue.setText(GameServer.TARGET_SHAPES + " each");
+
+        rowsPanel.removeAll();
+        rowsPanel.setLayout(new GridLayout(Math.max(1, playerNames.length), 1, 0, 6));
+        for (int i = 0; i < playerNames.length; i++) {
+            rowsPanel.add(buildLeaderboardRow(i + 1, playerNames[i], playerScores[i]));
+        }
+        rowsPanel.revalidate();
+        rowsPanel.repaint();
+
+        revalidate();
+        repaint();
     }
 
     // =====================================================================
@@ -111,11 +207,11 @@ public class ScoreboardScreen extends JPanel {
         // ดันเนื้อหาลงมาจากขอบบนแทนการจัดกึ่งกลางแนวตั้ง
         left.setBorder(new EmptyBorder(40, 0, 0, 0));
 
-        JLabel gameOverBadge = buildBadge("GAME OVER", BG_DARK_HEADER, Color.WHITE, null, 4, 14);
+        gameOverBadge = buildBadge("GAME OVER", BG_DARK_HEADER, Color.WHITE, null, 4, 14);
 
-        JLabel congrats = new JLabel("Congratulations, " + PLAYER_NAMES[0] + "!", JLabel.CENTER);
-        congrats.setFont(new Font("Segoe UI", Font.BOLD, 26));
-        congrats.setForeground(TEXT_DARK);
+        congratsLabel = new JLabel("Congratulations, " + playerNames[0] + "!", JLabel.CENTER);
+        congratsLabel.setFont(new Font("Segoe UI", Font.BOLD, 26));
+        congratsLabel.setForeground(TEXT_DARK);
 
         JLabel sub = new JLabel(
             "<html><center>You read the room, matched the shapes,<br>and took first place.</center></html>",
@@ -126,7 +222,7 @@ public class ScoreboardScreen extends JPanel {
         JPanel[] items = new JPanel[5];
         items[0] = wrapCenter(buildTrophyPanel(), 0);
         items[1] = wrapCenter(gameOverBadge);
-        items[2] = wrapCenter(congrats);
+        items[2] = wrapCenter(congratsLabel);
         items[3] = wrapCenter(sub);
         items[4] = wrapCenter(buildScoreCard(), 8);
 
@@ -169,16 +265,16 @@ public class ScoreboardScreen extends JPanel {
         fsLabel.setFont(FONT_SMALL_BOLD);
         fsLabel.setForeground(BLUE_SOFT_TEXT);
 
-        JLabel fsValue = new JLabel(String.valueOf(PLAYER_SCORES[0]), JLabel.CENTER);
-        fsValue.setFont(new Font("Segoe UI", Font.BOLD, 36));
-        fsValue.setForeground(Color.WHITE);
+        finalScoreValue = new JLabel(String.valueOf(playerScores[0]), JLabel.CENTER);
+        finalScoreValue.setFont(new Font("Segoe UI", Font.BOLD, 36));
+        finalScoreValue.setForeground(Color.WHITE);
 
         JLabel fsPoints = new JLabel("POINTS", JLabel.CENTER);
         fsPoints.setFont(FONT_SMALL_BOLD);
         fsPoints.setForeground(BLUE_SOFT_TEXT);
 
         card.add(fsLabel);
-        card.add(fsValue);
+        card.add(finalScoreValue);
         card.add(fsPoints);
         return card;
     }
@@ -213,7 +309,7 @@ public class ScoreboardScreen extends JPanel {
         titles.add(title);
         cardHeader.add(titles, BorderLayout.WEST);
 
-        JLabel completeBadge = buildBadge("4 ROUNDS COMPLETE", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER, 6, 14);
+        completeBadge = buildBadge("TOURNAMENT COMPLETE", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER, 6, 14);
         JPanel badgeHolder = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 6));
         badgeHolder.setOpaque(false);
         badgeHolder.add(completeBadge);
@@ -233,12 +329,12 @@ public class ScoreboardScreen extends JPanel {
         JPanel btnRow = new JPanel(new GridLayout(1, 2, 12, 0));
         btnRow.setOpaque(false);
 
-        JButton newGameBtn = buildButton("NEW GAME", PRIMARY_BLUE, PRIMARY_HOVER, PRIMARY_PRESS,
+        nextBtn = buildButton("NEW GAME", PRIMARY_BLUE, PRIMARY_HOVER, PRIMARY_PRESS,
             Color.WHITE, PRIMARY_BLUE);
-        newGameBtn.setPreferredSize(new Dimension(160, 44));
+        nextBtn.setPreferredSize(new Dimension(160, 44));
         if (onNewGameAction != null) {
             // มี action จากภายนอก (เช่น MainApp) ให้ผูกเข้าปุ่ม
-            newGameBtn.addActionListener(onNewGameAction);
+            nextBtn.addActionListener(onNewGameAction);
         } else {
             // โหมดทดสอบหน้าเดียว: ไม่มี action ปุ่มนี้จึงไม่ทำอะไร
         }
@@ -254,7 +350,7 @@ public class ScoreboardScreen extends JPanel {
             quitBtn.addActionListener(new QuitAction(this));
         }
 
-        btnRow.add(newGameBtn);
+        btnRow.add(nextBtn);
         btnRow.add(quitBtn);
         card.add(btnRow, BorderLayout.SOUTH);
 
@@ -289,12 +385,12 @@ public class ScoreboardScreen extends JPanel {
 
     /** รวมแถวผู้เล่นทุกคนเรียงลงมา เว้นช่อง 6px */
     private JPanel buildRowsPanel() {
-        JPanel rows = new JPanel(new GridLayout(PLAYER_NAMES.length, 1, 0, 6));
-        rows.setOpaque(false);
-        for (int i = 0; i < PLAYER_NAMES.length; i++) {
-            rows.add(buildLeaderboardRow(i + 1, PLAYER_NAMES[i], PLAYER_SCORES[i]));
+        rowsPanel = new JPanel(new GridLayout(Math.max(1, playerNames.length), 1, 0, 6));
+        rowsPanel.setOpaque(false);
+        for (int i = 0; i < playerNames.length; i++) {
+            rowsPanel.add(buildLeaderboardRow(i + 1, playerNames[i], playerScores[i]));
         }
-        return rows;
+        return rowsPanel;
     }
 
     /** แถวผู้เล่น 1 แถว: อันดับ + avatar + ชื่อ (+ป้าย WINNER) + คะแนน */
@@ -381,17 +477,20 @@ public class ScoreboardScreen extends JPanel {
         return result;
     }
 
-    /** แถบสถิติ 3 ช่องใต้เส้นแบ่ง */
+    /** แถบสถิติ 3 ช่องใต้เส้นแบ่ง (ตัวเลขมาจากเกมจริง ไม่ใช่ค่าตัวอย่าง) */
     private JPanel buildStatsRow() {
         JPanel stats = new JPanel(new GridLayout(1, 3, 10, 0));
         stats.setOpaque(false);
-        stats.add(buildStatItem("Best round", "Round 3"));
-        stats.add(buildStatItem("Correct guesses", "8 / 12"));
-        stats.add(buildStatItem("Fastest guess", "06.4s"));
+        roundsValue = new JLabel(String.valueOf(roundsPlayed));
+        playersValue = new JLabel(String.valueOf(playerNames.length));
+        targetValue = new JLabel(GameServer.TARGET_SHAPES + " each");
+        stats.add(buildStatItem("Rounds played", roundsValue));
+        stats.add(buildStatItem("Players", playersValue));
+        stats.add(buildStatItem("Secret shapes", targetValue));
         return stats;
     }
 
-    private JPanel buildStatItem(String label, String value) {
+    private JPanel buildStatItem(String label, JLabel valueText) {
         JPanel item = new JPanel(new GridLayout(2, 1, 0, 2));
         item.setOpaque(false);
 
@@ -399,7 +498,6 @@ public class ScoreboardScreen extends JPanel {
         labelText.setFont(FONT_SMALL);
         labelText.setForeground(TEXT_LIGHT);
 
-        JLabel valueText = new JLabel(value);
         valueText.setFont(FONT_BODY_BOLD);
         valueText.setForeground(TEXT_DARK);
 

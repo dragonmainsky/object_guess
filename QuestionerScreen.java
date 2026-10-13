@@ -60,6 +60,15 @@ public class QuestionerScreen extends JPanel {
     private boolean dragFromBoard;   // the drag in progress started from a shape on the canvas (not from the picker)
     private String dragShape;        // shape being dragged right now (null when no drag is in progress)
 
+    // ===== Multiplayer state (filled from the server) =====
+    private static final String DEFAULT_HINT = "Drag a shape to move it, or back to Objects to remove it";
+    private JPanel scoreRowsPanel;      // "Players / live round score" rows, rebuilt from server scores
+    private JLabel roundLabel;          // "Round 1 of 4"
+    private JLabel hintLabel;           // the hint line under the canvas, doubles as the status line
+    private JButton confirmButton;
+    private boolean selectionLocked;
+    private String myName = "";
+
     public QuestionerScreen() {
         this(null);
     }
@@ -104,8 +113,10 @@ public class QuestionerScreen extends JPanel {
 
         // Badges on right: Target & Time
         JPanel badgeGroup = panel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        badgeGroup.add(makeBadge("Target: 3 Shapes", BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER, FONT_BODY_BOLD));
-        badgeGroup.add(makeBadge("Time: 00:30", WARNING_BG, WARNING_TEXT, WARNING_BORDER, FONT_BODY_BOLD));
+        badgeGroup.add(makeBadge("Target: " + GameServer.TARGET_SHAPES + " Shapes",
+            BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER, FONT_BODY_BOLD));
+        badgeGroup.add(makeBadge(String.format("Time: %02d:%02d", GameServer.ROUND_SECONDS / 60, GameServer.ROUND_SECONDS % 60),
+            WARNING_BG, WARNING_TEXT, WARNING_BORDER, FONT_BODY_BOLD));
 
         JPanel subHeader = panel(new BorderLayout());
         subHeader.add(titles, BorderLayout.WEST);
@@ -119,11 +130,8 @@ public class QuestionerScreen extends JPanel {
         playersCard.add(alignLeft(label("Players", FONT_SUBTITLE, TEXT_DARK)));
         playersCard.add(alignLeft(label("Live round score", FONT_SMALL, TEXT_MUTED)));
         playersCard.add(Box.createVerticalStrut(12));
-        playersCard.add(createScoreRow("A", new Color(37, 99, 235), "Aim", true));
-        playersCard.add(Box.createVerticalStrut(8));
-        playersCard.add(createScoreRow("P", new Color(139, 92, 246), "Player 2", false));
-        playersCard.add(Box.createVerticalStrut(8));
-        playersCard.add(createScoreRow("P", new Color(236, 72, 153), "Player 3", false));
+        scoreRowsPanel = stack(panel(null));
+        playersCard.add(alignLeft(scoreRowsPanel));
         playersCard.add(Box.createVerticalStrut(14));
 
         // The divider is just the top border of the tip box
@@ -136,7 +144,8 @@ public class QuestionerScreen extends JPanel {
 
         // Card 2: Round 1 of 4 steps
         JPanel roundCard = stack(card(null));
-        roundCard.add(alignLeft(label("Round 1 of 4", FONT_SUBTITLE, TEXT_DARK)));
+        roundLabel = label("Round 1 of " + GameServer.TOTAL_ROUNDS, FONT_SUBTITLE, TEXT_DARK);
+        roundCard.add(alignLeft(roundLabel));
         roundCard.add(Box.createVerticalStrut(12));
         roundCard.add(createStepRow(1, "Choose 3 shapes", true));
         roundCard.add(Box.createVerticalStrut(10));
@@ -168,6 +177,9 @@ public class QuestionerScreen extends JPanel {
             () -> dragFromBoard || selectedShapes.contains(dragShape) || selectedShapes.size() < MAX_SHAPES,
             secretSetCanvas::setDropHighlight,
             (shapeName, where) -> {
+                if (selectionLocked) {
+                    return;
+                }
                 if (selectedShapes.size() >= MAX_SHAPES && !selectedShapes.contains(shapeName)) {
                     return;
                 }
@@ -179,12 +191,12 @@ public class QuestionerScreen extends JPanel {
                 refreshUI();
             });
 
-        JLabel removeHint = label("Drag a shape to move it, or back to Objects to remove it", FONT_SMALL, TEXT_MUTED, SwingConstants.CENTER);
+        hintLabel = label(DEFAULT_HINT, FONT_SMALL, TEXT_MUTED, SwingConstants.CENTER);
 
         JPanel centerCard = card(new BorderLayout(0, 12));
         centerCard.add(cardHeader, BorderLayout.NORTH);
         centerCard.add(secretSetCanvas, BorderLayout.CENTER);
-        centerCard.add(removeHint, BorderLayout.SOUTH);
+        centerCard.add(hintLabel, BorderLayout.SOUTH);
         return centerCard;
     }
 
@@ -205,17 +217,23 @@ public class QuestionerScreen extends JPanel {
         // Action buttons: Clear & Confirm
         JButton clearBtn = makeButton("CLEAR", false, 10, 18);
         clearBtn.addActionListener(e -> {
+            if (selectionLocked) {
+                return;
+            }
             selectedShapes.clear();
             shapeSpots.clear();
             refreshUI();
         });
-        JButton confirmBtn = makeButton("CONFIRM", true, 10, 18);
-        if (onConfirmAction != null) {
-            confirmBtn.addActionListener(onConfirmAction);
-        }
+        confirmButton = makeButton("CONFIRM", true, 10, 18);
+        confirmButton.addActionListener(new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                confirmSelection();
+            }
+        });
         JPanel buttonRow = panel(new GridLayout(1, 2, 8, 0));
         buttonRow.add(clearBtn);
-        buttonRow.add(confirmBtn);
+        buttonRow.add(confirmButton);
 
         JPanel objectsCard = stack(card(null));
         objectsCard.add(alignLeft(objectsHeader, 24));
@@ -259,12 +277,12 @@ public class QuestionerScreen extends JPanel {
     //  Rows
     // =====================================================================
 
-    private static JPanel createScoreRow(String initial, Color avatarColor, String name, boolean highlight) {
+    private static JPanel createScoreRow(String initial, Color avatarColor, String name, int score, boolean highlight) {
         JPanel who = panel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         who.add(makeAvatar(initial, avatarColor, 24));
         who.add(label(name, FONT_BODY_BOLD, TEXT_DARK));
 
-        JLabel scoreLabel = label("0", FONT_BODY_BOLD, TEXT_DARK, SwingConstants.RIGHT);
+        JLabel scoreLabel = label(String.valueOf(score), FONT_BODY_BOLD, TEXT_DARK, SwingConstants.RIGHT);
         scoreLabel.setPreferredSize(new Dimension(24, 24));
 
         // Max height is locked so BoxLayout can't stretch name and score apart
@@ -315,6 +333,105 @@ public class QuestionerScreen extends JPanel {
     }
 
     // =====================================================================
+    //  Multiplayer hooks (called by MainApp from the network listener)
+    // =====================================================================
+
+    public void setMyName(String name) {
+        this.myName = (name == null) ? "" : name;
+    }
+
+    /** Clears the canvas for a new round and unlocks confirming. */
+    public void startRound(int roundNumber, int totalRounds) {
+        selectionLocked = false;
+        selectedShapes.clear();
+        shapeSpots.clear();
+        if (roundLabel != null) {
+            roundLabel.setText("Round " + roundNumber + " of " + totalRounds);
+        }
+        if (confirmButton != null) {
+            confirmButton.setEnabled(true);
+        }
+        setStatus("Pick exactly " + MAX_SHAPES + " shapes for the others to guess, then press CONFIRM.");
+        refreshUI();
+    }
+
+    /** The shapes the questioner currently has on the canvas, in pick order. */
+    public List<String> getSelectedShapes() {
+        return new ArrayList<>(selectedShapes);
+    }
+
+    public boolean isSelectionLocked() {
+        return selectionLocked;
+    }
+
+    /** Locks the choice after the server accepted it; the round continues while the others guess. */
+    public void lockSelection() {
+        selectionLocked = true;
+        if (confirmButton != null) {
+            confirmButton.setEnabled(false);
+        }
+        setStatus("Secret locked. Waiting for the other players to submit guesses...");
+    }
+
+    /** Updates the hint line under the canvas (also used as the round status line). */
+    public void setStatus(String text) {
+        if (hintLabel != null) {
+            hintLabel.setText(text);
+        }
+    }
+
+    /** Rebuilds the live round score list straight from the server's numbers. */
+    public void setScoreboard(String[] names, int[] scores) {
+        if (scoreRowsPanel == null) {
+            return;
+        }
+        scoreRowsPanel.removeAll();
+        for (int i = 0; i < names.length; i++) {
+            if (i > 0) {
+                scoreRowsPanel.add(Box.createVerticalStrut(8));
+            }
+            int score = (i < scores.length) ? scores[i] : 0;
+            boolean me = names[i].equals(myName);
+            scoreRowsPanel.add(createScoreRow(initialOf(names[i]), avatarColor(i), names[i], score, me));
+        }
+        scoreRowsPanel.revalidate();
+        scoreRowsPanel.repaint();
+    }
+
+    private void confirmSelection() {
+        if (selectionLocked) {
+            return;
+        }
+        if (selectedShapes.size() != MAX_SHAPES) {
+            JOptionPane.showMessageDialog(this,
+                "Please select exactly " + MAX_SHAPES + " shapes before confirming.",
+                "Not ready yet", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        if (onConfirmAction != null) {
+            onConfirmAction.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "confirm"));
+        } else {
+            lockSelection(); // preview mode with no network attached
+        }
+    }
+
+    private static String initialOf(String name) {
+        if (name == null || name.isEmpty()) {
+            return "?";
+        }
+        return name.substring(0, 1).toUpperCase();
+    }
+
+    private static Color avatarColor(int index) {
+        Color[] palette = {
+            new Color(37, 99, 235), new Color(139, 92, 246), new Color(236, 72, 153),
+            new Color(16, 185, 129), new Color(245, 158, 11), new Color(14, 165, 233),
+            new Color(244, 63, 94), new Color(99, 102, 241)
+        };
+        return palette[Math.abs(index) % palette.length];
+    }
+
+    // =====================================================================
     //  Drag and drop (java.awt.dnd)
     // =====================================================================
 
@@ -322,6 +439,9 @@ public class QuestionerScreen extends JPanel {
     private void makeDraggable(JComponent source, boolean fromBoard, String shapeName) {
         source.setCursor(new Cursor(Cursor.MOVE_CURSOR));
         DragSource.getDefaultDragSource().createDefaultDragGestureRecognizer(source, DnDConstants.ACTION_MOVE, e -> {
+            if (selectionLocked) {
+                return; // the secret is locked in; the canvas no longer accepts changes
+            }
             dragFromBoard = fromBoard;
             dragShape = shapeName;
             DragGhost ghost = new DragGhost(e.getComponent(), shapeName);

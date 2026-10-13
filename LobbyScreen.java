@@ -1,22 +1,27 @@
 import java.awt.*;
+import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
 import javax.swing.*;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 
 /**
- * LobbyScreen: Screen 2 - Game Lobby waiting room with players, server info, preview, and chat.
+ * LobbyScreen: Screen 2 - waiting room. Every value on this screen now comes from the
+ * server through {@link #setPlayers}/{@link #setAddress}/{@link #addChatMessage}; nothing
+ * is hard-coded, so all machines show the same room.
  *
- * Remake 2: self-contained plain Swing.
- *  - Colors, fonts and small factories live in this class.
- *  - No custom painting. Layout is BorderLayout / GridLayout / FlowLayout only.
- *  - Shape pictures are loaded with the AWT Toolkit (same idea as QuestionerScreen).
- *  - Every choice is a full if / else block (no short conditional expressions).
- *  - Button hover / press colors come from a MouseAdapter.
+ * The layout, colors, fonts and helper factories are unchanged from the original design.
+ * What changed is who fills them: the player rows, ready counter, progress track and chat
+ * are rebuilt from the latest PlayerList that MainApp pushes in.
  *
  * Stacking trick used everywhere: a card placed at BorderLayout.NORTH keeps its
  * preferred height, and the leftover space below stays empty.
@@ -45,11 +50,13 @@ public class LobbyScreen extends JPanel {
 
     private static final Color TEXT_DARK         = new Color(15, 23, 42);
     private static final Color TEXT_MUTED        = new Color(100, 116, 139);
+    private static final Color TEXT_DISABLED     = new Color(148, 163, 184);
 
     private static final Color EMPTY_SLOT_BG     = new Color(241, 245, 249);
     private static final Color EMPTY_SLOT_BORDER = new Color(203, 213, 225);
     private static final Color TRACK_GREY        = new Color(226, 232, 240);
     private static final Color PLACEHOLDER_BG    = new Color(220, 230, 242);
+    private static final Color DISABLED_BG       = new Color(226, 232, 240);
 
     // ===== Fonts =====
     private static final Font FONT_TITLE_LARGE = new Font("Segoe UI", Font.BOLD, 24);
@@ -60,11 +67,16 @@ public class LobbyScreen extends JPanel {
     private static final Font FONT_SMALL       = new Font("Segoe UI", Font.PLAIN, 11);
     private static final Font FONT_SMALL_BOLD  = new Font("Segoe UI", Font.BOLD, 11);
 
-    // ===== Sizes / demo data =====
+    // ===== Sizes =====
     private static final int SIDE_WIDTH = 320;
     private static final int PREVIEW_ICON = 80;
-    private static final int PLAYERS_READY = 2;
-    private static final int PLAYERS_TOTAL = 3;
+
+    /** Avatar colors cycled by join order. */
+    private static final Color[] AVATAR_COLORS = {
+        new Color(37, 99, 235), new Color(139, 92, 246), new Color(236, 72, 153),
+        new Color(16, 185, 129), new Color(245, 158, 11), new Color(14, 165, 233),
+        new Color(244, 63, 94), new Color(99, 102, 241)
+    };
 
     // Folder that holds every PNG picture: <project folder>/shape
     private static final String SHAPE_DIR = System.getProperty("user.dir") + "/shape/";
@@ -76,6 +88,33 @@ public class LobbyScreen extends JPanel {
     private final Image[] previewImages = new Image[PREVIEW_FILES.length];
     private final ActionListener onStartGameAction;
     private final ActionListener onLeaveAction;
+
+    // ===== Live room state (pushed in from MainApp) =====
+    private final List<String> playerNames = new ArrayList<>();
+    private final Map<String, Boolean> readyStates = new LinkedHashMap<>();
+    private String myName = "";
+    private String hostName = "";
+    private boolean isHost = false;
+    private ActionListener readyAction;
+    private Consumer<String> chatAction;
+
+    // ===== Widgets that are rebuilt from room state =====
+    private JPanel playerRowsPanel;
+    private JLabel playersCountLabel;
+    private JLabel playersBadge;
+    private JLabel addressValueLabel;
+    private JLabel hostValueLabel;
+    private JLabel playersValueLabel;
+    private JLabel minPlayersBadge;
+    private JLabel readyCountLabel;
+    private JPanel trackPanel;
+    private JLabel roomCodeValueLabel;
+    private JLabel subHeaderStatusLabel;
+    private JPanel chatListPanel;
+    private JTextField chatField;
+    private JButton readyBtn;
+    private JButton startBtn;
+    private JButton leaveBtn;
 
     public LobbyScreen() {
         this(null, null);
@@ -108,6 +147,8 @@ public class LobbyScreen extends JPanel {
 
         mainContent.add(columns, BorderLayout.CENTER);
         add(mainContent, BorderLayout.CENTER);
+
+        refreshPlayers();
     }
 
     // =====================================================================
@@ -121,8 +162,9 @@ public class LobbyScreen extends JPanel {
         JPanel subTitles = new JPanel(new GridLayout(3, 1, 0, 2));
         subTitles.setOpaque(false);
         subTitles.add(makeLabel("GAME LOBBY", FONT_SMALL_BOLD, PRIMARY_BLUE));
-        subTitles.add(makeLabel("Room #01", FONT_TITLE_LARGE, TEXT_DARK));
-        subTitles.add(makeLabel("Get ready while the host prepares the round.", FONT_BODY, TEXT_MUTED));
+        subTitles.add(makeLabel("Room", FONT_TITLE_LARGE, TEXT_DARK));
+        subHeaderStatusLabel = makeLabel("Waiting for players to join...", FONT_BODY, TEXT_MUTED);
+        subTitles.add(subHeaderStatusLabel);
         subHeader.add(subTitles, BorderLayout.WEST);
 
         // Room code badge: two plain labels stacked in one bordered box
@@ -132,8 +174,9 @@ public class LobbyScreen extends JPanel {
         roomCodeBadge.setBorder(new CompoundBorder(
             new LineBorder(BLUE_BORDER, 1),
             new EmptyBorder(6, 16, 6, 16)));
-        roomCodeBadge.add(makeCenteredLabel("ROOM CODE", FONT_SMALL_BOLD, PRIMARY_BLUE));
-        roomCodeBadge.add(makeCenteredLabel("SHAPE-01", FONT_BODY_BOLD, PRIMARY_BLUE));
+        roomCodeBadge.add(makeCenteredLabel("PORT", FONT_SMALL_BOLD, PRIMARY_BLUE));
+        roomCodeValueLabel = makeCenteredLabel("----", FONT_BODY_BOLD, PRIMARY_BLUE);
+        roomCodeBadge.add(roomCodeValueLabel);
 
         // FlowLayout lets the badge keep its own size at the right edge
         JPanel codeSlot = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
@@ -155,23 +198,18 @@ public class LobbyScreen extends JPanel {
 
         JPanel playersHeader = new JPanel(new BorderLayout());
         playersHeader.setOpaque(false);
-        playersHeader.add(makeLabel("3 Players", FONT_SUBTITLE, TEXT_DARK), BorderLayout.WEST);
-        playersHeader.add(makeBadge("3 / 8", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER), BorderLayout.EAST);
+        playersCountLabel = makeLabel("0 Players", FONT_SUBTITLE, TEXT_DARK);
+        playersBadge = makeBadge("0 / " + GameServer.MAX_PLAYERS, SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER);
+        playersHeader.add(playersCountLabel, BorderLayout.WEST);
+        playersHeader.add(playersBadge, BorderLayout.EAST);
         playersCard.add(playersHeader, BorderLayout.NORTH);
 
-        JPanel playerRows = new JPanel(new GridLayout(0, 1, 0, 8));
-        playerRows.setOpaque(false);
-        playerRows.add(createPlayerRow("A", new Color(37, 99, 235), "Aim", "Ready",
-            SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER));
-        playerRows.add(createPlayerRow("P", new Color(139, 92, 246), "Player 2", "Ready",
-            SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER));
-        playerRows.add(createPlayerRow("P", new Color(236, 72, 153), "Player 3", "Waiting",
-            WARNING_BG, WARNING_TEXT, WARNING_BORDER));
+        playerRowsPanel = new JPanel(new GridLayout(0, 1, 0, 8));
+        playerRowsPanel.setOpaque(false);
 
-        // The empty slot sits under the rows at its own height
         JPanel playersBody = new JPanel(new BorderLayout(0, 8));
         playersBody.setOpaque(false);
-        playersBody.add(playerRows, BorderLayout.NORTH);
+        playersBody.add(playerRowsPanel, BorderLayout.NORTH);
         playersBody.add(createEmptySlot(), BorderLayout.CENTER);
         playersCard.add(playersBody, BorderLayout.CENTER);
 
@@ -182,15 +220,18 @@ public class LobbyScreen extends JPanel {
 
         JPanel serverRows = new JPanel(new GridLayout(0, 1, 0, 6));
         serverRows.setOpaque(false);
-        serverRows.add(createInfoRow("Address", "192.168.1.24"));
-        serverRows.add(createInfoRow("Ping", "24 ms"));
-        serverRows.add(createInfoRow("Host", "Aim"));
+        addressValueLabel = makeLabel("-", FONT_BODY_BOLD, TEXT_DARK);
+        hostValueLabel = makeLabel("-", FONT_BODY_BOLD, TEXT_DARK);
+        playersValueLabel = makeLabel("-", FONT_BODY_BOLD, TEXT_DARK);
+        serverRows.add(createInfoRow("Address", addressValueLabel));
+        serverRows.add(createInfoRow("Host", hostValueLabel));
+        serverRows.add(createInfoRow("Players", playersValueLabel));
 
         JPanel serverBody = new JPanel(new BorderLayout(0, 12));
         serverBody.setOpaque(false);
         serverBody.add(serverRows, BorderLayout.NORTH);
-        serverBody.add(makeBadge("Minimum 3 players reached", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER),
-            BorderLayout.SOUTH);
+        minPlayersBadge = makeBadge("Waiting for players", WARNING_BG, WARNING_TEXT, WARNING_BORDER);
+        serverBody.add(minPlayersBadge, BorderLayout.SOUTH);
         serverCard.add(serverBody, BorderLayout.CENTER);
 
         // Both cards keep their natural height; leftover space stays empty at the bottom
@@ -228,30 +269,20 @@ public class LobbyScreen extends JPanel {
         headings.add(makeCenteredLabel("Every player must press READY", FONT_BODY, TEXT_MUTED));
         headings.add(makeCenteredLabel("before the host can start the game.", FONT_BODY, TEXT_MUTED));
 
-        // Progress: label row + three-segment track (filled segments = ready players)
+        // Progress: label row + one segment per player (filled segments = ready players)
         JPanel progressHeader = new JPanel(new BorderLayout());
         progressHeader.setOpaque(false);
         progressHeader.add(makeLabel("Players ready", FONT_SMALL_BOLD, TEXT_DARK), BorderLayout.WEST);
-        progressHeader.add(makeLabel(PLAYERS_READY + " of " + PLAYERS_TOTAL, FONT_SMALL_BOLD, PRIMARY_BLUE),
-            BorderLayout.EAST);
+        readyCountLabel = makeLabel("0 of 0", FONT_SMALL_BOLD, PRIMARY_BLUE);
+        progressHeader.add(readyCountLabel, BorderLayout.EAST);
 
-        JPanel track = new JPanel(new GridLayout(1, PLAYERS_TOTAL, 0, 0));
-        track.setOpaque(true);
-        track.setBackground(TRACK_GREY);
-        track.setPreferredSize(new Dimension(0, 8));
-        for (int i = 0; i < PLAYERS_TOTAL; i++) {
-            JPanel segment = new JPanel();
-            segment.setOpaque(true);
-            if (i < PLAYERS_READY) {
-                segment.setBackground(PRIMARY_BLUE);
-            } else {
-                segment.setBackground(TRACK_GREY);
-            }
-            track.add(segment);
-        }
+        trackPanel = new JPanel(new GridLayout(1, 1, 0, 0));
+        trackPanel.setOpaque(true);
+        trackPanel.setBackground(TRACK_GREY);
+        trackPanel.setPreferredSize(new Dimension(0, 8));
         JPanel trackSlot = new JPanel(new BorderLayout());
         trackSlot.setOpaque(false);
-        trackSlot.add(track, BorderLayout.NORTH);
+        trackSlot.add(trackPanel, BorderLayout.NORTH);
 
         JPanel progress = new JPanel(new BorderLayout(0, 6));
         progress.setOpaque(false);
@@ -274,11 +305,20 @@ public class LobbyScreen extends JPanel {
         JPanel buttonRow = new JPanel(new GridLayout(1, 2, 12, 0));
         buttonRow.setOpaque(false);
 
-        JButton readyBtn = makeButton("READY", true, 12, 18);
+        readyBtn = makeButton("READY", true, 12, 18);
         readyBtn.setPreferredSize(new Dimension(160, 44));
+        readyBtn.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (readyAction != null) {
+                    readyAction.actionPerformed(e);
+                }
+            }
+        });
 
-        JButton startBtn = makeButton("START GAME", false, 12, 18);
+        startBtn = makeButton("START GAME", false, 12, 18);
         startBtn.setPreferredSize(new Dimension(160, 44));
+        startBtn.setToolTipText("Only the host can start, once every other player is ready.");
         if (onStartGameAction != null) {
             startBtn.addActionListener(onStartGameAction);
         }
@@ -299,15 +339,12 @@ public class LobbyScreen extends JPanel {
         chatCard.setLayout(new BorderLayout(0, 10));
         chatCard.add(makeLabel("Chat", FONT_SUBTITLE, TEXT_DARK), BorderLayout.NORTH);
 
-        JPanel chatList = new JPanel(new GridLayout(0, 1, 0, 6));
-        chatList.setOpaque(false);
-        chatList.add(createChatMessage("Aim", "Ready for a shape challenge?", true));
-        chatList.add(createChatMessage("Player 2", "Let's go!", false));
-        chatList.add(createChatMessage("System", "Player 3 joined the room.", false));
+        chatListPanel = new JPanel(new GridLayout(0, 1, 0, 6));
+        chatListPanel.setOpaque(false);
 
         JPanel chatSlot = new JPanel(new BorderLayout());
         chatSlot.setOpaque(false);
-        chatSlot.add(chatList, BorderLayout.NORTH);
+        chatSlot.add(chatListPanel, BorderLayout.NORTH);
 
         JScrollPane scroll = new JScrollPane(chatSlot);
         scroll.setBorder(null);
@@ -315,26 +352,44 @@ public class LobbyScreen extends JPanel {
         scroll.setPreferredSize(new Dimension(220, 130));
         chatCard.add(scroll, BorderLayout.CENTER);
 
+        chatField = makeTextField("");
+        final JButton sendBtn = makeButton("Send", true, 8, 14);
+        ActionListener sendChat = new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                String text = chatField.getText().trim();
+                if (text.isEmpty()) {
+                    return;
+                }
+                if (chatAction != null) {
+                    chatAction.accept(text);
+                }
+                chatField.setText("");
+            }
+        };
+        sendBtn.addActionListener(sendChat);
+        chatField.addActionListener(sendChat);
+
         JPanel inputRow = new JPanel(new BorderLayout(6, 0));
         inputRow.setOpaque(false);
-        inputRow.add(makeTextField("Type a message..."), BorderLayout.CENTER);
-        inputRow.add(makeButton("Send", true, 8, 14), BorderLayout.EAST);
+        inputRow.add(chatField, BorderLayout.CENTER);
+        inputRow.add(sendBtn, BorderLayout.EAST);
         chatCard.add(inputRow, BorderLayout.SOUTH);
 
-        // --- Card 2: Round settings ---
+        // --- Card 2: Round settings (values come from the server's constants) ---
         JPanel settingsCard = makeCard();
         settingsCard.setLayout(new BorderLayout(0, 10));
         settingsCard.add(makeLabel("Round settings", FONT_SUBTITLE, TEXT_DARK), BorderLayout.NORTH);
 
         JPanel settingRows = new JPanel(new GridLayout(0, 1, 0, 6));
         settingRows.setOpaque(false);
-        settingRows.add(createInfoRow("Target", "3 shapes"));
-        settingRows.add(createInfoRow("Round time", "30 sec"));
-        settingRows.add(createInfoRow("Rounds", "4"));
+        settingRows.add(createInfoRow("Target", GameServer.TARGET_SHAPES + " shapes"));
+        settingRows.add(createInfoRow("Round time", GameServer.ROUND_SECONDS + " sec"));
+        settingRows.add(createInfoRow("Rounds", String.valueOf(GameServer.TOTAL_ROUNDS)));
         settingsCard.add(settingRows, BorderLayout.CENTER);
 
         // --- Leave button ---
-        JButton leaveBtn = makeButton("LEAVE ROOM", false, 10, 18);
+        leaveBtn = makeButton("LEAVE ROOM", false, 10, 18);
         if (onLeaveAction != null) {
             leaveBtn.addActionListener(onLeaveAction);
         }
@@ -355,18 +410,201 @@ public class LobbyScreen extends JPanel {
     }
 
     // =====================================================================
+    //  Live room data
+    // =====================================================================
+
+    public void setMyName(String name) {
+        this.myName = (name == null) ? "" : name;
+    }
+
+    public String getMyName() {
+        return myName;
+    }
+
+    public void setHost(boolean host) {
+        this.isHost = host;
+        refreshPlayers();
+    }
+
+    public boolean isHost() {
+        return isHost;
+    }
+
+    public void setReadyAction(ActionListener action) {
+        this.readyAction = action;
+    }
+
+    public void setChatAction(Consumer<String> action) {
+        this.chatAction = action;
+    }
+
+    public boolean isReady() {
+        return Boolean.TRUE.equals(readyStates.get(myName));
+    }
+
+    /** Shows the host address players typed in (IP:port). */
+    public void setAddress(String address) {
+        addressValueLabel.setText(address == null || address.isEmpty() ? "-" : address);
+    }
+
+    /** Fills the port badge from the port actually in use. */
+    public void setPort(int port) {
+        roomCodeValueLabel.setText(port > 0 ? String.valueOf(port) : "----");
+    }
+
+    public void setStatusText(String text) {
+        subHeaderStatusLabel.setText(text);
+    }
+
+    /** Replaces the whole player list and ready state with the server's latest snapshot. */
+    public void setPlayers(List<String> names, Map<String, Boolean> ready, String host) {
+        playerNames.clear();
+        readyStates.clear();
+        if (names != null) {
+            playerNames.addAll(names);
+        }
+        if (ready != null) {
+            readyStates.putAll(ready);
+        }
+        hostName = (host == null) ? "" : host;
+        if (playerNames.isEmpty()) {
+            hostName = "";
+        }
+        refreshPlayers();
+    }
+
+    /** Rebuilds every widget that depends on the room: rows, counters, track and buttons. */
+    private void refreshPlayers() {
+        int total = playerNames.size();
+
+        playerRowsPanel.removeAll();
+        for (int i = 0; i < total; i++) {
+            String name = playerNames.get(i);
+            boolean ready = Boolean.TRUE.equals(readyStates.get(name));
+            boolean rowIsHost = name.equals(hostName);
+            String initial = name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase();
+            String status;
+            Color bg;
+            Color fg;
+            Color border;
+            if (rowIsHost) {
+                status = "Host";
+                bg = BLUE_LIGHT_BG;
+                fg = PRIMARY_BLUE;
+                border = BLUE_BORDER;
+            } else if (ready) {
+                status = "Ready";
+                bg = SUCCESS_BG;
+                fg = SUCCESS_TEXT;
+                border = SUCCESS_BORDER;
+            } else {
+                status = "Waiting";
+                bg = WARNING_BG;
+                fg = WARNING_TEXT;
+                border = WARNING_BORDER;
+            }
+            playerRowsPanel.add(createPlayerRow(initial, AVATAR_COLORS[i % AVATAR_COLORS.length],
+                    name, myName.equals(name) ? name + " (you)" : name, status, bg, fg, border));
+        }
+        playerRowsPanel.revalidate();
+        playerRowsPanel.repaint();
+
+        playersCountLabel.setText(total + (total == 1 ? " Player" : " Players"));
+        playersBadge.setText(total + " / " + GameServer.MAX_PLAYERS);
+        playersValueLabel.setText(total + " / " + GameServer.MAX_PLAYERS);
+        hostValueLabel.setText(hostName.isEmpty() ? "-" : hostName);
+
+        int readyCount = 0;
+        for (String name : playerNames) {
+            if (Boolean.TRUE.equals(readyStates.get(name))) {
+                readyCount++;
+            }
+        }
+        readyCountLabel.setText(readyCount + " of " + total);
+
+        // Progress track: one segment per player, filled while that player is ready
+        trackPanel.removeAll();
+        trackPanel.setLayout(new GridLayout(1, Math.max(1, total), 0, 0));
+        for (int i = 0; i < Math.max(1, total); i++) {
+            JPanel segment = new JPanel();
+            segment.setOpaque(true);
+            boolean filled = i < readyCount;
+            segment.setBackground(filled ? PRIMARY_BLUE : TRACK_GREY);
+            trackPanel.add(segment);
+        }
+        trackPanel.revalidate();
+        trackPanel.repaint();
+
+        if (total < GameServer.MIN_PLAYERS) {
+            applyBadge(minPlayersBadge, "Minimum " + GameServer.MIN_PLAYERS + " players needed",
+                    WARNING_BG, WARNING_TEXT, WARNING_BORDER);
+        } else {
+            applyBadge(minPlayersBadge, "Minimum " + GameServer.MIN_PLAYERS + " players reached",
+                    SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER);
+        }
+
+        boolean allOthersReady = total >= GameServer.MIN_PLAYERS;
+        for (String name : playerNames) {
+            if (!name.equals(myName) && !Boolean.TRUE.equals(readyStates.get(name))) {
+                allOthersReady = false;
+            }
+        }
+        boolean canStart = isHost && allOthersReady;
+
+        startBtn.setEnabled(canStart);
+        startBtn.setText(isHost ? "START GAME" : "HOST STARTS");
+        startBtn.setBackground(canStart ? Color.WHITE : DISABLED_BG);
+        startBtn.setForeground(canStart ? TEXT_DARK : TEXT_DISABLED);
+        if (!isHost) {
+            startBtn.setToolTipText("Only the host can start the game.");
+        } else if (!allOthersReady) {
+            startBtn.setToolTipText("Every other player must press READY first.");
+        } else {
+            startBtn.setToolTipText("All players are ready - start the round.");
+        }
+
+        // The ready button keeps its primary blue look; only its label changes with state.
+        boolean meReady = Boolean.TRUE.equals(readyStates.get(myName));
+        readyBtn.setText(meReady ? "CANCEL READY" : "READY");
+
+        setStatusText(total < GameServer.MIN_PLAYERS
+                ? "Waiting for more players to join..."
+                : "Get ready while the host prepares the round.");
+    }
+
+    // =====================================================================
+    //  Chat
+    // =====================================================================
+
+    /** Removes all chat lines (used when a fresh room is joined). */
+    public void clearChat() {
+        chatListPanel.removeAll();
+        chatListPanel.revalidate();
+        chatListPanel.repaint();
+    }
+
+    /** Adds one chat line. System lines are drawn muted to match the original look. */
+    public void addChatMessage(String sender, String text) {
+        boolean isUser = sender != null && sender.equals(myName);
+        boolean isSystem = "System".equalsIgnoreCase(sender);
+        chatListPanel.add(createChatMessage(sender, text, isUser, isSystem));
+        chatListPanel.revalidate();
+        chatListPanel.repaint();
+    }
+
+    // =====================================================================
     //  Rows
     // =====================================================================
 
     private JPanel createPlayerRow(String initial, Color avatarColor, String name,
-                                   String status, Color bg, Color fg, Color border) {
+                                   String displayName, String status, Color bg, Color fg, Color border) {
         JPanel row = new JPanel(new BorderLayout(8, 0));
         row.setOpaque(false);
 
         JPanel who = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         who.setOpaque(false);
         who.add(makeAvatar(initial, avatarColor, 26));
-        who.add(makeLabel(name, FONT_BODY_BOLD, TEXT_DARK));
+        who.add(makeLabel(displayName, FONT_BODY_BOLD, TEXT_DARK));
 
         row.add(who, BorderLayout.WEST);
         row.add(makeBadge(status, bg, fg, border), BorderLayout.EAST);
@@ -386,17 +624,23 @@ public class LobbyScreen extends JPanel {
     }
 
     private JPanel createInfoRow(String label, String value) {
+        return createInfoRow(label, makeLabel(value, FONT_BODY_BOLD, TEXT_DARK));
+    }
+
+    private JPanel createInfoRow(String label, JLabel valueLabel) {
         JPanel row = new JPanel(new BorderLayout());
         row.setOpaque(false);
         row.add(makeLabel(label, FONT_BODY, TEXT_MUTED), BorderLayout.WEST);
-        row.add(makeLabel(value, FONT_BODY_BOLD, TEXT_DARK), BorderLayout.EAST);
+        row.add(valueLabel, BorderLayout.EAST);
         return row;
     }
 
-    private JPanel createChatMessage(String sender, String text, boolean isUser) {
+    private JPanel createChatMessage(String sender, String text, boolean isUser, boolean isSystem) {
         Color senderColor;
         if (isUser) {
             senderColor = PRIMARY_BLUE;
+        } else if (isSystem) {
+            senderColor = WARNING_TEXT;
         } else {
             senderColor = TEXT_MUTED;
         }
@@ -514,6 +758,17 @@ public class LobbyScreen extends JPanel {
         return badge;
     }
 
+    /** Recolors an existing badge in place (text + fill + border). */
+    private static void applyBadge(JLabel badge, String text, Color bg, Color fg, Color border) {
+        badge.setText(text);
+        badge.setForeground(fg);
+        badge.setBackground(bg);
+        badge.setBorder(new CompoundBorder(
+            new LineBorder(border, 1),
+            new EmptyBorder(4, 10, 4, 10)));
+        badge.repaint();
+    }
+
     /** Square colored tile with the player's initial, locked to size x size. */
     private static JLabel makeAvatar(String text, Color bg, int size) {
         JLabel avatar = new JLabel(text, JLabel.CENTER);
@@ -583,7 +838,7 @@ public class LobbyScreen extends JPanel {
     //  Inner classes
     // =====================================================================
 
-    /** Colors a button from mouse events: normal, hover (mouse inside) and pressed. */
+    /** Colors a button from mouse events: normal, hover (mouse inside) and pressed. Disabled buttons are left alone. */
     private static class ButtonHoverListener extends MouseAdapter {
         private final JButton button;
         private final Color normal;
@@ -601,22 +856,31 @@ public class LobbyScreen extends JPanel {
         @Override
         public void mouseEntered(MouseEvent e) {
             inside = true;
-            button.setBackground(hover);
+            if (button.isEnabled()) {
+                button.setBackground(hover);
+            }
         }
 
         @Override
         public void mouseExited(MouseEvent e) {
             inside = false;
-            button.setBackground(normal);
+            if (button.isEnabled()) {
+                button.setBackground(normal);
+            }
         }
 
         @Override
         public void mousePressed(MouseEvent e) {
-            button.setBackground(pressed);
+            if (button.isEnabled()) {
+                button.setBackground(pressed);
+            }
         }
 
         @Override
         public void mouseReleased(MouseEvent e) {
+            if (!button.isEnabled()) {
+                return;
+            }
             if (inside) {
                 button.setBackground(hover);
             } else {
