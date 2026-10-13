@@ -70,6 +70,8 @@ public class QuestionerScreen extends JPanel {
     private JLabel targetBadge;         // "Target: N Shapes" for the round's random count
     private int requiredShapes = GameServer.MIN_SHAPES;   // drawn by the server each round (1-5)
     private boolean selectionLocked;
+    private boolean roundActive;   // true from startRound() until the next round; false before the first round
+    private final List<StepRow> stepRows = new ArrayList<>();   // the 3 "Choose / Confirm / Watch" rows
     private String myName = "";
 
     public QuestionerScreen() {
@@ -146,11 +148,11 @@ public class QuestionerScreen extends JPanel {
         roundLabel = label("Waiting to start", FONT_SUBTITLE, TEXT_DARK);
         roundCard.add(alignLeft(roundLabel));
         roundCard.add(Box.createVerticalStrut(12));
-        roundCard.add(createStepRow(1, "Choose your shapes", true));
+        roundCard.add(createStepRow(1, "Choose your shapes").row);
         roundCard.add(Box.createVerticalStrut(10));
-        roundCard.add(createStepRow(2, "Confirm selection", false));
+        roundCard.add(createStepRow(2, "Confirm selection").row);
         roundCard.add(Box.createVerticalStrut(10));
-        roundCard.add(createStepRow(3, "Watch guesses", false));
+        roundCard.add(createStepRow(3, "Watch guesses").row);
 
         JPanel column = stack(panel(null));
         column.add(alignLeft(playersCard, 290));
@@ -252,23 +254,11 @@ public class QuestionerScreen extends JPanel {
             refreshUI();
         });
 
-        // ----- Chat card: name in bold blue + message in normal text, then the input row -----
-        JPanel chatSample = stack(panel(null), BoxLayout.X_AXIS);
-        chatSample.add(label("Aim:", FONT_SMALL_BOLD, PRIMARY_BLUE));
-        chatSample.add(Box.createHorizontalStrut(4));
-        chatSample.add(label("Ready for challenge?", FONT_SMALL, TEXT_DARK));
-        JPanel inputRow = panel(new BorderLayout(4, 0));
-        inputRow.add(makeTextField("Type a message..."), BorderLayout.CENTER);
-        inputRow.add(makeButton("SEND", true, 4, 8), BorderLayout.EAST);
-        JPanel miniChat = card(new BorderLayout(0, 6));
-        miniChat.add(label("Chat", FONT_SMALL_BOLD, TEXT_DARK), BorderLayout.NORTH);
-        miniChat.add(pin(chatSample, BorderLayout.NORTH), BorderLayout.CENTER); // keeps the message at the top
-        miniChat.add(inputRow, BorderLayout.SOUTH);
-
+        // The right column holds the Objects card only. The glue at the end soaks up the extra
+        // height BorderLayout gives this column, so the card keeps its natural size (no stretching).
         JPanel column = stack(panel(null));
-        column.add(alignLeft(objectsCard));
-        column.add(Box.createVerticalStrut(10));
-        column.add(alignLeft(miniChat));
+        column.add(alignLeft(objectsCard, objectsCard.getPreferredSize().height));
+        column.add(Box.createVerticalGlue());
         return column;
     }
 
@@ -294,11 +284,49 @@ public class QuestionerScreen extends JPanel {
         return row;
     }
 
-    private static JPanel createStepRow(int number, String text, boolean active) {
+    /** Builds one "Choose / Confirm / Watch" step row and remembers its circle and text. */
+    private StepRow createStepRow(int number, String text) {
         JPanel row = alignLeft(panel(new FlowLayout(FlowLayout.LEFT, 8, 0)), 28); // max height locked so the card can't pull rows apart
-        row.add(makeAvatar(String.valueOf(number), active ? PRIMARY_BLUE : STEP_INACTIVE, 20));
-        row.add(label(text, active ? FONT_BODY_BOLD : FONT_BODY, active ? TEXT_DARK : TEXT_MUTED));
-        return row;
+        JLabel circle = makeAvatar(String.valueOf(number), STEP_INACTIVE, 20);
+        JLabel textLabel = label(text, FONT_BODY, TEXT_MUTED);
+        row.add(circle);
+        row.add(textLabel);
+        StepRow step = new StepRow(row, circle, textLabel);
+        stepRows.add(step);
+        return step;
+    }
+
+    /**
+     * Highlights one of the three round steps (1-3). Steps before it turn green with a check mark,
+     * the active step is blue and bold, and steps after it stay grey. Pass 0 for "no round yet",
+     * which leaves every step grey and inactive.
+     */
+    private void setStep(int activeStep) {
+        for (int i = 0; i < stepRows.size(); i++) {
+            StepRow step = stepRows.get(i);
+            int number = i + 1;
+            if (number < activeStep) {
+                // done: a green circle with a check mark instead of the number
+                step.circle.setText("\u2713");
+                step.circle.setBackground(SUCCESS_TEXT);
+                step.text.setFont(FONT_BODY);
+                step.text.setForeground(TEXT_MUTED);
+            } else if (number == activeStep) {
+                // current: highlighted circle and bold text
+                step.circle.setText(String.valueOf(number));
+                step.circle.setBackground(PRIMARY_BLUE);
+                step.text.setFont(FONT_BODY_BOLD);
+                step.text.setForeground(TEXT_DARK);
+            } else {
+                // not reached yet: grey circle with the number
+                step.circle.setText(String.valueOf(number));
+                step.circle.setBackground(STEP_INACTIVE);
+                step.text.setFont(FONT_BODY);
+                step.text.setForeground(TEXT_MUTED);
+            }
+        }
+        revalidate();
+        repaint();
     }
 
     // =====================================================================
@@ -333,6 +361,19 @@ public class QuestionerScreen extends JPanel {
 
         // Card look lives in background/border, so each card must be refreshed (not just repainted)
         shapeCards.forEach(ShapeCard::refresh);
+
+        // Keep the step card in sync with the selection. Before the first round no step is active;
+        // while a round runs, filling every slot moves to step 2. A locked selection stays on
+        // step 3 and is never pushed back.
+        if (!roundActive) {
+            setStep(0);
+        } else if (selectionLocked) {
+            setStep(3);
+        } else if (selectedShapes.size() == requiredShapes) {
+            setStep(2);
+        } else {
+            setStep(1);
+        }
     }
 
     // =====================================================================
@@ -348,6 +389,7 @@ public class QuestionerScreen extends JPanel {
         if (requiredShapes >= GameServer.MIN_SHAPES && requiredShapes <= GameServer.MAX_SHAPES) {
             this.requiredShapes = requiredShapes;
         }
+        roundActive = true;
         selectionLocked = false;
         selectedShapes.clear();
         shapeSpots.clear();
@@ -361,6 +403,7 @@ public class QuestionerScreen extends JPanel {
                 + (this.requiredShapes == 1 ? "" : "s") + " for the others to guess, then press CONFIRM.");
         showWaitingTime();
         refreshUI();
+        setStep(1);   // every round starts on step 1
     }
 
     /** How many shapes this round needs; the server draws it and every player must match it. */
@@ -384,6 +427,7 @@ public class QuestionerScreen extends JPanel {
             confirmButton.setEnabled(false);
         }
         setStatus("Secret locked. Waiting for the other players to submit guesses...");
+        setStep(3);
     }
 
     /** Updates the hint line under the canvas (also used as the round status line). */
@@ -761,18 +805,22 @@ public class QuestionerScreen extends JPanel {
         return button;
     }
 
-    private static JTextField makeTextField(String text) {
-        JTextField field = new JTextField(text);
-        field.setBackground(Color.WHITE);
-        field.setForeground(TEXT_DARK);
-        field.setFont(FONT_BODY);
-        field.setBorder(box(CARD_BORDER, 1, 8, 12));
-        return field;
-    }
-
     // =====================================================================
     //  Inner classes
     // =====================================================================
+
+    /** The mutable parts of one step row, so setStep() can restyle the circle and the text. */
+    private static class StepRow {
+        final JPanel row;
+        final JLabel circle;
+        final JLabel text;
+
+        StepRow(JPanel row, JLabel circle, JLabel text) {
+            this.row = row;
+            this.circle = circle;
+            this.text = text;
+        }
+    }
 
     /** Draws one picture centered in its area (or a placeholder box when missing). */
     private static class ShapeImage extends JComponent {
