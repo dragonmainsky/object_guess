@@ -46,7 +46,7 @@ public class GameServer {
     // ===== Configuration =====
     public static final int DEFAULT_PORT = 5000;
     public static final int MIN_PLAYERS = 2;      // host + 1 other keeps LAN testing possible
-    public static final int MIN_SHAPES = 1;       // each round draws a secret shape count...
+    public static final int MIN_SHAPES = 1;       // the secret shape count is drawn once per cycle (see nextRound)...
     public static final int MAX_SHAPES = 5;       // ...randomly between these two values, inclusive
     public static final int ROUND_SECONDS = 30;         // guessing window, opens when the secret is locked
     public static final int BONUS_WINDOW_SECONDS = 10;  // "+2 when every shape is right within 10 sec"
@@ -579,9 +579,15 @@ public class GameServer {
             roundRunning = true;
             secret = null;
             secretLocked = false;
-            // The secret count is random every round. It is fixed for the whole round so the
-            // questioner and every guesser must end up with exactly this many shapes.
-            expectedShapes = MIN_SHAPES + random.nextInt(MAX_SHAPES - MIN_SHAPES + 1);
+            // Questioner order: every player takes one turn, then the order starts over.
+            // index == 0 is the first round of a new cycle.
+            int index = (round - 1) % clients.size();
+            // The secret count is drawn once per cycle and reused for every round of that cycle,
+            // so every player is questioner at the same difficulty and all guessers face the same
+            // count. The questioner and every guesser must end up with exactly this many shapes.
+            if (index == 0 || expectedShapes < MIN_SHAPES) {
+                expectedShapes = MIN_SHAPES + random.nextInt(MAX_SHAPES - MIN_SHAPES + 1);
+            }
             guesses.clear();
             guessTimes.clear();
             deltas.clear();
@@ -591,7 +597,6 @@ public class GameServer {
 
             // With totalRounds = players * 2, index (round-1) % players hands every player
             // exactly two turns as the questioner before the tournament ends.
-            int index = (round - 1) % clients.size();
             questioner = clients.get(index).playerName;
             selectedQuestioner = questioner;
             currentRound = round;
