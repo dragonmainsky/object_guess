@@ -51,7 +51,6 @@ public class JoinScreen extends JPanel {
     private static final Font FONT_TITLE_LARGE = new Font("Tahoma", Font.BOLD, 26);
 
     private static final String IMAGE_DIR = "shape";
-    private static final String FALLBACK_IP = "192.168.1.24";
 
     private JTextField nameField;
     private JTextField ipField;
@@ -93,7 +92,7 @@ public class JoinScreen extends JPanel {
         // Split layout: left branding panel and right connection form panel
         JPanel splitPanel = new JPanel(new GridLayout(1, 2));
         splitPanel.add(buildLeftPanel());
-        splitPanel.add(buildRightPanel(onJoinAction));
+        splitPanel.add(buildRightPanel());
 
         add(splitPanel, BorderLayout.CENTER);
     }
@@ -154,7 +153,7 @@ public class JoinScreen extends JPanel {
         return leftBrandPanel;
     }
 
-    private JPanel buildRightPanel(ActionListener onJoinAction) {
+    private JPanel buildRightPanel( ) {
         // Margin around the card keeps it centered; the card scales with the window
         JPanel rightWrapper = new JPanel(new GridLayout(1, 1));
         rightWrapper.setBackground(BG_LIGHT);
@@ -187,7 +186,7 @@ public class JoinScreen extends JPanel {
 
         // CENTER: inputs (Name, Server IP)
         String[] labels = {"Name", "Server IP"};
-        String[] defaults = {"Aim", FALLBACK_IP};
+        String[] defaults = {"", ""};
         JTextField[] fields = new JTextField[labels.length];
 
         JPanel inputs = new JPanel(new GridLayout(labels.length, 1, 0, 16));
@@ -218,7 +217,7 @@ public class JoinScreen extends JPanel {
         JPanel bannerContent = new JPanel(new BorderLayout());
         bannerContent.setOpaque(false);
 
-        JLabel playersCount = new JLabel("Players: 0 / 1 minimum");
+        JLabel playersCount = new JLabel("Players:");
         playersCount.setFont(FONT_SMALL_BOLD);
         playersCount.setForeground(WARNING_TEXT);
 
@@ -235,10 +234,6 @@ public class JoinScreen extends JPanel {
         joinBtn = makeButton("JOIN GAME", PRIMARY_BLUE, Color.WHITE, PRIMARY_HOVER, false);
         joinBtn.setPreferredSize(new Dimension(100, 44));
 
-        if (onJoinAction != null) {
-            joinBtn.addActionListener(onJoinAction);
-        }
-
         exitBtn = makeButton("EXIT", Color.WHITE, TEXT_DARK, SECONDARY_HOVER, true);
         exitBtn.setPreferredSize(new Dimension(100, 42));
         exitBtn.addActionListener(new ActionListener() {
@@ -254,6 +249,16 @@ public class JoinScreen extends JPanel {
                 }
             }
         });
+        
+        joinBtn.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                System.out.println("Join button clicked");
+                System.out.println("Player Name: " + getPlayerName());
+                System.out.println("Server IP: " + getServerIp());
+            }
+        });
+
 
         JPanel actions = new JPanel(new GridLayout(3, 1, 0, 10));
         actions.setOpaque(false);
@@ -384,25 +389,20 @@ public class JoinScreen extends JPanel {
     private static String getLocalIp() {
         try {
             String found = InetAddress.getLocalHost().getHostAddress();
-            return (found != null && !found.isEmpty()) ? found : FALLBACK_IP;
+            return (found != null && !found.isEmpty()) ? found : "127.0.0.1";
         } catch (Exception e) {
-            return FALLBACK_IP;
+            return "127.0.0.1";
         }
     }
 
     public String getPlayerName() {
-        return nameField.getText().trim();
+        return nameField.getText();
     }
 
     public String getServerIp() {
         return ipField.getText().trim();
     }
 
-    public void setOnJoinAction(ActionListener listener) {
-        if (listener != null) {
-            joinBtn.addActionListener(listener);
-        }
-    }
 
     public static void main(String[] args) {
         JFrame frame = new JFrame("Guess What It Looks Like? - Join Server");
