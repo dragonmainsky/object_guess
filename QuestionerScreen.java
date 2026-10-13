@@ -1,13 +1,19 @@
 import java.awt.*;
+import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.Transferable;
+import java.awt.dnd.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import javax.swing.*;
 import javax.swing.border.*;
@@ -20,6 +26,10 @@ import javax.swing.event.*;
  * factories live in this class, pictures are loaded with the AWT Toolkit and
  * drawn by a tiny ShapeImage component, and the layout is BorderLayout / BoxLayout.
  * The only custom painting is done with the basic Graphics object.
+ *
+ * Interaction: drag a shape from the Objects picker and drop it on the secret canvas;
+ * it lands exactly where the mouse is released. Drag a shape that is already on the canvas
+ * to move it. Drag it back onto the Objects card to remove it.
  */
 public class QuestionerScreen extends JPanel {
 
@@ -43,6 +53,9 @@ public class QuestionerScreen extends JPanel {
     private static final Color WARNING_BG      = new Color(254, 249, 195);
     private static final Color WARNING_TEXT    = new Color(133, 77, 14);
     private static final Color WARNING_BORDER  = new Color(254, 240, 138);
+
+    private static final Color DANGER_BG       = new Color(254, 226, 226);
+    private static final Color DANGER_BORDER   = new Color(254, 202, 202);
 
     private static final Color TEXT_DARK       = new Color(15, 23, 42);
     private static final Color TEXT_MUTED      = new Color(100, 116, 139);
@@ -91,7 +104,10 @@ public class QuestionerScreen extends JPanel {
     private final Image[] bigImages = new Image[AVAILABLE_SHAPES.length];
     private final ActionListener onConfirmAction;
 
-    private JPanel secretSetCanvas;
+    // Where each shape sits on the canvas: {x, y} as fractions (0..1) of the canvas size, at the shape's center
+    private final Map<String, double[]> shapeSpots = new HashMap<String, double[]>();
+
+    private DashedCanvas secretSetCanvas;
     private JLabel selectedCounterLabel;
     private JLabel readyBadge;
 
@@ -227,7 +243,7 @@ public class QuestionerScreen extends JPanel {
         JPanel titleGroup = new JPanel(new GridLayout(2, 1, 0, 2));
         titleGroup.setOpaque(false);
         titleGroup.add(makeLabel("Your secret set", FONT_TITLE, TEXT_DARK));
-        titleGroup.add(makeLabel("Arrange your 3 selected shapes on the canvas", FONT_BODY, TEXT_MUTED));
+        titleGroup.add(makeLabel("Drag your 3 shapes onto the canvas", FONT_BODY, TEXT_MUTED));
         cardHeader.add(titleGroup, BorderLayout.WEST);
 
         readyBadge = makeBadge("READY TO CONFIRM", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER, FONT_SMALL_BOLD);
@@ -235,12 +251,44 @@ public class QuestionerScreen extends JPanel {
         centerCard.add(cardHeader, BorderLayout.NORTH);
 
         // Secret set canvas (its content is filled in by refreshUI)
-        secretSetCanvas = new DashedCanvas();
-        secretSetCanvas.setLayout(new FlowLayout(FlowLayout.CENTER, 30, 60));
-        centerCard.add(secretSetCanvas, BorderLayout.CENTER);
+        final DashedCanvas canvas = new DashedCanvas();
+        secretSetCanvas = canvas;
+        centerCard.add(canvas, BorderLayout.CENTER);
+
+        // The canvas accepts shapes from the Objects picker and shapes being moved around on it
+        new ShapeDropTarget(canvas) {
+            @Override
+            boolean accepts(String origin, String shapeName) {
+                if (FROM_BOARD.equals(origin)) {
+                    return true;
+                }
+                return selectedShapes.contains(shapeName) || selectedShapes.size() < MAX_SHAPES;
+            }
+
+            @Override
+            void setHighlight(boolean on) {
+                canvas.setDropHighlight(on);
+            }
+
+            @Override
+            void shapeDropped(String origin, String shapeName, Point where) {
+                if (!selectedShapes.contains(shapeName)) {
+                    if (selectedShapes.size() >= MAX_SHAPES) {
+                        return;
+                    }
+                    selectedShapes.add(shapeName);
+                }
+                // The shape's center goes exactly where the mouse was released
+                double fx = where.x / (double) Math.max(1, canvas.getWidth());
+                double fy = where.y / (double) Math.max(1, canvas.getHeight());
+                shapeSpots.put(shapeName, new double[] {
+                    Math.max(0, Math.min(1, fx)), Math.max(0, Math.min(1, fy))});
+                refreshUI();
+            }
+        };
 
         // Helper text at bottom
-        JLabel removeHint = makeLabel("Click a shape to remove it from the canvas", FONT_SMALL, TEXT_MUTED);
+        JLabel removeHint = makeLabel("Drag a shape to move it, or back to Objects to remove it", FONT_SMALL, TEXT_MUTED);
         removeHint.setHorizontalAlignment(SwingConstants.CENTER);
         centerCard.add(removeHint, BorderLayout.SOUTH);
 
@@ -253,7 +301,7 @@ public class QuestionerScreen extends JPanel {
         column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
 
         // ----- Objects picker card -----
-        JPanel objectsCard = makeCard();
+        final JPanel objectsCard = makeCard();
         objectsCard.setLayout(new BoxLayout(objectsCard, BoxLayout.Y_AXIS));
 
         JPanel objectsHeader = new JPanel(new BorderLayout());
@@ -265,7 +313,7 @@ public class QuestionerScreen extends JPanel {
         objectsHeader.add(selectedCounterLabel, BorderLayout.EAST);
         objectsCard.add(alignLeft(objectsHeader));
 
-        objectsCard.add(alignLeft(makeLabel("Select exactly 3 shapes", FONT_SMALL, TEXT_MUTED)));
+        objectsCard.add(alignLeft(makeLabel("Drag exactly 3 shapes to the canvas", FONT_SMALL, TEXT_MUTED)));
         objectsCard.add(Box.createVerticalStrut(10));
 
         // Grid of shapes
@@ -298,6 +346,29 @@ public class QuestionerScreen extends JPanel {
 
         alignLeft(objectsCard);
         column.add(objectsCard);
+
+        // The whole card is a "drop here to remove" zone for shapes dragged off the canvas
+        new ShapeDropTarget(objectsCard) {
+            @Override
+            boolean accepts(String origin, String shapeName) {
+                return FROM_BOARD.equals(origin);
+            }
+
+            @Override
+            void setHighlight(boolean on) {
+                objectsCard.setBackground(on ? DANGER_BG : CARD_BG);
+                objectsCard.setBorder(new CompoundBorder(
+                    new LineBorder(on ? DANGER_BORDER : CARD_BORDER, 1),
+                    new EmptyBorder(16, 16, 16, 16)));
+            }
+
+            @Override
+            void shapeDropped(String origin, String shapeName, Point where) {
+                selectedShapes.remove(shapeName);
+                shapeSpots.remove(shapeName);
+                refreshUI();
+            }
+        };
         column.add(Box.createVerticalStrut(10));
 
         // ----- Chat card -----
@@ -374,15 +445,6 @@ public class QuestionerScreen extends JPanel {
     //  State changes
     // =====================================================================
 
-    private void toggleShape(String name) {
-        if (selectedShapes.contains(name)) {
-            selectedShapes.remove(name);
-        } else if (selectedShapes.size() < MAX_SHAPES) {
-            selectedShapes.add(name);
-        }
-        refreshUI();
-    }
-
     private void refreshUI() {
         updateSecretCanvas();
 
@@ -404,15 +466,42 @@ public class QuestionerScreen extends JPanel {
     }
 
     private void updateSecretCanvas() {
-        secretSetCanvas.removeAll();
+        secretSetCanvas.clearShapes();
         for (String shapeName : selectedShapes) {
             ShapeImage picture = new ShapeImage(bigImages[shapeIndex(shapeName)], BIG_ICON, shapeName);
-            picture.setToolTipText("Click to remove " + shapeName);
-            picture.addMouseListener(new RemoveShapeListener(shapeName));
-            secretSetCanvas.add(picture);
+            picture.setToolTipText("Drag to move " + shapeName + ", or back to Objects to remove it");
+            makeDraggable(picture, FROM_BOARD, shapeName);
+            double[] spot = spotFor(shapeName);
+            secretSetCanvas.putShape(picture, spot[0], spot[1]);
         }
         secretSetCanvas.revalidate();
         secretSetCanvas.repaint();
+    }
+
+    /** Spot of a shape on the canvas; shapes that were never dropped get a default place along the top. */
+    private double[] spotFor(String shapeName) {
+        double[] spot = shapeSpots.get(shapeName);
+        if (spot == null) {
+            spot = new double[] {0.5, 0.7};
+            for (int k = 0; k < 3; k++) {
+                double fx = 0.2 + 0.3 * k;
+                if (isSpotFree(fx, 0.3)) {
+                    spot = new double[] {fx, 0.3};
+                    break;
+                }
+            }
+            shapeSpots.put(shapeName, spot);
+        }
+        return spot;
+    }
+
+    private boolean isSpotFree(double fx, double fy) {
+        for (double[] other : shapeSpots.values()) {
+            if (Math.abs(other[0] - fx) < 0.18 && Math.abs(other[1] - fy) < 0.18) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private int shapeIndex(String name) {
@@ -422,6 +511,201 @@ public class QuestionerScreen extends JPanel {
             }
         }
         return 0;
+    }
+
+    // =====================================================================
+    //  Drag and drop (java.awt.dnd)
+    // =====================================================================
+
+    /** Where a drag started: a card in the Objects picker, or a shape already on the canvas. */
+    private static final String FROM_PICKER = "picker";
+    private static final String FROM_BOARD  = "board";
+    private static final int GHOST_SIZE = BIG_ICON;   // same size as the shape will have on the canvas
+
+    // What is being dragged right now (both null when no drag is in progress)
+    private String dragOrigin;
+    private String dragShape;
+
+    /** Lets the user drag this component; the drag carries shapeName. */
+    private void makeDraggable(JComponent source, final String origin, final String shapeName) {
+        source.setCursor(new Cursor(Cursor.MOVE_CURSOR));
+        DragSource.getDefaultDragSource().createDefaultDragGestureRecognizer(
+            source, DnDConstants.ACTION_MOVE, new DragGestureListener() {
+                @Override
+                public void dragGestureRecognized(DragGestureEvent event) {
+                    dragOrigin = origin;
+                    dragShape = shapeName;
+                    Transferable data = new StringSelection(shapeName);
+                    DragGhost ghost = new DragGhost(event.getComponent(), createDragGhost(shapeName));
+                    try {
+                        event.startDrag(null, data, ghost);
+                    } catch (InvalidDnDOperationException ex) {
+                        ghost.finish();
+                    }
+                }
+            });
+    }
+
+    /**
+     * The picture that follows the mouse while dragging. It is an ordinary lightweight component
+     * on the window's drag layer, kept centered exactly on the pointer, so it looks the same on
+     * every platform (the operating system's own drag image is not used). It never takes mouse
+     * or drop events itself.
+     */
+    private class DragGhost extends DragSourceAdapter {
+        private final JLayeredPane layer;
+        private final JComponent picture;
+
+        DragGhost(Component source, final Image image) {
+            JRootPane root = SwingUtilities.getRootPane(source);
+            layer = (root == null) ? null : root.getLayeredPane();
+            picture = new JComponent() {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    g.drawImage(image, 0, 0, this);
+                }
+
+                @Override
+                public boolean contains(int x, int y) {
+                    return false; // invisible to mouse and drop hit-testing
+                }
+            };
+            if (layer != null) {
+                picture.setSize(GHOST_SIZE, GHOST_SIZE);
+                layer.add(picture, JLayeredPane.DRAG_LAYER);
+                PointerInfo pointer = MouseInfo.getPointerInfo();
+                if (pointer != null) {
+                    moveTo(pointer.getLocation());
+                }
+                DragSource.getDefaultDragSource().addDragSourceMotionListener(this);
+            }
+        }
+
+        /** Centers the picture on a point given in screen coordinates. */
+        private void moveTo(Point screen) {
+            if (layer == null || screen == null) {
+                return;
+            }
+            Point p = new Point(screen);
+            SwingUtilities.convertPointFromScreen(p, layer);
+            picture.setLocation(p.x - GHOST_SIZE / 2, p.y - GHOST_SIZE / 2);
+        }
+
+        @Override
+        public void dragMouseMoved(DragSourceDragEvent e) {
+            moveTo(e.getLocation());
+        }
+
+        @Override
+        public void dragDropEnd(DragSourceDropEvent e) {
+            finish();
+        }
+
+        /** Removes the picture and forgets the drag. Safe to call more than once. */
+        void finish() {
+            DragSource.getDefaultDragSource().removeDragSourceMotionListener(this);
+            if (layer != null) {
+                Rectangle area = picture.getBounds();
+                layer.remove(picture);
+                layer.repaint(area);
+            }
+            dragOrigin = null;
+            dragShape = null;
+        }
+    }
+
+    /** Semi-transparent picture shown under the mouse while dragging. */
+    private Image createDragGhost(String shapeName) {
+        BufferedImage ghost = new BufferedImage(GHOST_SIZE, GHOST_SIZE, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = ghost.createGraphics();
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.8f));
+        Image source = bigImages[shapeIndex(shapeName)];
+        if (source != null) {
+            g2.drawImage(source, 0, 0, GHOST_SIZE, GHOST_SIZE, null);
+        } else {
+            // Placeholder when the picture file is missing
+            g2.setColor(new Color(220, 230, 242));
+            g2.fillRect(0, 0, GHOST_SIZE, GHOST_SIZE);
+            g2.setColor(new Color(70, 90, 120));
+            g2.drawRect(0, 0, GHOST_SIZE - 1, GHOST_SIZE - 1);
+            g2.setFont(FONT_SMALL_BOLD);
+            FontMetrics fm = g2.getFontMetrics();
+            String text = shapeName.length() > 6 ? shapeName.substring(0, 6) : shapeName;
+            g2.drawString(text, (GHOST_SIZE - fm.stringWidth(text)) / 2,
+                (GHOST_SIZE - fm.getHeight()) / 2 + fm.getAscent());
+        }
+        g2.dispose();
+        return ghost;
+    }
+
+    /**
+     * Turns a component into a drop zone. Subclasses say what to light up and what to do on a drop.
+     * Child components without their own drop target hand the drop to their parent, so
+     * installing this on a card or canvas covers everything inside it.
+     */
+    private abstract class ShapeDropTarget extends DropTargetAdapter {
+        ShapeDropTarget(JComponent target) {
+            new DropTarget(target, DnDConstants.ACTION_MOVE, this, true);
+        }
+
+        /** Whether the drag in progress may be dropped here (default: yes). */
+        boolean accepts(String origin, String shapeName) {
+            return true;
+        }
+
+        abstract void setHighlight(boolean on);
+
+        /** where = drop point in this component's own coordinates. */
+        abstract void shapeDropped(String origin, String shapeName, Point where);
+
+        private boolean canDrop() {
+            return dragOrigin != null && accepts(dragOrigin, dragShape);
+        }
+
+        @Override
+        public void dragEnter(DropTargetDragEvent e) {
+            if (canDrop()) {
+                e.acceptDrag(DnDConstants.ACTION_MOVE);
+                setHighlight(true);
+            } else {
+                e.rejectDrag();
+            }
+        }
+
+        @Override
+        public void dragOver(DropTargetDragEvent e) {
+            if (canDrop()) {
+                e.acceptDrag(DnDConstants.ACTION_MOVE);
+            } else {
+                e.rejectDrag();
+            }
+        }
+
+        @Override
+        public void dragExit(DropTargetEvent e) {
+            setHighlight(false);
+        }
+
+        @Override
+        public void drop(DropTargetDropEvent e) {
+            setHighlight(false);
+            if (!canDrop()) {
+                e.rejectDrop();
+                return;
+            }
+            final String origin = dragOrigin;
+            final String shapeName = dragShape;
+            final Point where = new Point(e.getLocation());
+            e.acceptDrop(DnDConstants.ACTION_MOVE);
+            e.dropComplete(true);
+            // The canvas is rebuilt after a drop, so wait until this event has finished
+            SwingUtilities.invokeLater(new Runnable() {
+                @Override
+                public void run() {
+                    shapeDropped(origin, shapeName, where);
+                }
+            });
+        }
     }
 
     // =====================================================================
@@ -620,8 +904,46 @@ public class QuestionerScreen extends JPanel {
 
     /** Light canvas with a dashed cross, drawn with short line segments. */
     private static class DashedCanvas extends JPanel {
+        private boolean dropHighlight = false;
+        // Position of every shape on the canvas: {x, y} fractions of the canvas size, at the shape's center
+        private final Map<Component, double[]> spots = new HashMap<Component, double[]>();
+
         DashedCanvas() {
             setOpaque(false);
+            setLayout(null); // shapes are placed by doLayout() below
+        }
+
+        void putShape(Component shape, double fx, double fy) {
+            spots.put(shape, new double[] {fx, fy});
+            add(shape);
+        }
+
+        void clearShapes() {
+            spots.clear();
+            removeAll();
+        }
+
+        /** Puts each shape's center on its spot, nudged inward so it never leaves the canvas. */
+        @Override
+        public void doLayout() {
+            for (Component shape : getComponents()) {
+                double[] spot = spots.get(shape);
+                if (spot == null) {
+                    continue;
+                }
+                Dimension d = shape.getPreferredSize();
+                int x = (int) Math.round(spot[0] * getWidth() - d.width / 2.0);
+                int y = (int) Math.round(spot[1] * getHeight() - d.height / 2.0);
+                x = Math.max(0, Math.min(x, Math.max(0, getWidth() - d.width)));
+                y = Math.max(0, Math.min(y, Math.max(0, getHeight() - d.height)));
+                shape.setBounds(x, y, d.width, d.height);
+            }
+        }
+
+        /** Tints the canvas while a shape is being dragged over it. */
+        void setDropHighlight(boolean on) {
+            dropHighlight = on;
+            repaint();
         }
 
         @Override
@@ -630,10 +952,11 @@ public class QuestionerScreen extends JPanel {
             int w = getWidth();
             int h = getHeight();
 
-            g.setColor(CANVAS_BG);
+            g.setColor(dropHighlight ? BLUE_LIGHT_BG : CANVAS_BG);
             g.fillRect(0, 0, w - 1, h - 1);
-            g.setColor(CANVAS_LINE);
+            g.setColor(dropHighlight ? PRIMARY_BLUE : CANVAS_LINE);
             g.drawRect(0, 0, w - 1, h - 1);
+            g.setColor(CANVAS_LINE);
 
             int midY = h / 2 + 30;
             int midX = w / 2;
@@ -647,7 +970,7 @@ public class QuestionerScreen extends JPanel {
         }
     }
 
-    /** One clickable card in the Objects grid. Its look follows the selection through refresh(). */
+    /** One draggable card in the Objects grid. Its look follows the selection through refresh(). */
     private class ShapeCard extends JPanel {
         private final String name;
         private final JLabel nameLabel;
@@ -664,12 +987,9 @@ public class QuestionerScreen extends JPanel {
             add(new ShapeImage(icon, SMALL_ICON, name), BorderLayout.CENTER);
             add(nameLabel, BorderLayout.SOUTH);
 
-            addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseClicked(MouseEvent e) {
-                    toggleShape(ShapeCard.this.name);
-                }
+            makeDraggable(this, FROM_PICKER, name);
 
+            addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseEntered(MouseEvent e) {
                     hovered = true;
@@ -704,25 +1024,11 @@ public class QuestionerScreen extends JPanel {
         }
     }
 
-    /** Click on a shape of the secret canvas removes it. */
-    private class RemoveShapeListener extends MouseAdapter {
-        private final String shapeName;
-
-        RemoveShapeListener(String shapeName) {
-            this.shapeName = shapeName;
-        }
-
-        @Override
-        public void mouseClicked(MouseEvent e) {
-            selectedShapes.remove(shapeName);
-            refreshUI();
-        }
-    }
-
     private class ClearListener implements ActionListener {
         @Override
         public void actionPerformed(ActionEvent event) {
             selectedShapes.clear();
+            shapeSpots.clear();
             refreshUI();
         }
     }

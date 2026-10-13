@@ -1,4 +1,7 @@
 import java.awt.*;
+import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.Transferable;
+import java.awt.dnd.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -18,6 +21,11 @@ import javax.swing.border.*;
  *   Center (CENTER) - "Your guess" card. Inner stage = 3 equal rows:
  *                     correct banner (top-right), guess slots (middle), incorrect banner (bottom-left).
  *   Right  (EAST)   - Objects picker card (2x4 grid + submit button) with the ENTER hint below.
+ *
+ * Interaction: drag a shape from the Objects picker and drop it on a guess slot.
+ *   - Drop on an empty slot   -> adds the shape.
+ *   - Drop on a filled slot   -> replaces it (or swaps, if the shape is already in another slot).
+ *   - Drag a placed shape back onto the Objects card -> removes it from the guess.
  *
  * Stacking trick used everywhere: a card placed at BorderLayout.NORTH keeps its
  * preferred height, and the leftover space below stays empty.
@@ -257,7 +265,7 @@ public class GuesserScreen extends JPanel {
             BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER);
 
         centerCard.add(createHeader("Your guess", FONT_TITLE,
-            "Your selected shapes appear here", FONT_BODY, selectedBadge), BorderLayout.NORTH);
+            "Drag shapes here from Objects", FONT_BODY, selectedBadge), BorderLayout.NORTH);
         centerCard.add(createStagePanel(), BorderLayout.CENTER);
 
         // Helper hint sits outside the card, under its left edge
@@ -268,7 +276,7 @@ public class GuesserScreen extends JPanel {
         tip.setFont(FONT_SMALL_BOLD);
         tip.setForeground(WARNING_TEXT);
 
-        JLabel hintLabel = new JLabel("You can change your choices until you submit.");
+        JLabel hintLabel = new JLabel("Drag a shape back to Objects to remove it. You can change your choices until you submit.");
         hintLabel.setFont(FONT_SMALL);
         hintLabel.setForeground(TEXT_MUTED);
 
@@ -352,12 +360,17 @@ public class GuesserScreen extends JPanel {
     private void updateGuessSlots() {
         guessSlotsPanel.removeAll();
         for (int i = 0; i < MAX_PICKS; i++) {
-            if (i < guessedShapes.size()) {
+            JPanel slot;
+            boolean filled = i < guessedShapes.size();
+            if (filled) {
                 String shapeName = guessedShapes.get(i);
-                guessSlotsPanel.add(createBigShapeCard(shapeName, getFileNameForShape(shapeName)));
+                slot = createBigShapeCard(shapeName, getFileNameForShape(shapeName));
+                makeDraggable(slot, FROM_BOARD, shapeName); // drag it back to Objects to remove
             } else {
-                guessSlotsPanel.add(createEmptySlot());
+                slot = createEmptySlot();
             }
+            makeSlotDropTarget(slot, i, filled);
+            guessSlotsPanel.add(slot);
         }
         guessSlotsPanel.revalidate();
         guessSlotsPanel.repaint();
@@ -398,7 +411,7 @@ public class GuesserScreen extends JPanel {
         JPanel right = new JPanel(new BorderLayout(0, 12));
         right.setOpaque(false);
 
-        JPanel objectsCard = createCard();
+        final JPanel objectsCard = createCard();
         objectsCard.setLayout(new BorderLayout(0, 12));
 
         pickCounterLabel = new JLabel(guessedShapes.size() + " / " + MAX_PICKS);
@@ -406,7 +419,7 @@ public class GuesserScreen extends JPanel {
         pickCounterLabel.setForeground(PRIMARY_BLUE);
 
         objectsCard.add(createHeader("Objects", FONT_SUBTITLE,
-            "Pick " + MAX_PICKS + " shapes", FONT_BODY, pickCounterLabel), BorderLayout.NORTH);
+            "Drag " + MAX_PICKS + " shapes into your guess", FONT_BODY, pickCounterLabel), BorderLayout.NORTH);
 
         // Shapes grid with a fixed height so the card keeps its original size
         JPanel grid = new JPanel(new GridLayout(4, 2, 8, 8));
@@ -425,6 +438,25 @@ public class GuesserScreen extends JPanel {
             submitBtn.addActionListener(onSubmitAction);
         }
         objectsCard.add(submitBtn, BorderLayout.SOUTH);
+
+        // The whole card is a "drop here to remove" zone for shapes dragged off the slots
+        new ShapeDropTarget(objectsCard) {
+            @Override
+            boolean accepts(String origin, String shapeName) {
+                return FROM_BOARD.equals(origin);
+            }
+
+            @Override
+            void setHighlight(boolean on) {
+                objectsCard.setBackground(on ? DANGER_BG : CARD_BG);
+                objectsCard.setBorder(createBoxBorder(on ? DANGER_BORDER : CARD_BORDER, 1, 16, 16));
+            }
+
+            @Override
+            void shapeDropped(String origin, String shapeName) {
+                removeShape(shapeName);
+            }
+        };
 
         // Keyboard hint right below the card
         JPanel hintRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 0));
@@ -454,7 +486,6 @@ public class GuesserScreen extends JPanel {
             this.shapeName = shapeName;
             setLayout(new BorderLayout());
             setOpaque(true);
-            setCursor(new Cursor(Cursor.HAND_CURSOR));
 
             JLabel iconLabel = new JLabel(loadIcon(filename, 34, 34), SwingConstants.CENTER);
             nameLabel = new JLabel(shapeName, SwingConstants.CENTER);
@@ -463,13 +494,7 @@ public class GuesserScreen extends JPanel {
             add(iconLabel, BorderLayout.CENTER);
             add(nameLabel, BorderLayout.SOUTH);
 
-            addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseClicked(MouseEvent e) {
-                    toggleShape(PickerItem.this.shapeName);
-                }
-            });
-
+            makeDraggable(this, FROM_PICKER, shapeName);
             applySelectionStyle();
         }
 
@@ -485,13 +510,244 @@ public class GuesserScreen extends JPanel {
         }
     }
 
-    private void toggleShape(String shapeName) {
-        if (guessedShapes.contains(shapeName)) {
-            guessedShapes.remove(shapeName);
+    /**
+     * Puts a shape into the slot at slotIndex (0-based).
+     * The guess list never has gaps, so dropping on an empty slot appends to the end.
+     */
+    private void placeShape(String shapeName, int slotIndex) {
+        int from = guessedShapes.indexOf(shapeName);
+        if (from >= 0) {
+            // Already in the guess: just reorder
+            if (slotIndex >= guessedShapes.size()) {
+                guessedShapes.remove(from);
+                guessedShapes.add(shapeName);
+            } else {
+                Collections.swap(guessedShapes, from, slotIndex);
+            }
+        } else if (slotIndex < guessedShapes.size()) {
+            guessedShapes.set(slotIndex, shapeName);   // replace the shape in that slot
         } else if (guessedShapes.size() < MAX_PICKS) {
             guessedShapes.add(shapeName);
         }
         refreshSelection();
+    }
+
+    private void removeShape(String shapeName) {
+        if (guessedShapes.remove(shapeName)) {
+            refreshSelection();
+        }
+    }
+
+    // =====================================================================
+    //  Drag and drop (java.awt.dnd)
+    // =====================================================================
+
+    /** Where a drag started: a tile in the Objects picker, or a shape already placed in a slot. */
+    private static final String FROM_PICKER = "picker";
+    private static final String FROM_BOARD  = "board";
+    private static final int GHOST_SIZE = 64;
+
+    // What is being dragged right now (both null when no drag is in progress)
+    private String dragOrigin;
+    private String dragShape;
+
+    /** Lets the user drag this component; the drag carries shapeName. */
+    private void makeDraggable(JComponent source, final String origin, final String shapeName) {
+        source.setCursor(new Cursor(Cursor.MOVE_CURSOR));
+        DragSource.getDefaultDragSource().createDefaultDragGestureRecognizer(
+            source, DnDConstants.ACTION_MOVE, new DragGestureListener() {
+                @Override
+                public void dragGestureRecognized(DragGestureEvent event) {
+                    dragOrigin = origin;
+                    dragShape = shapeName;
+                    Transferable data = new StringSelection(shapeName);
+                    DragGhost ghost = new DragGhost(event.getComponent(), createDragGhost(shapeName));
+                    try {
+                        event.startDrag(null, data, ghost);
+                    } catch (InvalidDnDOperationException ex) {
+                        ghost.finish();
+                    }
+                }
+            });
+    }
+
+    /**
+     * The picture that follows the mouse while dragging. It is an ordinary lightweight component
+     * on the window's drag layer, kept centered exactly on the pointer, so it looks the same on
+     * every platform (the operating system's own drag image is not used). It never takes mouse
+     * or drop events itself.
+     */
+    private class DragGhost extends DragSourceAdapter {
+        private final JLayeredPane layer;
+        private final JComponent picture;
+
+        DragGhost(Component source, final Image image) {
+            JRootPane root = SwingUtilities.getRootPane(source);
+            layer = (root == null) ? null : root.getLayeredPane();
+            picture = new JComponent() {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    g.drawImage(image, 0, 0, this);
+                }
+
+                @Override
+                public boolean contains(int x, int y) {
+                    return false; // invisible to mouse and drop hit-testing
+                }
+            };
+            if (layer != null) {
+                picture.setSize(GHOST_SIZE, GHOST_SIZE);
+                layer.add(picture, JLayeredPane.DRAG_LAYER);
+                PointerInfo pointer = MouseInfo.getPointerInfo();
+                if (pointer != null) {
+                    moveTo(pointer.getLocation());
+                }
+                DragSource.getDefaultDragSource().addDragSourceMotionListener(this);
+            }
+        }
+
+        /** Centers the picture on a point given in screen coordinates. */
+        private void moveTo(Point screen) {
+            if (layer == null || screen == null) {
+                return;
+            }
+            Point p = new Point(screen);
+            SwingUtilities.convertPointFromScreen(p, layer);
+            picture.setLocation(p.x - GHOST_SIZE / 2, p.y - GHOST_SIZE / 2);
+        }
+
+        @Override
+        public void dragMouseMoved(DragSourceDragEvent e) {
+            moveTo(e.getLocation());
+        }
+
+        @Override
+        public void dragDropEnd(DragSourceDropEvent e) {
+            finish();
+        }
+
+        /** Removes the picture and forgets the drag. Safe to call more than once. */
+        void finish() {
+            DragSource.getDefaultDragSource().removeDragSourceMotionListener(this);
+            if (layer != null) {
+                Rectangle area = picture.getBounds();
+                layer.remove(picture);
+                layer.repaint(area);
+            }
+            dragOrigin = null;
+            dragShape = null;
+        }
+    }
+
+    /** Semi-transparent picture shown under the mouse while dragging. */
+    private Image createDragGhost(String shapeName) {
+        BufferedImage ghost = new BufferedImage(GHOST_SIZE, GHOST_SIZE, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = ghost.createGraphics();
+        g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.8f));
+        ImageIcon icon = loadIcon(getFileNameForShape(shapeName), GHOST_SIZE, GHOST_SIZE);
+        if (icon != null) {
+            g2.drawImage(icon.getImage(), 0, 0, null);
+        } else {
+            // Placeholder when the picture file is missing
+            g2.setColor(new Color(220, 230, 242));
+            g2.fillRect(0, 0, GHOST_SIZE, GHOST_SIZE);
+            g2.setColor(new Color(70, 90, 120));
+            g2.drawRect(0, 0, GHOST_SIZE - 1, GHOST_SIZE - 1);
+            g2.setFont(FONT_SMALL_BOLD);
+            FontMetrics fm = g2.getFontMetrics();
+            String text = shapeName.length() > 6 ? shapeName.substring(0, 6) : shapeName;
+            g2.drawString(text, (GHOST_SIZE - fm.stringWidth(text)) / 2,
+                (GHOST_SIZE - fm.getHeight()) / 2 + fm.getAscent());
+        }
+        g2.dispose();
+        return ghost;
+    }
+
+    /** One guess slot accepts any dragged shape and lights up while a drag is over it. */
+    private void makeSlotDropTarget(final JPanel slot, final int index, final boolean filled) {
+        new ShapeDropTarget(slot) {
+            @Override
+            void setHighlight(boolean on) {
+                slot.setBackground(on ? BLUE_LIGHT_BG : (filled ? Color.WHITE : EMPTY_SLOT_BG));
+                if (!filled) {
+                    slot.setBorder(new LineBorder(on ? PRIMARY_BLUE : EMPTY_SLOT_BORDER, 2));
+                }
+                slot.repaint();
+            }
+
+            @Override
+            void shapeDropped(String origin, String shapeName) {
+                placeShape(shapeName, index);
+            }
+        };
+    }
+
+    /**
+     * Turns a component into a drop zone. Subclasses say what to light up and what to do on a drop.
+     * Child components without their own drop target hand the drop to their parent, so
+     * installing this on a card covers everything inside it.
+     */
+    private abstract class ShapeDropTarget extends DropTargetAdapter {
+        ShapeDropTarget(JComponent target) {
+            new DropTarget(target, DnDConstants.ACTION_MOVE, this, true);
+        }
+
+        /** Whether the drag in progress may be dropped here (default: yes). */
+        boolean accepts(String origin, String shapeName) {
+            return true;
+        }
+
+        abstract void setHighlight(boolean on);
+
+        abstract void shapeDropped(String origin, String shapeName);
+
+        private boolean canDrop() {
+            return dragOrigin != null && accepts(dragOrigin, dragShape);
+        }
+
+        @Override
+        public void dragEnter(DropTargetDragEvent e) {
+            if (canDrop()) {
+                e.acceptDrag(DnDConstants.ACTION_MOVE);
+                setHighlight(true);
+            } else {
+                e.rejectDrag();
+            }
+        }
+
+        @Override
+        public void dragOver(DropTargetDragEvent e) {
+            if (canDrop()) {
+                e.acceptDrag(DnDConstants.ACTION_MOVE);
+            } else {
+                e.rejectDrag();
+            }
+        }
+
+        @Override
+        public void dragExit(DropTargetEvent e) {
+            setHighlight(false);
+        }
+
+        @Override
+        public void drop(DropTargetDropEvent e) {
+            setHighlight(false);
+            if (!canDrop()) {
+                e.rejectDrop();
+                return;
+            }
+            final String origin = dragOrigin;
+            final String shapeName = dragShape;
+            e.acceptDrop(DnDConstants.ACTION_MOVE);
+            e.dropComplete(true);
+            // Slots are rebuilt after a drop, so wait until this event has finished
+            SwingUtilities.invokeLater(new Runnable() {
+                @Override
+                public void run() {
+                    shapeDropped(origin, shapeName);
+                }
+            });
+        }
     }
 
     /** Re-syncs every widget that depends on how many shapes are currently picked. */
