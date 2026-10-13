@@ -168,7 +168,10 @@ public class GameClient {
         send(GameServer.NEW_GAME);
     }
 
-    /** Sends every shape the questioner picked (between MIN_SHAPES and MAX_SHAPES, no fixed count). */
+    /**
+     * Sends the questioner's secret. The exact count for the round is random (1-5) and is
+     * enforced by the server, so this only sanity-checks the global bounds here.
+     */
     public void submitSecret(List<String> shapes) {
         if (shapes == null || shapes.size() < GameServer.MIN_SHAPES || shapes.size() > GameServer.MAX_SHAPES) {
             return;
@@ -176,7 +179,7 @@ public class GameClient {
         send(GameServer.SECRET, shapes.toArray(new String[0]));
     }
 
-    /** Sends the full guess. The count must match the secret, so it is not fixed here either. */
+    /** Sends the full guess. Its count must equal the secret count the server announced. */
     public void submitGuess(List<String> shapes) {
         if (shapes == null || shapes.isEmpty() || shapes.size() > GameServer.MAX_SHAPES) {
             return;

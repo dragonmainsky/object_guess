@@ -1,22 +1,17 @@
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import javax.swing.ButtonModel;
 import javax.swing.ImageIcon;
-import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
 
 /**
  * RoundResultScreen: the scoreboard for ONE round, shown between rounds.
@@ -29,9 +24,9 @@ import javax.swing.event.ChangeListener;
  * Style rules copied from ScoreboardScreen: no lambdas, no ternary expressions and no
  * custom paintComponent - everything is an ordinary JPanel / JLabel with an ImageIcon.
  *
- * Buttons: between rounds only the host may press CONTINUE (it asks the server for the next
- * round). On the last round the button becomes VIEW FINAL SCOREBOARD, which is a local screen
- * switch and needs no network at all.
+ * There are no buttons. The screen runs a 10-second countdown with a javax.swing.Timer; the
+ * server owns the clock too and starts the next round (or the final scoreboard) on its own,
+ * so this countdown is only the visible half of that wait.
  */
 public class RoundResultScreen extends JPanel {
 
@@ -83,10 +78,11 @@ public class RoundResultScreen extends JPanel {
         new Color(244, 63, 94), new Color(99, 102, 241)
     };
 
-    private final ActionListener onContinueAction;
-    private final ActionListener onViewFinalAction;
+    // ===== Countdown =====
+    private static final int COUNTDOWN_SECONDS = GameServer.INTERMISSION_SECONDS;
 
-    private boolean hostMode;
+    /** Notified on the EDT when the countdown reaches zero (used for the final switch). */
+    private final ActionListener onCountdownFinished;
 
     // ===== Widgets rebuilt by showResult() =====
     private JLabel tagLabel;
@@ -99,17 +95,18 @@ public class RoundResultScreen extends JPanel {
     private JLabel resultsTitleLabel;
     private JLabel resultsBadge;
     private JPanel rowsPanel;
-    private JButton continueBtn;
-    private JButton viewFinalBtn;
-    private JLabel hintLabel;
+    private JLabel countdownLabel;
+
+    // ===== Countdown state (EDT only) =====
+    private javax.swing.Timer countdownTimer;
+    private int secondsLeft;
 
     public RoundResultScreen() {
-        this(null, null);
+        this(null);
     }
 
-    public RoundResultScreen(ActionListener onContinueAction, ActionListener onViewFinalAction) {
-        this.onContinueAction = onContinueAction;
-        this.onViewFinalAction = onViewFinalAction;
+    public RoundResultScreen(ActionListener onCountdownFinished) {
+        this.onCountdownFinished = onCountdownFinished;
 
         setLayout(new BorderLayout());
         setBackground(BG_LIGHT);
@@ -267,45 +264,25 @@ public class RoundResultScreen extends JPanel {
     }
 
     // =====================================================================
-    //  Footer buttons
+    //  Footer: the countdown that replaces the old Continue button
     // =====================================================================
 
     private JPanel buildFooter() {
         JPanel footer = new JPanel(new BorderLayout(12, 0));
         footer.setOpaque(false);
 
-        hintLabel = new JLabel("Waiting for the host...");
-        hintLabel.setFont(FONT_SMALL);
-        hintLabel.setForeground(TEXT_MUTED);
-        footer.add(hintLabel, BorderLayout.WEST);
+        countdownLabel = new JLabel("Next round in " + COUNTDOWN_SECONDS + "s...");
+        countdownLabel.setFont(FONT_BODY_BOLD);
+        countdownLabel.setForeground(PRIMARY_BLUE);
+        footer.add(countdownLabel, BorderLayout.WEST);
 
-        continueBtn = buildButton("CONTINUE", PRIMARY_BLUE, PRIMARY_HOVER, PRIMARY_PRESS, Color.WHITE);
-        continueBtn.setPreferredSize(new Dimension(190, 44));
-        continueBtn.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent event) {
-                if (onContinueAction != null) {
-                    onContinueAction.actionPerformed(event);
-                }
-            }
-        });
-
-        viewFinalBtn = buildButton("VIEW FINAL SCOREBOARD", PRIMARY_BLUE, PRIMARY_HOVER, PRIMARY_PRESS, Color.WHITE);
-        viewFinalBtn.setPreferredSize(new Dimension(230, 44));
-        viewFinalBtn.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent event) {
-                if (onViewFinalAction != null) {
-                    onViewFinalAction.actionPerformed(event);
-                }
-            }
-        });
-
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        buttons.setOpaque(false);
-        buttons.add(continueBtn);
-        buttons.add(viewFinalBtn);
-        footer.add(buttons, BorderLayout.EAST);
+        JLabel note = new JLabel("The next screen opens automatically.");
+        note.setFont(FONT_SMALL);
+        note.setForeground(TEXT_MUTED);
+        JPanel noteSlot = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        noteSlot.setOpaque(false);
+        noteSlot.add(note);
+        footer.add(noteSlot, BorderLayout.EAST);
 
         return footer;
     }
@@ -313,11 +290,6 @@ public class RoundResultScreen extends JPanel {
     // =====================================================================
     //  Public API used by MainApp
     // =====================================================================
-
-    /** Only the host may press CONTINUE between rounds; the last round ignores this. */
-    public void setHostMode(boolean host) {
-        hostMode = host;
-    }
 
     /**
      * Draws the whole screen from one ROUND_RESULT. The arrays are parallel and every one of
@@ -373,24 +345,61 @@ public class RoundResultScreen extends JPanel {
         rowsPanel.revalidate();
         rowsPanel.repaint();
 
-        if (isFinal) {
-            continueBtn.setVisible(false);
-            viewFinalBtn.setVisible(true);
-            hintLabel.setText("The tournament is over - open the final standings.");
-        } else {
-            viewFinalBtn.setVisible(false);
-            continueBtn.setVisible(true);
-            if (hostMode) {
-                continueBtn.setEnabled(true);
-                hintLabel.setText("Press CONTINUE for the lobby, then start the next round.");
-            } else {
-                continueBtn.setEnabled(false);
-                hintLabel.setText("Waiting for the host to continue...");
-            }
-        }
+        // No Continue button any more: the server starts the next round on its own clock, and
+        // this countdown just shows how long the wait is.
+        startCountdown(isFinal);
 
         revalidate();
         repaint();
+    }
+
+    // =====================================================================
+    //  Countdown (10 -> 0), driven by a javax.swing.Timer on the EDT
+    // =====================================================================
+
+    /** Restarts the 10-second countdown for the round just shown. */
+    private void startCountdown(final boolean isFinal) {
+        stopCountdown();
+        secondsLeft = COUNTDOWN_SECONDS;
+        setCountdownText(isFinal);
+        countdownTimer = new javax.swing.Timer(1000, new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                secondsLeft--;
+                if (secondsLeft <= 0) {
+                    secondsLeft = 0;
+                    setCountdownText(isFinal);
+                    stopCountdown();
+                    if (onCountdownFinished != null) {
+                        onCountdownFinished.actionPerformed(new ActionEvent(
+                            RoundResultScreen.this, ActionEvent.ACTION_PERFORMED, "countdown"));
+                    }
+                } else {
+                    setCountdownText(isFinal);
+                }
+            }
+        });
+        countdownTimer.setRepeats(true);
+        countdownTimer.start();
+    }
+
+    private void setCountdownText(boolean isFinal) {
+        if (countdownLabel == null) {
+            return;
+        }
+        if (isFinal) {
+            countdownLabel.setText("Final scoreboard in " + secondsLeft + "s...");
+        } else {
+            countdownLabel.setText("Next round in " + secondsLeft + "s...");
+        }
+    }
+
+    /** Stops the countdown. Safe to call when none is running. */
+    public void stopCountdown() {
+        if (countdownTimer != null) {
+            countdownTimer.stop();
+            countdownTimer = null;
+        }
     }
 
     // =====================================================================
@@ -559,25 +568,6 @@ public class RoundResultScreen extends JPanel {
         return label;
     }
 
-    private static JButton buildButton(String text, Color normal, Color hover, Color pressed, Color fg) {
-        JButton btn = new JButton(text);
-        btn.setFont(FONT_BODY_BOLD);
-        btn.setForeground(fg);
-        btn.setBackground(normal);
-        btn.setContentAreaFilled(false); // call before setOpaque: some look and feels reset opaque
-        btn.setOpaque(true);
-        btn.setBorderPainted(true);
-        btn.setBorder(new CompoundBorder(
-            new LineBorder(normal, 1),
-            new EmptyBorder(10, 18, 10, 18)));
-        btn.setFocusPainted(false);
-        btn.setFocusable(false);
-        btn.setRolloverEnabled(true);
-        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btn.getModel().addChangeListener(new ButtonStateListener(btn, normal, hover, pressed));
-        return btn;
-    }
-
     private static String initialOf(String name) {
         if (name == null || name.isEmpty()) {
             return "?";
@@ -587,34 +577,5 @@ public class RoundResultScreen extends JPanel {
 
     private static Color avatarColor(int index) {
         return AVATAR_COLORS[Math.abs(index) % AVATAR_COLORS.length];
-    }
-
-    // =====================================================================
-
-    /** Repaints a button in the right colour for pressed / hover / normal. */
-    private static class ButtonStateListener implements ChangeListener {
-        private final JButton button;
-        private final Color normal;
-        private final Color hover;
-        private final Color pressed;
-
-        ButtonStateListener(JButton button, Color normal, Color hover, Color pressed) {
-            this.button = button;
-            this.normal = normal;
-            this.hover = hover;
-            this.pressed = pressed;
-        }
-
-        @Override
-        public void stateChanged(ChangeEvent event) {
-            ButtonModel model = button.getModel();
-            if (model.isPressed() || model.isArmed()) {
-                button.setBackground(pressed);
-            } else if (model.isRollover()) {
-                button.setBackground(hover);
-            } else {
-                button.setBackground(normal);
-            }
-        }
     }
 }

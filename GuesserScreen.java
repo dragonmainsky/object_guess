@@ -104,7 +104,7 @@ public class GuesserScreen extends JPanel {
         JPanel badges = panel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         targetBadge = createBadge("Target: ?", BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER);
         badges.add(targetBadge);
-        timeBadge = createBadge(secondsText(GameServer.ROUND_SECONDS), WARNING_BG, WARNING_TEXT, WARNING_BORDER);
+        timeBadge = createBadge("Time: --:--", WARNING_BG, WARNING_TEXT, WARNING_BORDER);
         badges.add(timeBadge);
         scoreBadge = createBadge("Score: 0", BG_LIGHT, TEXT_DARK, CARD_BORDER);
         badges.add(scoreBadge);
@@ -394,19 +394,27 @@ public class GuesserScreen extends JPanel {
         this.myName = (name == null) ? "" : name;
     }
 
-    /** Prepares an empty guess for a new round; the submit button stays locked until the secret is set. */
-    public void startRound(int roundNumber, int totalRounds, String questioner) {
+    /**
+     * Starts a round. The server already announced how many shapes it drew, so the guess slots
+     * are sized right away; guessing and the shared clock stay locked until the questioner
+     * locks in the secret (see onSecretLocked).
+     */
+    public void startRound(int roundNumber, int totalRounds, String questioner, int requiredShapes) {
         submitted = false;
         secretLocked = false;
-        requiredPicks = 0;
+        if (requiredShapes >= GameServer.MIN_SHAPES && requiredShapes <= GameServer.MAX_SHAPES) {
+            requiredPicks = requiredShapes;
+        } else {
+            requiredPicks = GameServer.MIN_SHAPES;
+        }
         questionerName = (questioner == null) ? "" : questioner;
         guessedShapes.clear();
         if (roundLabel != null) {
             roundLabel.setText("Round " + roundNumber + " of " + totalRounds);
         }
-        setTargetBadge(0);
-        setTimeLeft(GameServer.ROUND_SECONDS);
-        setStatus("Questioner: " + questionerName + ". Waiting for the secret shapes to be locked in...");
+        setTargetBadge(requiredPicks);
+        showWaitingTime();
+        setStatus("Waiting for questioner (" + questionerName + ") to lock in the shapes...");
         updateSubmittedBadge();
         refreshSelection();
         setSubmitEnabled(false);
@@ -447,6 +455,15 @@ public class GuesserScreen extends JPanel {
         } else {
             setBadgeColors(timeBadge, WARNING_BG, WARNING_TEXT, WARNING_BORDER);
         }
+    }
+
+    /** The guessers' clock has not started: it only runs after the questioner submits. */
+    private void showWaitingTime() {
+        if (timeBadge == null) {
+            return;
+        }
+        timeBadge.setText("Time: --:--");
+        setBadgeColors(timeBadge, WARNING_BG, WARNING_TEXT, WARNING_BORDER);
     }
 
     private void setTargetBadge(int count) {

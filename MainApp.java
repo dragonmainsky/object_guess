@@ -150,18 +150,13 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
             }
         );
 
-        // Round result: CONTINUE (host) asks the server; VIEW FINAL SCOREBOARD is a local switch only.
+        // Round result: no buttons any more. Its 10s countdown only reports when it reaches
+        // zero; the server owns the actual switch to the next round (or the final scoreboard).
         roundResultScreen = new RoundResultScreen(
             new ActionListener() {
                 @Override
                 public void actionPerformed(ActionEvent event) {
-                    requestNewGame();
-                }
-            },
-            new ActionListener() {
-                @Override
-                public void actionPerformed(ActionEvent event) {
-                    showScreen(SCREEN_SCOREBOARD);
+                    onRoundCountdownFinished();
                 }
             }
         );
@@ -378,7 +373,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
             return;
         }
         List<String> shapes = questionerScreen.getSelectedShapes();
-        if (shapes.size() < GameServer.MIN_SHAPES || shapes.size() > GameServer.MAX_SHAPES) {
+        if (shapes.size() != questionerScreen.getRequiredPicks()) {
             return;
         }
         client.submitSecret(shapes);
@@ -431,6 +426,8 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
             handleRoundResult(args);
         } else if (GameServer.TO_LOBBY.equals(type)) {
             handleToLobby(args);
+        } else if (GameServer.SHOW_SCOREBOARD.equals(type)) {
+            handleShowScoreboard();
         } else if (GameServer.TICK.equals(type)) {
             handleTick(args);
         } else if (GameServer.CHAT.equals(type)) {
@@ -520,6 +517,8 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         int round = parseInt(arg(args, 0), 1);
         int total = parseInt(arg(args, 1), 0);
         String questioner = arg(args, 2);
+        // Fourth field: the random shape count the server drew for this round (1-5).
+        int requiredShapes = parseInt(arg(args, 3), GameServer.MIN_SHAPES);
 
         currentRound = round;
         knownTotalRounds = total;
@@ -527,10 +526,10 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
 
         pushScoreboards();
         if (myName.equals(questioner)) {
-            questionerScreen.startRound(round, total);
+            questionerScreen.startRound(round, total, requiredShapes);
             showScreen(SCREEN_QUESTIONER);
         } else {
-            guesserScreen.startRound(round, total, questioner);
+            guesserScreen.startRound(round, total, questioner, requiredShapes);
             showScreen(SCREEN_GUESSER);
         }
     }
@@ -584,6 +583,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         int playerCount = parseInt(arg(args, 6), 0);
 
         roundInProgress = false;
+        currentRound = round;
         knownTotalRounds = total;
 
         lastScores.clear();
@@ -612,7 +612,6 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         scoreboardScreen.setResults(names, totals, round, total, isFinal);
         scoreboardScreen.setNextEnabled(isHost);
 
-        roundResultScreen.setHostMode(isHost);
         roundResultScreen.showResult(round, total, isFinal, splitCsv(secretCsv), reason, questioner,
                 names, deltas, totals, guesses, correctCounts, bonuses);
         showScreen(SCREEN_ROUND_RESULT);
@@ -635,6 +634,27 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         }
         pushScoreboards();
         showScreen(SCREEN_LOBBY);
+    }
+
+    /**
+     * The server says the tournament is over (sent once, right after the last round's
+     * intermission): open the final standings for every player at the same moment.
+     */
+    private void handleShowScoreboard() {
+        roundInProgress = false;
+        pushScoreboards();
+        showScreen(SCREEN_SCOREBOARD);
+    }
+
+    /**
+     * The round-result countdown reached zero. On the final round we open the scoreboard;
+     * between rounds we stay put, because the server sends ROUND_INFO at the same moment and
+     * that is what actually starts the next round.
+     */
+    private void onRoundCountdownFinished() {
+        if (knownTotalRounds > 0 && currentRound >= knownTotalRounds) {
+            showScreen(SCREEN_SCOREBOARD);
+        }
     }
 
     private void handleServerClosed() {

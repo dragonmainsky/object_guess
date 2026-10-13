@@ -101,7 +101,6 @@ public class LobbyScreen extends JPanel {
     // ===== Widgets that are rebuilt from room state =====
     private JPanel playerRowsPanel;
     private JLabel playersCountLabel;
-    private JLabel playersBadge;
     private JLabel addressValueLabel;
     private JLabel hostValueLabel;
     private JLabel playersValueLabel;
@@ -198,10 +197,8 @@ public class LobbyScreen extends JPanel {
 
         JPanel playersHeader = new JPanel(new BorderLayout());
         playersHeader.setOpaque(false);
-        playersCountLabel = makeLabel("0 Players", FONT_SUBTITLE, TEXT_DARK);
-        playersBadge = makeBadge("0 / " + GameServer.MAX_PLAYERS, SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER);
+        playersCountLabel = makeLabel("Players in room: 0", FONT_SUBTITLE, TEXT_DARK);
         playersHeader.add(playersCountLabel, BorderLayout.WEST);
-        playersHeader.add(playersBadge, BorderLayout.EAST);
         playersCard.add(playersHeader, BorderLayout.NORTH);
 
         playerRowsPanel = new JPanel(new GridLayout(0, 1, 0, 8));
@@ -509,9 +506,8 @@ public class LobbyScreen extends JPanel {
         playerRowsPanel.revalidate();
         playerRowsPanel.repaint();
 
-        playersCountLabel.setText(total + (total == 1 ? " Player" : " Players"));
-        playersBadge.setText(total + " / " + GameServer.MAX_PLAYERS);
-        playersValueLabel.setText(total + " / " + GameServer.MAX_PLAYERS);
+        playersCountLabel.setText("Players in room: " + total);
+        playersValueLabel.setText(String.valueOf(total));
         hostValueLabel.setText(hostName.isEmpty() ? "-" : hostName);
 
         int readyCount = 0;

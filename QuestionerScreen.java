@@ -34,8 +34,6 @@ public class QuestionerScreen extends JPanel {
     private static final Font FONT_SMALL = new Font("Segoe UI", Font.PLAIN, 11), FONT_SMALL_BOLD = new Font("Segoe UI", Font.BOLD, 11);
 
     // ===== Sizes =====
-    private static final int MIN_SHAPES = GameServer.MIN_SHAPES;   // the questioner picks freely...
-    private static final int MAX_SHAPES = GameServer.MAX_SHAPES;   // ...between 1 and 5 shapes
     private static final int SMALL_ICON = 36;   // picture inside a picker card
     private static final int BIG_ICON = 100;    // picture on the secret canvas (and under the mouse while dragging)
     private static final int LEFT_WIDTH = 260;
@@ -69,6 +67,8 @@ public class QuestionerScreen extends JPanel {
     private JLabel hintLabel;           // the hint line under the canvas, doubles as the status line
     private JButton confirmButton;
     private JLabel timeBadge;           // live mm:ss countdown fed by TICK
+    private JLabel targetBadge;         // "Target: N Shapes" for the round's random count
+    private int requiredShapes = GameServer.MIN_SHAPES;   // drawn by the server each round (1-5)
     private boolean selectionLocked;
     private String myName = "";
 
@@ -112,10 +112,9 @@ public class QuestionerScreen extends JPanel {
 
         // Badges on right: Target & Time
         JPanel badgeGroup = panel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        badgeGroup.add(makeBadge("Target: " + MIN_SHAPES + "-" + MAX_SHAPES + " Shapes",
-            BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER, FONT_BODY_BOLD));
-        timeBadge = makeBadge(secondsText(GameServer.ROUND_SECONDS),
-            WARNING_BG, WARNING_TEXT, WARNING_BORDER, FONT_BODY_BOLD);
+        targetBadge = makeBadge(targetText(), BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER, FONT_BODY_BOLD);
+        badgeGroup.add(targetBadge);
+        timeBadge = makeBadge(waitingTimeText(), WARNING_BG, WARNING_TEXT, WARNING_BORDER, FONT_BODY_BOLD);
         badgeGroup.add(timeBadge);
 
         JPanel subHeader = panel(new BorderLayout());
@@ -136,8 +135,8 @@ public class QuestionerScreen extends JPanel {
 
         // The divider is just the top border of the tip box
         JPanel tipLines = panel(new GridLayout(2, 1));
-        tipLines.add(label("Info: Questioner scores when", FONT_SMALL, TEXT_MUTED));
-        tipLines.add(label("nobody finds every shape.", FONT_SMALL, TEXT_MUTED));
+        tipLines.add(label("Info: Guessers score +1 per correct shape,", FONT_SMALL, TEXT_MUTED));
+        tipLines.add(label("and a wrong guess scores nothing for anyone.", FONT_SMALL, TEXT_MUTED));
         JPanel tipBox = pin(tipLines, BorderLayout.NORTH);
         tipBox.setBorder(new CompoundBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, CARD_BORDER), new EmptyBorder(10, 0, 0, 0)));
         playersCard.add(alignLeft(tipBox));
@@ -147,7 +146,7 @@ public class QuestionerScreen extends JPanel {
         roundLabel = label("Waiting to start", FONT_SUBTITLE, TEXT_DARK);
         roundCard.add(alignLeft(roundLabel));
         roundCard.add(Box.createVerticalStrut(12));
-        roundCard.add(createStepRow(1, "Choose " + MIN_SHAPES + "-" + MAX_SHAPES + " shapes", true));
+        roundCard.add(createStepRow(1, "Choose your shapes", true));
         roundCard.add(Box.createVerticalStrut(10));
         roundCard.add(createStepRow(2, "Confirm selection", false));
         roundCard.add(Box.createVerticalStrut(10));
@@ -174,13 +173,13 @@ public class QuestionerScreen extends JPanel {
         // Objects picker and shapes being moved around on it.
         secretSetCanvas = new DashedCanvas();
         makeDropZone(secretSetCanvas,
-            () -> dragFromBoard || selectedShapes.contains(dragShape) || selectedShapes.size() < MAX_SHAPES,
+            () -> dragFromBoard || selectedShapes.contains(dragShape) || selectedShapes.size() < requiredShapes,
             secretSetCanvas::setDropHighlight,
             (shapeName, where) -> {
                 if (selectionLocked) {
                     return;
                 }
-                if (selectedShapes.size() >= MAX_SHAPES && !selectedShapes.contains(shapeName)) {
+                if (selectedShapes.size() >= requiredShapes && !selectedShapes.contains(shapeName)) {
                     return;
                 }
                 selectedShapes.add(shapeName);
@@ -202,7 +201,7 @@ public class QuestionerScreen extends JPanel {
 
     private JPanel createRightPanel() {
         // ----- Objects picker card -----
-        selectedCounterLabel = label("Selected: " + selectedShapes.size() + " / " + MAX_SHAPES, FONT_SMALL_BOLD, PRIMARY_BLUE);
+        selectedCounterLabel = label("Selected: " + selectedShapes.size() + " / " + requiredShapes, FONT_SMALL_BOLD, PRIMARY_BLUE);
         JPanel objectsHeader = panel(new BorderLayout());
         objectsHeader.add(label("Objects", FONT_SUBTITLE, TEXT_DARK), BorderLayout.WEST);
         objectsHeader.add(selectedCounterLabel, BorderLayout.EAST);
@@ -237,7 +236,7 @@ public class QuestionerScreen extends JPanel {
 
         JPanel objectsCard = stack(card(null));
         objectsCard.add(alignLeft(objectsHeader, 24));
-        objectsCard.add(alignLeft(label("Drag " + MIN_SHAPES + "-" + MAX_SHAPES + " shapes to the canvas", FONT_SMALL, TEXT_MUTED)));
+        objectsCard.add(alignLeft(label("Drag your shapes to the canvas", FONT_SMALL, TEXT_MUTED)));
         objectsCard.add(Box.createVerticalStrut(10));
         objectsCard.add(alignLeft(grid));
         objectsCard.add(Box.createVerticalStrut(14));
@@ -320,13 +319,16 @@ public class QuestionerScreen extends JPanel {
         secretSetCanvas.repaint();
 
         int count = selectedShapes.size();
-        selectedCounterLabel.setText("Selected: " + count + " / " + MAX_SHAPES);
-        if (count >= MIN_SHAPES) {
+        selectedCounterLabel.setText("Selected: " + count + " / " + requiredShapes);
+        if (count == requiredShapes) {
             readyBadge.setText("READY TO CONFIRM");
             applyBadgeColors(readyBadge, SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER);
         } else {
-            readyBadge.setText("PICK AT LEAST " + MIN_SHAPES);
+            readyBadge.setText("PICK " + requiredShapes + (requiredShapes == 1 ? " SHAPE" : " SHAPES"));
             applyBadgeColors(readyBadge, WARNING_BG, WARNING_TEXT, WARNING_BORDER);
+        }
+        if (targetBadge != null) {
+            targetBadge.setText(targetText());
         }
 
         // Card look lives in background/border, so each card must be refreshed (not just repainted)
@@ -341,8 +343,11 @@ public class QuestionerScreen extends JPanel {
         this.myName = (name == null) ? "" : name;
     }
 
-    /** Clears the canvas for a new round and unlocks confirming. */
-    public void startRound(int roundNumber, int totalRounds) {
+    /** Clears the canvas for a new round with the server's random shape count (1-5). */
+    public void startRound(int roundNumber, int totalRounds, int requiredShapes) {
+        if (requiredShapes >= GameServer.MIN_SHAPES && requiredShapes <= GameServer.MAX_SHAPES) {
+            this.requiredShapes = requiredShapes;
+        }
         selectionLocked = false;
         selectedShapes.clear();
         shapeSpots.clear();
@@ -352,9 +357,15 @@ public class QuestionerScreen extends JPanel {
         if (confirmButton != null) {
             confirmButton.setEnabled(true);
         }
-        setStatus("Pick " + MIN_SHAPES + "-" + MAX_SHAPES + " shapes for the others to guess, then press CONFIRM.");
-        setTimeLeft(GameServer.ROUND_SECONDS);
+        setStatus("Pick exactly " + this.requiredShapes + " shape"
+                + (this.requiredShapes == 1 ? "" : "s") + " for the others to guess, then press CONFIRM.");
+        showWaitingTime();
         refreshUI();
+    }
+
+    /** How many shapes this round needs; the server draws it and every player must match it. */
+    public int getRequiredPicks() {
+        return requiredShapes;
     }
 
     /** The shapes the questioner currently has on the canvas, in pick order. */
@@ -401,6 +412,23 @@ public class QuestionerScreen extends JPanel {
         return String.format("Time: %02d:%02d", safe / 60, safe % 60);
     }
 
+    /** "Target: N Shapes" for the badge, using the count the server drew this round. */
+    private String targetText() {
+        return "Target: " + requiredShapes + (requiredShapes == 1 ? " Shape" : " Shapes");
+    }
+
+    /** Before the secret is locked the shared clock has not started yet. */
+    private void showWaitingTime() {
+        if (timeBadge != null) {
+            timeBadge.setText(waitingTimeText());
+            applyBadgeColors(timeBadge, WARNING_BG, WARNING_TEXT, WARNING_BORDER);
+        }
+    }
+
+    private static String waitingTimeText() {
+        return "Time: --:--";
+    }
+
     /** Rebuilds the live round score list straight from the server's numbers. */
     public void setScoreboard(String[] names, int[] scores) {
         if (scoreRowsPanel == null) {
@@ -424,9 +452,10 @@ public class QuestionerScreen extends JPanel {
             return;
         }
         int count = selectedShapes.size();
-        if (count < MIN_SHAPES || count > MAX_SHAPES) {
+        if (count != requiredShapes) {
             JOptionPane.showMessageDialog(this,
-                "Please select between " + MIN_SHAPES + " and " + MAX_SHAPES + " shapes before confirming.",
+                "Please select exactly " + requiredShapes + " shape"
+                    + (requiredShapes == 1 ? "" : "s") + " before confirming.",
                 "Not ready yet", JOptionPane.WARNING_MESSAGE);
             return;
         }
