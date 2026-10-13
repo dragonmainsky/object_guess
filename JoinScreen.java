@@ -44,11 +44,11 @@ public class JoinScreen extends JPanel {
     private static final Color WARNING_BORDER = new Color(250, 219, 150);
     private static final Color WARNING_TEXT   = new Color(146, 84, 0);
 
-    private static final Font FONT_SMALL       = new Font("Segoe UI", Font.PLAIN, 12);
-    private static final Font FONT_SMALL_BOLD  = new Font("Segoe UI", Font.BOLD, 12);
-    private static final Font FONT_BODY        = new Font("Segoe UI", Font.PLAIN, 14);
-    private static final Font FONT_BODY_BOLD   = new Font("Segoe UI", Font.BOLD, 14);
-    private static final Font FONT_TITLE_LARGE = new Font("Segoe UI", Font.BOLD, 26);
+    private static final Font FONT_SMALL       = new Font("Tahoma", Font.PLAIN, 12);
+    private static final Font FONT_SMALL_BOLD  = new Font("Tahoma", Font.BOLD, 12);
+    private static final Font FONT_BODY        = new Font("Tahoma", Font.PLAIN, 14);
+    private static final Font FONT_BODY_BOLD   = new Font("Tahoma", Font.BOLD, 14);
+    private static final Font FONT_TITLE_LARGE = new Font("Tahoma", Font.BOLD, 26);
 
     private static final String IMAGE_DIR = "shape";
     private static final String FALLBACK_IP = "192.168.1.24";
@@ -118,11 +118,11 @@ public class JoinScreen extends JPanel {
         brandCenter.setOpaque(false);
 
         JLabel brandTitle = new JLabel("<html>Guess What<br>It Looks Like?</html>");
-        brandTitle.setFont(new Font("Segoe UI", Font.BOLD, 36));
+        brandTitle.setFont(new Font("Tahoma", Font.BOLD, 36));
         brandTitle.setForeground(Color.WHITE);
 
         JLabel brandDesc = new JLabel("Pick the shapes. Read your friends. Win the round.");
-        brandDesc.setFont(new Font("Segoe UI", Font.PLAIN, 15));
+        brandDesc.setFont(new Font("Tahoma", Font.PLAIN, 15));
         brandDesc.setForeground(new Color(186, 203, 236));
 
         JPanel brandLogo = makeImageView("logo.png", 100, 100);
@@ -218,7 +218,7 @@ public class JoinScreen extends JPanel {
         JPanel bannerContent = new JPanel(new BorderLayout());
         bannerContent.setOpaque(false);
 
-        JLabel playersCount = new JLabel("Players: 0 / 3 minimum");
+        JLabel playersCount = new JLabel("Players: 0 / 1 minimum");
         playersCount.setFont(FONT_SMALL_BOLD);
         playersCount.setForeground(WARNING_TEXT);
 
