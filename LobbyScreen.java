@@ -383,9 +383,9 @@ public class LobbyScreen extends JPanel {
 
         JPanel settingRows = new JPanel(new GridLayout(0, 1, 0, 6));
         settingRows.setOpaque(false);
-        settingRows.add(createInfoRow("Target", GameServer.TARGET_SHAPES + " shapes"));
+        settingRows.add(createInfoRow("Target", GameServer.MIN_SHAPES + "-" + GameServer.MAX_SHAPES + " shapes"));
         settingRows.add(createInfoRow("Round time", GameServer.ROUND_SECONDS + " sec"));
-        settingRows.add(createInfoRow("Rounds", String.valueOf(GameServer.TOTAL_ROUNDS)));
+        settingRows.add(createInfoRow("Rounds", "players x " + GameServer.ROUNDS_PER_PLAYER));
         settingsCard.add(settingRows, BorderLayout.CENTER);
 
         // --- Leave button ---

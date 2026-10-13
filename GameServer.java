@@ -16,10 +16,6 @@ import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 
 /**
  * GameServer: authoritative LAN server for "Guess What It Looks Like?".
@@ -36,9 +32,13 @@ import java.util.concurrent.TimeUnit;
  * stream. Server and client share this class, so there is a single source of truth.
  *
  * Threading: the accept loop runs on its own thread, every accepted socket gets its own
- * reader thread, and the round timeout runs on a single-thread scheduler. No Swing work
- * is done here, and no Thread.sleep() is used to coordinate turns - the server simply
- * broadcasts state changes.
+ * reader thread, and each round owns one {@link RoundTimerThread}. A round timer is
+ * always stopped before a new one starts, so timers can never stack up.
+ *
+ * Two flags describe the game:
+ *   tournamentActive - a whole tournament (totalRounds = players * 2) is under way.
+ *                      Nobody may join for its entire duration.
+ *   roundRunning     - one round inside that tournament is being played right now.
  */
 public class GameServer {
 
@@ -46,11 +46,18 @@ public class GameServer {
     public static final int DEFAULT_PORT = 5000;
     public static final int MIN_PLAYERS = 2;      // host + 1 other keeps LAN testing possible
     public static final int MAX_PLAYERS = 8;
-    public static final int TOTAL_ROUNDS = 4;
+    public static final int MIN_SHAPES = 1;       // the questioner picks freely, between these...
+    public static final int MAX_SHAPES = 5;       // ...and this many shapes (never random)
     public static final int ROUND_SECONDS = 30;
-    public static final int TARGET_SHAPES = 3;
-    public static final int BONUS_WINDOW_SECONDS = 10;  // "+2 when all correct under 10 sec"
+    public static final int BONUS_WINDOW_SECONDS = 10;  // "+2 when every shape is right within 10 sec"
     public static final int MAX_NAME_LENGTH = 16;
+    /** Rounds in one tournament: every player is the questioner exactly twice. */
+    public static final int ROUNDS_PER_PLAYER = 2;
+
+    /** The eight shapes the game knows about. Names must match the files in shape/. */
+    public static final String[] SHAPE_NAMES = {
+        "Circle", "Triangle", "Rectangle", "Oval", "Hexagon", "Diamond", "Star", "Square"
+    };
 
     // ===== Protocol message types (shared by server and client) =====
     public static final String JOIN = "JOIN";
@@ -60,6 +67,7 @@ public class GameServer {
     public static final String READY = "READY";
     public static final String START_GAME = "START_GAME";
     public static final String ROUND_INFO = "ROUND_INFO";
+    public static final String TICK = "TICK";
     public static final String SECRET = "SECRET";
     public static final String SECRET_LOCKED = "SECRET_LOCKED";
     public static final String GUESS = "GUESS";
@@ -133,8 +141,6 @@ public class GameServer {
     private ServerSocket serverSocket;
     private volatile boolean running;
     private Thread acceptThread;
-    private ScheduledExecutorService scheduler;
-    private ScheduledFuture<?> roundTimer;
 
     /** Single monitor guarding every mutable field below. */
     private final Object lock = new Object();
@@ -144,14 +150,19 @@ public class GameServer {
     private final Map<String, Integer> deltas = new LinkedHashMap<>();
     private final Map<String, String[]> guesses = new LinkedHashMap<>();
     private final Map<String, Long> guessTimes = new LinkedHashMap<>();
+    private final Map<String, Integer> correctCounts = new LinkedHashMap<>();
+    private final Map<String, Boolean> bonusFlags = new LinkedHashMap<>();
 
-    private int round;                    // last started round, 0 = fresh game
+    private int round;                    // last started round, 0 = no round yet
+    private int totalRounds;              // players * 2, locked in when the tournament starts
     private String questioner;
     private String[] secret;
     private boolean secretLocked;
-    private boolean gameRunning;
-    private boolean roundEnded;
+    private boolean tournamentActive;     // whole tournament in progress (blocks new joins)
+    private boolean roundRunning;         // one round in progress
+    private boolean roundEnded;           // guards against ending the same round twice
     private long roundStartMillis;
+    private RoundTimerThread roundTimerThread;
 
     public GameServer() {
         this(DEFAULT_PORT);
@@ -169,7 +180,6 @@ public class GameServer {
     public void start() throws IOException {
         serverSocket = new ServerSocket(port);
         running = true;
-        scheduler = Executors.newSingleThreadScheduledExecutor();
         acceptThread = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -195,6 +205,8 @@ public class GameServer {
         }
         running = false;
 
+        stopRoundTimer();
+
         broadcast(SERVER_CLOSED);
 
         try {
@@ -214,13 +226,6 @@ public class GameServer {
             client.closeQuietly();
         }
 
-        if (roundTimer != null) {
-            roundTimer.cancel(false);
-            roundTimer = null;
-        }
-        if (scheduler != null) {
-            scheduler.shutdownNow();
-        }
         if (acceptThread != null) {
             acceptThread.interrupt();
         }
@@ -312,6 +317,46 @@ public class GameServer {
         return null;
     }
 
+    /** True when the name is one of the eight known shapes. */
+    public static boolean isValidShapeName(String name) {
+        if (name == null) {
+            return false;
+        }
+        for (String shape : SHAPE_NAMES) {
+            if (shape.equalsIgnoreCase(name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Returns a canonical-cased copy of the shape names, or null when any name is unknown or repeated. */
+    private static String[] normalizeShapes(String[] raw, int expectedCount) {
+        if (raw == null || raw.length != expectedCount) {
+            return null;
+        }
+        String[] canonical = new String[raw.length];
+        for (int i = 0; i < raw.length; i++) {
+            String match = null;
+            for (String shape : SHAPE_NAMES) {
+                if (shape.equalsIgnoreCase(raw[i])) {
+                    match = shape;
+                    break;
+                }
+            }
+            if (match == null) {
+                return null; // unknown shape name
+            }
+            for (int j = 0; j < i; j++) {
+                if (canonical[j].equals(match)) {
+                    return null; // duplicate shape
+                }
+            }
+            canonical[i] = match;
+        }
+        return canonical;
+    }
+
     private void handleJoin(ClientHandler handler, String rawName) {
         String name = rawName == null ? "" : rawName.trim();
         if (name.isEmpty()) {
@@ -334,8 +379,9 @@ public class GameServer {
                 handler.closeQuietly();
                 return;
             }
-            if (gameRunning) {
-                handler.send(JOIN_FAILED, "A game is already in progress. Try again later.");
+            if (tournamentActive) {
+                // Rounds are only paused between games, so the whole tournament blocks new players.
+                handler.send(JOIN_FAILED, "A tournament is in progress. Please wait until it finishes.");
                 handler.closeQuietly();
                 return;
             }
@@ -368,6 +414,8 @@ public class GameServer {
                 ready.remove(name);
                 guesses.remove(name);
                 guessTimes.remove(name);
+                correctCounts.remove(name);
+                bonusFlags.remove(name);
             }
             handler.joined = false;
         }
@@ -383,14 +431,22 @@ public class GameServer {
             return;
         }
 
-        boolean abort = false;
-        boolean finishRound = false;
+        boolean finishTournament = false;
+        boolean restartRound = false;
+        boolean endRoundNow = false;
         synchronized (lock) {
-            if (gameRunning) {
-                if (name != null && name.equals(questioner)) {
-                    abort = true;
-                } else if (countGuessersLocked() > 0 && countSubmittedLocked() >= countGuessersLocked()) {
-                    finishRound = true;
+            if (tournamentActive) {
+                if (clients.size() < MIN_PLAYERS) {
+                    finishTournament = true;
+                } else if (roundRunning) {
+                    if (name != null && name.equals(questioner)) {
+                        // Skip the questioner who left: replay this round with the next player.
+                        restartRound = true;
+                    } else if (countGuessersLocked() == 0) {
+                        finishTournament = true;
+                    } else if (countSubmittedLocked() >= countGuessersLocked()) {
+                        endRoundNow = true;
+                    }
                 }
             }
         }
@@ -399,9 +455,11 @@ public class GameServer {
         broadcast(SYSTEM, name + " left the room.");
         broadcastPlayerList();
 
-        if (abort) {
-            abortRound("The questioner left the room.");
-        } else if (finishRound) {
+        if (finishTournament) {
+            finishTournament("A player left the room.");
+        } else if (restartRound) {
+            restartRoundAfterQuestionerLeft();
+        } else if (endRoundNow) {
             endRound("all");
         }
     }
@@ -411,8 +469,9 @@ public class GameServer {
     // =====================================================================
 
     private void handleStartGame(ClientHandler requester) {
+        boolean newTournament;
         synchronized (lock) {
-            if (gameRunning) {
+            if (roundRunning) {
                 requester.send(ERROR, "A round is already in progress.");
                 return;
             }
@@ -428,26 +487,34 @@ public class GameServer {
                 requester.send(ERROR, "All other players must press READY before you can start.");
                 return;
             }
-            if (round >= TOTAL_ROUNDS) {
+            // Inside a running tournament this just starts the next round; otherwise it is a new game.
+            newTournament = !tournamentActive;
+            if (newTournament) {
+                totalRounds = clients.size() * ROUNDS_PER_PLAYER;
                 resetScoresLocked();
+                tournamentActive = true;
+                round = 0;
             }
-            gameRunning = true;
         }
-        broadcast(SYSTEM, "The game is starting!");
+        if (newTournament) {
+            broadcast(SYSTEM, "The tournament is starting! " + totalRounds + " rounds.");
+        }
         nextRound();
     }
 
     private void handleNewGame(ClientHandler requester) {
+        boolean tournamentFinished;
         synchronized (lock) {
             if (clients.isEmpty() || clients.get(0) != requester) {
-                requester.send(ERROR, "Only the host can start a new round.");
+                requester.send(ERROR, "Only the host can start the next round.");
                 return;
             }
-            if (gameRunning) {
+            if (roundRunning) {
                 requester.send(ERROR, "A round is in progress.");
                 return;
             }
-            if (round >= TOTAL_ROUNDS) {
+            tournamentFinished = !tournamentActive;
+            if (tournamentFinished) {
                 resetScoresLocked();
             }
             for (ClientHandler client : clients) {
@@ -482,29 +549,39 @@ public class GameServer {
         secretLocked = false;
         guesses.clear();
         guessTimes.clear();
+        correctCounts.clear();
+        bonusFlags.clear();
     }
 
     private void nextRound() {
         String selectedQuestioner;
         int currentRound;
+        int lockedTotal;
         synchronized (lock) {
             if (clients.isEmpty()) {
-                gameRunning = false;
+                tournamentActive = false;
+                roundRunning = false;
                 return;
             }
             round++;
             roundEnded = false;
+            roundRunning = true;
             secret = null;
             secretLocked = false;
             guesses.clear();
             guessTimes.clear();
             deltas.clear();
+            correctCounts.clear();
+            bonusFlags.clear();
             roundStartMillis = System.currentTimeMillis();
 
+            // With totalRounds = players * 2, index (round-1) % players hands every player
+            // exactly two turns as the questioner before the tournament ends.
             int index = (round - 1) % clients.size();
             questioner = clients.get(index).playerName;
             selectedQuestioner = questioner;
             currentRound = round;
+            lockedTotal = totalRounds;
 
             for (ClientHandler client : clients) {
                 ready.put(client.playerName, Boolean.FALSE);
@@ -512,32 +589,139 @@ public class GameServer {
         }
         broadcast(ROUND_INFO,
                 String.valueOf(currentRound),
-                String.valueOf(TOTAL_ROUNDS),
+                String.valueOf(lockedTotal),
                 selectedQuestioner,
                 String.valueOf(ROUND_SECONDS));
-        startRoundTimer();
+        startRoundTimer(currentRound, ROUND_SECONDS);
     }
 
-    private void startRoundTimer() {
+    /** The questioner left with enough players still in: replay the round with the next questioner. */
+    private void restartRoundAfterQuestionerLeft() {
+        boolean restart;
         synchronized (lock) {
-            if (roundTimer != null) {
-                roundTimer.cancel(false);
+            restart = tournamentActive && !clients.isEmpty() && clients.size() >= MIN_PLAYERS;
+            if (restart) {
+                round--; // the abandoned round is not consumed
+                roundRunning = false;
             }
-            if (scheduler == null || scheduler.isShutdown()) {
-                return;
-            }
-            roundTimer = scheduler.schedule(new Runnable() {
-                @Override
-                public void run() {
+        }
+        if (!restart) {
+            return;
+        }
+        broadcast(SYSTEM, "The questioner left. Restarting the round with a new questioner.");
+        nextRound();
+    }
+
+    // =====================================================================
+    //  Round timer (one daemon thread per round)
+    // =====================================================================
+
+    /**
+     * Counts a round down to zero and broadcasts TICK(round, remaining) every second,
+     * immediately at the start and again on every whole second. The deadline comes from
+     * System.nanoTime() so the interval cannot drift, and stop() makes the thread exit
+     * deterministically when the round ends, is aborted, or the server shuts down.
+     */
+    private class RoundTimerThread extends Thread {
+        private final int roundNumber;
+        private final long deadlineNanos;
+        private volatile boolean stopped;
+
+        RoundTimerThread(int roundNumber, int seconds) {
+            super("GameServer-RoundTimer");
+            setDaemon(true);
+            this.roundNumber = roundNumber;
+            this.deadlineNanos = System.nanoTime() + seconds * 1_000_000_000L;
+        }
+
+        void requestStop() {
+            stopped = true;
+            interrupt();
+        }
+
+        @Override
+        public void run() {
+            while (!stopped) {
+                int remaining = remainingSeconds();
+                broadcast(TICK, String.valueOf(roundNumber), String.valueOf(remaining));
+                if (remaining <= 0) {
                     endRound("time");
+                    return;
                 }
-            }, ROUND_SECONDS, TimeUnit.SECONDS);
+                long sleepMillis = millisToNextWholeSecond();
+                if (sleepMillis <= 0) {
+                    sleepMillis = 50;
+                }
+                try {
+                    Thread.sleep(sleepMillis);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return; // stopped by a new round, endRound or shutdown
+                }
+            }
+        }
+
+        private int remainingSeconds() {
+            long nanos = deadlineNanos - System.nanoTime();
+            if (nanos <= 0) {
+                return 0;
+            }
+            return (int) ((nanos + 999_999_999L) / 1_000_000_000L);
+        }
+
+        /** Milliseconds until the displayed second changes, so ticks land on whole seconds. */
+        private long millisToNextWholeSecond() {
+            long nanos = deadlineNanos - System.nanoTime();
+            if (nanos <= 0) {
+                return 0;
+            }
+            long remainder = nanos % 1_000_000_000L;
+            if (remainder == 0) {
+                return 1000;
+            }
+            return remainder / 1_000_000L;
         }
     }
 
-    private void handleSecret(ClientHandler sender, String[] shapes) {
+    private void startRoundTimer(int roundNumber, int seconds) {
+        stopRoundTimer();
+        RoundTimerThread timer = new RoundTimerThread(roundNumber, seconds);
         synchronized (lock) {
-            if (!gameRunning) {
+            roundTimerThread = timer;
+        }
+        timer.start();
+    }
+
+    /** Stops the running timer and waits briefly for it to die, so timers never stack up. */
+    private void stopRoundTimer() {
+        RoundTimerThread timer;
+        synchronized (lock) {
+            timer = roundTimerThread;
+            roundTimerThread = null;
+        }
+        if (timer == null) {
+            return;
+        }
+        timer.requestStop();
+        if (timer == Thread.currentThread()) {
+            return; // called from the timer itself (endRound): nothing to join
+        }
+        try {
+            timer.join(300);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    // =====================================================================
+    //  Round actions
+    // =====================================================================
+
+    private void handleSecret(ClientHandler sender, String[] shapes) {
+        String[] canonical;
+        int count;
+        synchronized (lock) {
+            if (!roundRunning) {
                 sender.send(ERROR, "No round is in progress.");
                 return;
             }
@@ -549,26 +733,34 @@ public class GameServer {
                 sender.send(ERROR, "The secret shapes are already locked for this round.");
                 return;
             }
-            if (shapes.length < TARGET_SHAPES) {
-                sender.send(ERROR, "Pick exactly " + TARGET_SHAPES + " shapes.");
+            if (shapes.length < MIN_SHAPES || shapes.length > MAX_SHAPES) {
+                sender.send(ERROR, "Pick between " + MIN_SHAPES + " and " + MAX_SHAPES + " shapes.");
                 return;
             }
-            secret = new String[] {shapes[0], shapes[1], shapes[2]};
+            canonical = normalizeShapes(shapes, shapes.length);
+            if (canonical == null) {
+                sender.send(ERROR, "Those shapes are not valid (unknown or repeated).");
+                return;
+            }
+            secret = canonical;
             secretLocked = true;
+            count = canonical.length;
         }
-        broadcast(SECRET_LOCKED, questioner);
-        broadcast(SYSTEM, "The questioner locked in " + TARGET_SHAPES + " shapes. Start guessing!");
+        broadcast(SECRET_LOCKED, questioner, String.valueOf(count));
+        broadcast(SYSTEM, "The questioner locked in " + count + " shape" + (count == 1 ? "" : "s")
+                + ". Start guessing!");
     }
 
     private void handleGuess(ClientHandler sender, String[] shapes) {
         int submitted;
         int totalGuessers;
+        String[] canonical;
         synchronized (lock) {
-            if (!gameRunning) {
+            if (!roundRunning) {
                 sender.send(ERROR, "No round is in progress.");
                 return;
             }
-            if (!secretLocked) {
+            if (!secretLocked || secret == null) {
                 sender.send(ERROR, "Wait for the questioner to lock the secret shapes first.");
                 return;
             }
@@ -580,11 +772,17 @@ public class GameServer {
                 sender.send(ERROR, "You already submitted a guess this round.");
                 return;
             }
-            if (shapes.length < TARGET_SHAPES) {
-                sender.send(ERROR, "Pick exactly " + TARGET_SHAPES + " shapes.");
+            if (shapes.length != secret.length) {
+                sender.send(ERROR, "Pick exactly " + secret.length + " shape"
+                        + (secret.length == 1 ? "" : "s") + " for this round.");
                 return;
             }
-            guesses.put(sender.playerName, new String[] {shapes[0], shapes[1], shapes[2]});
+            canonical = normalizeShapes(shapes, secret.length);
+            if (canonical == null) {
+                sender.send(ERROR, "Those shapes are not valid (unknown or repeated).");
+                return;
+            }
+            guesses.put(sender.playerName, canonical);
             guessTimes.put(sender.playerName, Long.valueOf(System.currentTimeMillis()));
             submitted = countSubmittedLocked();
             totalGuessers = countGuessersLocked();
@@ -619,45 +817,54 @@ public class GameServer {
     private void endRound(String reason) {
         String[] payload;
         synchronized (lock) {
-            if (!gameRunning || roundEnded) {
+            if (!roundRunning || roundEnded) {
                 return;
             }
             roundEnded = true;
-            if (roundTimer != null) {
-                roundTimer.cancel(false);
-                roundTimer = null;
-            }
+            roundRunning = false;
             computeScoresLocked();
-            boolean isFinal = round >= TOTAL_ROUNDS;
+            boolean isFinal = round >= totalRounds;
+            if (isFinal) {
+                tournamentActive = false;
+            }
             payload = buildRoundResultPayload(round, isFinal, reason);
-            gameRunning = false;
         }
+        stopRoundTimer();
         broadcast(ROUND_RESULT, payload);
+        if (!tournamentActive) {
+            broadcast(SYSTEM, "That was the last round. Final results are ready.");
+        }
     }
 
-    private void abortRound(String reason) {
-        boolean wasRunning;
+    /** Ends the tournament early (too few players left) and shows the final scoreboard. */
+    private void finishTournament(String reason) {
+        String[] payload;
         synchronized (lock) {
-            wasRunning = gameRunning;
-            gameRunning = false;
-            roundEnded = true;
-            if (roundTimer != null) {
-                roundTimer.cancel(false);
-                roundTimer = null;
+            if (!tournamentActive) {
+                return;
             }
+            roundEnded = true;
+            roundRunning = false;
+            tournamentActive = false;
+            computeScoresLocked();
+            payload = buildRoundResultPayload(round, true, reason);
         }
-        if (!wasRunning) {
-            return;
-        }
-        broadcast(TO_LOBBY, hostName(), reason);
+        stopRoundTimer();
+        broadcast(ROUND_RESULT, payload);
     }
 
     /** Server-side scoring: the only place a score is ever produced. Caller must hold the lock. */
     private void computeScoresLocked() {
         deltas.clear();
-        if (secret == null) {
+        correctCounts.clear();
+        bonusFlags.clear();
+
+        int expected = (secret == null) ? 0 : secret.length;
+        if (expected == 0) {
             for (ClientHandler client : clients) {
                 deltas.put(client.playerName, Integer.valueOf(0));
+                correctCounts.put(client.playerName, Integer.valueOf(0));
+                bonusFlags.put(client.playerName, Boolean.FALSE);
             }
             return;
         }
@@ -671,6 +878,8 @@ public class GameServer {
             String[] guess = guesses.get(name);
             if (guess == null) {
                 deltas.put(name, Integer.valueOf(0));
+                correctCounts.put(name, Integer.valueOf(0));
+                bonusFlags.put(name, Boolean.FALSE);
                 continue;
             }
             int correct = countMatching(secret, guess);
@@ -680,18 +889,23 @@ public class GameServer {
             if (submittedAt != null) {
                 elapsedSeconds = (submittedAt.longValue() - roundStartMillis) / 1000;
             }
-            if (correct == TARGET_SHAPES && elapsedSeconds <= BONUS_WINDOW_SECONDS) {
+            boolean bonus = (correct == expected && elapsedSeconds <= BONUS_WINDOW_SECONDS);
+            if (bonus) {
                 delta += 2;
             }
-            if (correct == TARGET_SHAPES) {
+            if (correct == expected) {
                 perfectGuessers++;
             }
             deltas.put(name, Integer.valueOf(delta));
+            correctCounts.put(name, Integer.valueOf(correct));
+            bonusFlags.put(name, Boolean.valueOf(bonus));
         }
 
-        // The questioner scores only when nobody found all shapes.
+        // The questioner scores only when nobody found every shape.
         if (questioner != null) {
             deltas.put(questioner, Integer.valueOf(perfectGuessers == 0 ? 2 : 0));
+            correctCounts.put(questioner, Integer.valueOf(0));
+            bonusFlags.put(questioner, Boolean.FALSE);
         }
 
         for (Map.Entry<String, Integer> entry : deltas.entrySet()) {
@@ -713,23 +927,35 @@ public class GameServer {
         return matches;
     }
 
-    /** [round, totalRounds, isFinal, secret, reason, playerCount, (name, delta, total)*]. Caller holds lock. */
+    /**
+     * [round, totalRounds, isFinal, secretCsv, reason, questioner, playerCount,
+     *  (name, delta, total, guessCsv, correctCount, bonus)*]. Caller holds the lock.
+     * guessCsv is "" when the player did not submit; bonus is 0 or 1.
+     */
     private String[] buildRoundResultPayload(int roundNumber, boolean isFinal, String reason) {
         List<String> out = new ArrayList<>();
         out.add(String.valueOf(roundNumber));
-        out.add(String.valueOf(TOTAL_ROUNDS));
+        out.add(String.valueOf(totalRounds));
         out.add(isFinal ? "1" : "0");
         out.add(secret == null ? "" : String.join(",", secret));
         out.add(reason == null ? "" : reason);
+        out.add(questioner == null ? "" : questioner);
 
         List<ClientHandler> ordered = new ArrayList<>(clients);
         out.add(String.valueOf(ordered.size()));
         for (ClientHandler client : ordered) {
-            int delta = deltas.containsKey(client.playerName) ? deltas.get(client.playerName).intValue() : 0;
-            int total = scores.containsKey(client.playerName) ? scores.get(client.playerName).intValue() : 0;
-            out.add(client.playerName);
+            String name = client.playerName;
+            int delta = deltas.containsKey(name) ? deltas.get(name).intValue() : 0;
+            int total = scores.containsKey(name) ? scores.get(name).intValue() : 0;
+            String[] guess = guesses.get(name);
+            int correct = correctCounts.containsKey(name) ? correctCounts.get(name).intValue() : 0;
+            boolean bonus = Boolean.TRUE.equals(bonusFlags.get(name));
+            out.add(name);
             out.add(String.valueOf(delta));
             out.add(String.valueOf(total));
+            out.add(guess == null ? "" : String.join(",", guess));
+            out.add(String.valueOf(correct));
+            out.add(bonus ? "1" : "0");
         }
         return out.toArray(new String[0]);
     }

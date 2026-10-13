@@ -11,15 +11,16 @@ import javax.swing.border.*;
 /**
  * GuesserScreen: Screen 4 - Guesser Mode where players try to guess the secret shapes.
  *
- * Layout: left = Scoreboard + Scoring cards, center = "Your guess" card (3 guess slots),
+ * Layout: left = Scoreboard + Scoring cards, center = "Your guess" card (one slot per shape, 1-5),
  * right = Objects picker (2x4 grid + submit button) with the ENTER hint below.
  *
  * Drag a shape from Objects onto a guess slot (empty slot = add, filled slot = replace or swap).
  * Drag a placed shape back onto the Objects card to remove it.
  */
 public class GuesserScreen extends JPanel {
-    private static final int MAX_PICKS = 3;
     private static final int GHOST_SIZE = 64;
+    private static final int SLOT_ICON_WIDE = 78;    // guess-slot icon when the round needs up to 3 shapes
+    private static final int SLOT_ICON_TIGHT = 54;   // smaller icon so 4-5 slots still fit the row
     private static final String SHAPE_DIR = System.getProperty("user.dir") + "/shape/";
     private static final String[][] AVAILABLE_SHAPES = {
         {"Circle", "Circle.png"}, {"Triangle", "Triangle.png"}, {"Rectangle", "Rectangle.png"}, {"Oval", "Oval.png"},
@@ -44,13 +45,14 @@ public class GuesserScreen extends JPanel {
     private static final Font FONT_KEYCAP = new Font("Segoe UI", Font.BOLD, 9);
 
     // ==================== State ====================
-    private final List<String> guessedShapes = new ArrayList<>(Arrays.asList("Circle", "Triangle", "Diamond"));
+    private final List<String> guessedShapes = new ArrayList<>();   // empty at the start of every round
     private final List<PickerItem> pickers = new ArrayList<>();
     private final Map<String, Image> images = new HashMap<>();   // loaded pictures, key = shape name + size
     private final ActionListener onSubmitAction;
     private JPanel guessSlotsPanel;
     private JLabel selectedBadge, pickCounterLabel;
     private JButton submitBtn;
+    private int requiredPicks;       // shapes this round needs; 0 until SECRET_LOCKED says so
     private boolean dragFromBoard;   // the drag in progress started from a placed shape (not from the picker)
     private String dragShape;        // shape being dragged right now (null when no drag is in progress)
 
@@ -62,6 +64,8 @@ public class GuesserScreen extends JPanel {
     private JLabel statusLabel;      // hint line under the guess card, doubles as the status line
     private boolean submitted;       // true once this round's guess has been sent
     private boolean secretLocked;    // guesses are only accepted after the questioner locks in
+    private JLabel targetBadge;      // "Target: N Shapes", known only after SECRET_LOCKED
+    private JLabel timeBadge;        // live mm:ss countdown fed by TICK
     private String myName = "";
     private String questionerName = "";
 
@@ -95,13 +99,13 @@ public class GuesserScreen extends JPanel {
     private JPanel createSubHeader() {
         JPanel titles = panel(new GridLayout(2, 1, 0, 2));
         titles.add(label("Guess what the Questioner selected!", FONT_TITLE, TEXT_DARK));
-        titles.add(label("Choose the same three shapes before time runs out.", FONT_BODY, TEXT_MUTED));
+        titles.add(label("Choose the same shapes before time runs out.", FONT_BODY, TEXT_MUTED));
 
         JPanel badges = panel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        badges.add(createBadge("Target: Guess " + GameServer.TARGET_SHAPES + " Shapes",
-            BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER));
-        badges.add(createBadge(String.format("Time: %02d:%02d", GameServer.ROUND_SECONDS / 60, GameServer.ROUND_SECONDS % 60),
-            WARNING_BG, WARNING_TEXT, WARNING_BORDER));
+        targetBadge = createBadge("Target: ?", BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER);
+        badges.add(targetBadge);
+        timeBadge = createBadge(secondsText(GameServer.ROUND_SECONDS), WARNING_BG, WARNING_TEXT, WARNING_BORDER);
+        badges.add(timeBadge);
         scoreBadge = createBadge("Score: 0", BG_LIGHT, TEXT_DARK, CARD_BORDER);
         badges.add(scoreBadge);
         submittedBadge = createBadge("Not submitted", WARNING_BG, WARNING_TEXT, WARNING_BORDER);
@@ -129,7 +133,7 @@ public class GuesserScreen extends JPanel {
 
     private JPanel createLeftPanel() {
         scoreRowsPanel = panel(new GridLayout(0, 1, 0, 8));
-        roundLabel = label("Round 1 of " + GameServer.TOTAL_ROUNDS, FONT_SMALL, TEXT_MUTED);
+        roundLabel = label("Waiting to start", FONT_SMALL, TEXT_MUTED);
         JPanel scoreHeader = panel(new BorderLayout());
         scoreHeader.add(label("Scoreboard", FONT_SUBTITLE, TEXT_DARK), BorderLayout.WEST);
         scoreHeader.add(roundLabel, BorderLayout.EAST);
@@ -182,7 +186,7 @@ public class GuesserScreen extends JPanel {
     // ==================== Center column ====================
 
     private JPanel createCenterPanel() {
-        selectedBadge = createBadge(guessedShapes.size() + " / " + MAX_PICKS + " selected", BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER);
+        selectedBadge = createBadge(picksText(), BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER);
         JPanel centerCard = card(new BorderLayout(0, 12));
         centerCard.add(createHeader("Your guess", FONT_TITLE, "Drag shapes here from Objects", FONT_BODY, selectedBadge), BorderLayout.NORTH);
         centerCard.add(createStagePanel(), BorderLayout.CENTER);
@@ -201,7 +205,7 @@ public class GuesserScreen extends JPanel {
 
     /** Tinted stage in 3 equal rows: correct banner (top-right), guess slots (middle), incorrect banner (bottom-left). */
     private JPanel createStagePanel() {
-        guessSlotsPanel = panel(new GridLayout(1, MAX_PICKS, 14, 0));
+        guessSlotsPanel = panel(new GridLayout(1, 1, 14, 0));
         updateGuessSlots();
         JPanel middleRow = panel(new BorderLayout());
         middleRow.setBorder(new EmptyBorder(6, 24, 6, 24));
@@ -210,10 +214,10 @@ public class GuesserScreen extends JPanel {
         JPanel stage = new JPanel(new GridLayout(3, 1));
         stage.setBackground(STAGE_BG);
         stage.setBorder(box(STAGE_BORDER, 1, 14, 14));
-        stage.add(pin(createAlertBanner("How to play", "Pick the three shapes you think are in the secret set.",
+        stage.add(pin(createAlertBanner("How to play", "Pick the same shapes the questioner chose.",
             BLUE_LIGHT_BG, BLUE_BORDER, PRIMARY_BLUE, FlowLayout.RIGHT), BorderLayout.NORTH));
         stage.add(middleRow);
-        stage.add(pin(createAlertBanner("Scoring", "+1 per correct shape, +2 if all three are right within 10 seconds.",
+        stage.add(pin(createAlertBanner("Scoring", "+1 per correct shape, +2 if every shape is right within 10 seconds.",
             SUCCESS_BG, SUCCESS_BORDER, SUCCESS_TEXT, FlowLayout.LEFT), BorderLayout.SOUTH));
         return stage;
     }
@@ -231,13 +235,29 @@ public class GuesserScreen extends JPanel {
         return slot;
     }
 
+    /** One slot per shape the round needs. Until the secret is locked there is nothing to size yet. */
     private void updateGuessSlots() {
         guessSlotsPanel.removeAll();
-        for (int i = 0; i < MAX_PICKS; i++) {
-            guessSlotsPanel.add(createSlot(i));
+        int slots = Math.max(1, requiredPicks);
+        guessSlotsPanel.setLayout(new GridLayout(1, slots, 14, 0));
+        if (requiredPicks == 0) {
+            guessSlotsPanel.add(label("Waiting for the questioner to lock in the shapes...",
+                FONT_BODY, TEXT_MUTED, SwingConstants.CENTER));
+        } else {
+            for (int i = 0; i < requiredPicks; i++) {
+                guessSlotsPanel.add(createSlot(i));
+            }
         }
         guessSlotsPanel.revalidate();
         guessSlotsPanel.repaint();
+    }
+
+    /** 4-5 slots need smaller pictures, otherwise the row would not fit. */
+    private int slotIconSize() {
+        if (requiredPicks > 3) {
+            return SLOT_ICON_TIGHT;
+        }
+        return SLOT_ICON_WIDE;
     }
 
     /** A big draggable shape card when filled, an "Empty" box otherwise. Both accept drops. */
@@ -246,10 +266,12 @@ public class GuesserScreen extends JPanel {
         JPanel slot = new JPanel(new BorderLayout(0, filled ? 8 : 0));
         if (filled) {
             String name = guessedShapes.get(index);
+            int icon = slotIconSize();
             slot.setBackground(Color.WHITE);
-            slot.setBorder(box(PRIMARY_BLUE, 2, 14, 10));
-            slot.add(new Pic(image(name, 78), 78, name), BorderLayout.CENTER);
-            slot.add(label(name, FONT_BODY_BOLD, TEXT_DARK, SwingConstants.CENTER), BorderLayout.SOUTH);
+            slot.setBorder(box(PRIMARY_BLUE, 2, requiredPicks > 3 ? 8 : 14, 6));
+            slot.add(new Pic(image(name, icon), icon, name), BorderLayout.CENTER);
+            slot.add(label(name, requiredPicks > 3 ? FONT_SMALL_BOLD : FONT_BODY_BOLD,
+                TEXT_DARK, SwingConstants.CENTER), BorderLayout.SOUTH);
             makeDraggable(slot, true, name); // drag it back to Objects to remove
         } else {
             slot.setBackground(EMPTY_SLOT_BG);
@@ -269,9 +291,9 @@ public class GuesserScreen extends JPanel {
     // ==================== Right column ====================
 
     private JPanel createRightPanel() {
-        pickCounterLabel = label(guessedShapes.size() + " / " + MAX_PICKS, FONT_BODY_BOLD, PRIMARY_BLUE);
+        pickCounterLabel = label(picksCountText(), FONT_BODY_BOLD, PRIMARY_BLUE);
         JPanel objectsCard = card(new BorderLayout(0, 12));
-        objectsCard.add(createHeader("Objects", FONT_SUBTITLE, "Drag " + MAX_PICKS + " shapes into your guess", FONT_BODY, pickCounterLabel), BorderLayout.NORTH);
+        objectsCard.add(createHeader("Objects", FONT_SUBTITLE, "Drag your shapes into the guess", FONT_BODY, pickCounterLabel), BorderLayout.NORTH);
 
         // Fixed height so the card keeps its original size
         JPanel grid = panel(new GridLayout(4, 2, 8, 8));
@@ -349,7 +371,7 @@ public class GuesserScreen extends JPanel {
             }
         } else if (slotIndex < guessedShapes.size()) {
             guessedShapes.set(slotIndex, shapeName);
-        } else if (guessedShapes.size() < MAX_PICKS) {
+        } else if (guessedShapes.size() < requiredPicks) {
             guessedShapes.add(shapeName);
         }
         refreshSelection();
@@ -376,26 +398,92 @@ public class GuesserScreen extends JPanel {
     public void startRound(int roundNumber, int totalRounds, String questioner) {
         submitted = false;
         secretLocked = false;
+        requiredPicks = 0;
         questionerName = (questioner == null) ? "" : questioner;
         guessedShapes.clear();
         if (roundLabel != null) {
             roundLabel.setText("Round " + roundNumber + " of " + totalRounds);
         }
+        setTargetBadge(0);
+        setTimeLeft(GameServer.ROUND_SECONDS);
         setStatus("Questioner: " + questionerName + ". Waiting for the secret shapes to be locked in...");
         updateSubmittedBadge();
         refreshSelection();
         setSubmitEnabled(false);
     }
 
-    /** Called when the server confirms the questioner locked in the secret: guesses are now allowed. */
-    public void onSecretLocked(String questioner) {
+    /**
+     * Called when the server confirms the questioner locked in the secret. The count comes from the
+     * server, so the number of slots follows whatever the questioner actually picked (1-5).
+     */
+    public void onSecretLocked(String questioner, int count) {
         secretLocked = true;
         questionerName = (questioner == null) ? "" : questioner;
-        setStatus("The questioner locked the shapes. Pick " + MAX_PICKS + " shapes, then press SUBMIT GUESS.");
+        requiredPicks = Math.max(1, count);
+        guessedShapes.clear();
+        setTargetBadge(requiredPicks);
+        setStatus("The questioner locked in " + requiredPicks + " shape"
+                + (requiredPicks == 1 ? "" : "s") + ". Pick yours, then press SUBMIT GUESS.");
         setSubmitEnabled(!submitted);
         if (!submitted) {
             setSubmittedBadge("Not submitted", WARNING_BG, WARNING_TEXT, WARNING_BORDER);
         }
+        refreshSelection();
+    }
+
+    /** How many shapes this round needs (0 while the questioner has not locked in yet). */
+    public int getRequiredPicks() {
+        return requiredPicks;
+    }
+
+    /** Countdown fed by the server's TICK; the last ten seconds turn red. */
+    public void setTimeLeft(int seconds) {
+        if (timeBadge == null) {
+            return;
+        }
+        timeBadge.setText(secondsText(seconds));
+        if (seconds <= GameServer.BONUS_WINDOW_SECONDS) {
+            setBadgeColors(timeBadge, DANGER_BG, DANGER_TEXT, DANGER_BORDER);
+        } else {
+            setBadgeColors(timeBadge, WARNING_BG, WARNING_TEXT, WARNING_BORDER);
+        }
+    }
+
+    private void setTargetBadge(int count) {
+        if (targetBadge == null) {
+            return;
+        }
+        if (count <= 0) {
+            targetBadge.setText("Target: ?");
+        } else if (count == 1) {
+            targetBadge.setText("Target: 1 Shape");
+        } else {
+            targetBadge.setText("Target: " + count + " Shapes");
+        }
+    }
+
+    /** "Time: mm:ss", never below zero. */
+    private static String secondsText(int seconds) {
+        int safe = Math.max(0, seconds);
+        return String.format("Time: %02d:%02d", safe / 60, safe % 60);
+    }
+
+    private String picksText() {
+        return picksCountText() + " selected";
+    }
+
+    private String picksCountText() {
+        if (requiredPicks == 0) {
+            return guessedShapes.size() + " / ?";
+        }
+        return guessedShapes.size() + " / " + requiredPicks;
+    }
+
+    private void setBadgeColors(JLabel badge, Color bg, Color fg, Color border) {
+        badge.setBackground(bg);
+        badge.setForeground(fg);
+        badge.setBorder(box(border, 1, 4, 10));
+        badge.repaint();
     }
 
     public boolean isSubmitted() {
@@ -451,9 +539,16 @@ public class GuesserScreen extends JPanel {
                 "Not yet", JOptionPane.WARNING_MESSAGE);
             return;
         }
-        if (guessedShapes.size() != MAX_PICKS) {
+        if (requiredPicks == 0) {
             JOptionPane.showMessageDialog(this,
-                "Pick exactly " + MAX_PICKS + " shapes before submitting.",
+                "Wait for the questioner to lock in the shapes first.",
+                "Not yet", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        if (guessedShapes.size() != requiredPicks) {
+            JOptionPane.showMessageDialog(this,
+                "Pick exactly " + requiredPicks + " shape" + (requiredPicks == 1 ? "" : "s")
+                    + " before submitting.",
                 "Not ready yet", JOptionPane.WARNING_MESSAGE);
             return;
         }
@@ -509,8 +604,12 @@ public class GuesserScreen extends JPanel {
     /** Re-syncs every widget that depends on how many shapes are currently picked. */
     private void refreshSelection() {
         updateGuessSlots();
-        selectedBadge.setText(guessedShapes.size() + " / " + MAX_PICKS + " selected");
-        pickCounterLabel.setText(guessedShapes.size() + " / " + MAX_PICKS);
+        if (selectedBadge != null) {
+            selectedBadge.setText(picksText());
+        }
+        if (pickCounterLabel != null) {
+            pickCounterLabel.setText(picksCountText());
+        }
         pickers.forEach(PickerItem::applySelectionStyle);
     }
 

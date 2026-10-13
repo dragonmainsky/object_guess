@@ -74,7 +74,8 @@ public class ScoreboardScreen extends JPanel {
     // MainApp จะเรียก setResults() เพื่อใส่คะแนนจริงจาก Server แทน
     private String[] playerNames  = {"Aim", "Player 2", "Player 3", "Player 4"};
     private int[]    playerScores = {8, 6, 4, 3};
-    private int roundsPlayed = GameServer.TOTAL_ROUNDS;
+    private int roundsPlayed = 0;
+    private int totalRounds = 0;        // players x 2, set by the server through setResults()
     private boolean finalRound = true;
 
     // อ้างอิงชิ้นส่วนที่ต้องอัปเดตเมื่อได้คะแนนใหม่จาก Server
@@ -127,7 +128,7 @@ public class ScoreboardScreen extends JPanel {
      * ใส่ผลลัพธ์รอบล่าสุดที่ได้จาก Server แล้ววาดใหม่ทั้งหน้า
      * ลำดับจะถูกเรียงจากคะแนนมากไปน้อยตามกติกาเดิมของโปรเจกต์
      */
-    public void setResults(String[] names, int[] scores, int rounds, boolean isFinal) {
+    public void setResults(String[] names, int[] scores, int rounds, int totalRounds, boolean isFinal) {
         if (names != null && scores != null && names.length > 0) {
             // เรียงคู่ (ชื่อ, คะแนน) จากมากไปน้อย ด้วย insertion sort ง่าย ๆ
             String[] sortedNames = new String[names.length];
@@ -152,6 +153,7 @@ public class ScoreboardScreen extends JPanel {
             playerScores = sortedScores;
         }
         roundsPlayed = rounds;
+        this.totalRounds = totalRounds;
         finalRound = isFinal;
         refresh();
     }
@@ -177,14 +179,16 @@ public class ScoreboardScreen extends JPanel {
         }
 
         gameOverBadge.setText(finalRound ? "GAME OVER" : "ROUND SUMMARY");
-        completeBadge.setText(finalRound
-            ? "TOURNAMENT COMPLETE"
-            : ("ROUND " + roundsPlayed + " OF " + GameServer.TOTAL_ROUNDS + " COMPLETE"));
+        if (finalRound) {
+            completeBadge.setText("TOURNAMENT COMPLETE");
+        } else {
+            completeBadge.setText("ROUND " + roundsPlayed + " OF " + totalRounds + " COMPLETE");
+        }
         nextBtn.setText(finalRound ? "NEW GAME" : "CONTINUE");
 
-        roundsValue.setText(String.valueOf(roundsPlayed));
+        roundsValue.setText(roundsPlayed + " / " + totalRounds);
         playersValue.setText(String.valueOf(playerNames.length));
-        targetValue.setText(GameServer.TARGET_SHAPES + " each");
+        targetValue.setText(GameServer.MIN_SHAPES + "-" + GameServer.MAX_SHAPES + " each");
 
         rowsPanel.removeAll();
         rowsPanel.setLayout(new GridLayout(Math.max(1, playerNames.length), 1, 0, 6));
@@ -481,9 +485,9 @@ public class ScoreboardScreen extends JPanel {
     private JPanel buildStatsRow() {
         JPanel stats = new JPanel(new GridLayout(1, 3, 10, 0));
         stats.setOpaque(false);
-        roundsValue = new JLabel(String.valueOf(roundsPlayed));
+        roundsValue = new JLabel(roundsPlayed + " / " + totalRounds);
         playersValue = new JLabel(String.valueOf(playerNames.length));
-        targetValue = new JLabel(GameServer.TARGET_SHAPES + " each");
+        targetValue = new JLabel(GameServer.MIN_SHAPES + "-" + GameServer.MAX_SHAPES + " each");
         stats.add(buildStatItem("Rounds played", roundsValue));
         stats.add(buildStatItem("Players", playersValue));
         stats.add(buildStatItem("Secret shapes", targetValue));

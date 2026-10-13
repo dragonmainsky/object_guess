@@ -168,20 +168,20 @@ public class GameClient {
         send(GameServer.NEW_GAME);
     }
 
+    /** Sends every shape the questioner picked (between MIN_SHAPES and MAX_SHAPES, no fixed count). */
     public void submitSecret(List<String> shapes) {
-        if (shapes == null || shapes.size() < GameServer.TARGET_SHAPES) {
+        if (shapes == null || shapes.size() < GameServer.MIN_SHAPES || shapes.size() > GameServer.MAX_SHAPES) {
             return;
         }
-        send(GameServer.SECRET,
-                shapes.get(0), shapes.get(1), shapes.get(2));
+        send(GameServer.SECRET, shapes.toArray(new String[0]));
     }
 
+    /** Sends the full guess. The count must match the secret, so it is not fixed here either. */
     public void submitGuess(List<String> shapes) {
-        if (shapes == null || shapes.size() < GameServer.TARGET_SHAPES) {
+        if (shapes == null || shapes.isEmpty() || shapes.size() > GameServer.MAX_SHAPES) {
             return;
         }
-        send(GameServer.GUESS,
-                shapes.get(0), shapes.get(1), shapes.get(2));
+        send(GameServer.GUESS, shapes.toArray(new String[0]));
     }
 
     public void sendChat(String text) {

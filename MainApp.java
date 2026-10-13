@@ -35,6 +35,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     public static final String SCREEN_QUESTIONER = "QUESTIONER";
     public static final String SCREEN_GUESSER = "GUESSER";
     public static final String SCREEN_SCOREBOARD = "SCOREBOARD";
+    public static final String SCREEN_ROUND_RESULT = "ROUND_RESULT";
 
     private final CardLayout cardLayout = new CardLayout();
     private final JPanel cardPanel = new JPanel(cardLayout);
@@ -45,6 +46,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     private final QuestionerScreen questionerScreen;
     private final GuesserScreen guesserScreen;
     private final ScoreboardScreen scoreboardScreen;
+    private final RoundResultScreen roundResultScreen;
 
     // ===== Network state =====
     private final ExecutorService netExecutor = Executors.newSingleThreadExecutor(runnable -> {
@@ -69,6 +71,9 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     private final Map<String, Boolean> readyStates = new LinkedHashMap<>();
     private final Map<String, Integer> lastScores = new LinkedHashMap<>();
     private String hostName = "";
+    private int currentRound = 0;          // the round the UI is currently showing
+    private int knownTotalRounds = 0;      // totalRounds as reported by the server
+    private boolean roundInProgress = false;
 
     public MainApp() {
         setTitle("Guess What It Looks Like? - Multiplayer Party Game (LAN)");
@@ -145,11 +150,28 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
             }
         );
 
+        // Round result: CONTINUE (host) asks the server; VIEW FINAL SCOREBOARD is a local switch only.
+        roundResultScreen = new RoundResultScreen(
+            new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent event) {
+                    requestNewGame();
+                }
+            },
+            new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent event) {
+                    showScreen(SCREEN_SCOREBOARD);
+                }
+            }
+        );
+
         // Add to CardPanel
         cardPanel.add(joinScreen, SCREEN_JOIN);
         cardPanel.add(lobbyScreen, SCREEN_LOBBY);
         cardPanel.add(questionerScreen, SCREEN_QUESTIONER);
         cardPanel.add(guesserScreen, SCREEN_GUESSER);
+        cardPanel.add(roundResultScreen, SCREEN_ROUND_RESULT);
         cardPanel.add(scoreboardScreen, SCREEN_SCOREBOARD);
 
         // The card panel fills the whole window; screens change only through the game flow.
@@ -327,6 +349,9 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         isHost = false;
         hostName = "";
         connectAddress = "";
+        currentRound = 0;
+        knownTotalRounds = 0;
+        roundInProgress = false;
         playerNames.clear();
         readyStates.clear();
         lastScores.clear();
@@ -353,7 +378,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
             return;
         }
         List<String> shapes = questionerScreen.getSelectedShapes();
-        if (shapes.size() < GameServer.TARGET_SHAPES) {
+        if (shapes.size() < GameServer.MIN_SHAPES || shapes.size() > GameServer.MAX_SHAPES) {
             return;
         }
         client.submitSecret(shapes);
@@ -365,7 +390,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
             return;
         }
         List<String> shapes = guesserScreen.getGuessedShapes();
-        if (shapes.size() < GameServer.TARGET_SHAPES) {
+        if (shapes.isEmpty() || shapes.size() != guesserScreen.getRequiredPicks()) {
             return;
         }
         client.submitGuess(shapes);
@@ -406,6 +431,8 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
             handleRoundResult(args);
         } else if (GameServer.TO_LOBBY.equals(type)) {
             handleToLobby(args);
+        } else if (GameServer.TICK.equals(type)) {
+            handleTick(args);
         } else if (GameServer.CHAT.equals(type)) {
             lobbyScreen.addChatMessage(args.length > 0 ? args[0] : "?", args.length > 1 ? args[1] : "");
         } else if (GameServer.SYSTEM.equals(type)) {
@@ -491,8 +518,12 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
 
     private void handleRoundInfo(String[] args) {
         int round = parseInt(arg(args, 0), 1);
-        int total = parseInt(arg(args, 1), GameServer.TOTAL_ROUNDS);
+        int total = parseInt(arg(args, 1), 0);
         String questioner = arg(args, 2);
+
+        currentRound = round;
+        knownTotalRounds = total;
+        roundInProgress = true;
 
         pushScoreboards();
         if (myName.equals(questioner)) {
@@ -506,11 +537,23 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
 
     private void handleSecretLocked(String[] args) {
         String questioner = arg(args, 0);
+        int count = parseInt(arg(args, 1), 1);
         if (myName.equals(questioner)) {
             questionerScreen.lockSelection();
         } else {
-            guesserScreen.onSecretLocked(questioner);
+            guesserScreen.onSecretLocked(questioner, count);
         }
+    }
+
+    /** Countdown from the server. Ticks for an old round, or after the round ended, are dropped. */
+    private void handleTick(String[] args) {
+        int tickRound = parseInt(arg(args, 0), -1);
+        int remaining = parseInt(arg(args, 1), -1);
+        if (!roundInProgress || tickRound != currentRound || remaining < 0) {
+            return;
+        }
+        questionerScreen.setTimeLeft(remaining);
+        guesserScreen.setTimeLeft(remaining);
     }
 
     private void handleGuessSubmitted(String[] args) {
@@ -525,52 +568,67 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         }
     }
 
+    /**
+     * Payload layout:
+     * [round, totalRounds, isFinal, secretCsv, reason, questioner, playerCount,
+     *  (name, delta, total, guessCsv, correctCount, bonus) * playerCount]
+     * Player blocks therefore start at index 7 and use a stride of 6.
+     */
     private void handleRoundResult(String[] args) {
         int round = parseInt(arg(args, 0), 1);
+        int total = parseInt(arg(args, 1), knownTotalRounds);
         boolean isFinal = "1".equals(arg(args, 2));
+        String secretCsv = arg(args, 3);
         String reason = arg(args, 4);
-        int playerCount = parseInt(arg(args, 5), 0);
+        String questioner = arg(args, 5);
+        int playerCount = parseInt(arg(args, 6), 0);
+
+        roundInProgress = false;
+        knownTotalRounds = total;
 
         lastScores.clear();
+        String[] names = new String[playerCount];
+        int[] deltas = new int[playerCount];
+        int[] totals = new int[playerCount];
+        String[][] guesses = new String[playerCount][];
+        int[] correctCounts = new int[playerCount];
+        boolean[] bonuses = new boolean[playerCount];
         for (int i = 0; i < playerCount; i++) {
-            int base = 6 + i * 3;
-            String name = arg(args, base);
-            int total = parseInt(arg(args, base + 2), 0);
-            if (!name.isEmpty()) {
-                lastScores.put(name, Integer.valueOf(total));
+            int base = 7 + i * 6;
+            names[i] = arg(args, base);
+            deltas[i] = parseInt(arg(args, base + 1), 0);
+            totals[i] = parseInt(arg(args, base + 2), 0);
+            guesses[i] = splitCsv(arg(args, base + 3));
+            correctCounts[i] = parseInt(arg(args, base + 4), 0);
+            bonuses[i] = "1".equals(arg(args, base + 5));
+            if (!names[i].isEmpty()) {
+                lastScores.put(names[i], Integer.valueOf(totals[i]));
             }
         }
 
         pushScoreboards();
 
-        String[] names = playerNames.toArray(new String[0]);
-        int[] scores = new int[names.length];
-        for (int i = 0; i < names.length; i++) {
-            Integer value = lastScores.get(names[i]);
-            scores[i] = (value == null) ? 0 : value.intValue();
-        }
-        if (names.length == 0) {
-            // Very unlikely, but fall back to the payload order so the screen is never empty.
-            names = new String[playerCount];
-            scores = new int[playerCount];
-            for (int i = 0; i < playerCount; i++) {
-                names[i] = arg(args, 6 + i * 3);
-                scores[i] = parseInt(arg(args, 8 + i * 3), 0);
-            }
-        }
-
-        scoreboardScreen.setResults(names, scores, round, isFinal);
+        // The overall standings stay ready, but the final ScoreboardScreen is only opened on demand.
+        scoreboardScreen.setResults(names, totals, round, total, isFinal);
         scoreboardScreen.setNextEnabled(isHost);
-        if ("time".equals(reason)) {
-            scoreboardScreen.setToolTipText("The round timer ran out.");
+
+        roundResultScreen.setHostMode(isHost);
+        roundResultScreen.showResult(round, total, isFinal, splitCsv(secretCsv), reason, questioner,
+                names, deltas, totals, guesses, correctCounts, bonuses);
+        showScreen(SCREEN_ROUND_RESULT);
+    }
+
+    /** Splits a comma separated shape list; an empty string becomes an empty array. */
+    private static String[] splitCsv(String csv) {
+        if (csv == null || csv.isEmpty()) {
+            return new String[0];
         }
-        questionerScreen.setStatus("Round finished.");
-        guesserScreen.setStatus("Round finished. See the scoreboard.");
-        showScreen(SCREEN_SCOREBOARD);
+        return csv.split(",");
     }
 
     private void handleToLobby(String[] args) {
         String reason = args.length > 1 ? args[1] : "";
+        roundInProgress = false;
         if (reason != null && !reason.isEmpty()) {
             lobbyScreen.setStatusText(reason);
             showInfo(reason, "Back to the lobby");
