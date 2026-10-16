@@ -1,18 +1,10 @@
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridLayout;
-import java.awt.Image;
-import java.awt.Toolkit;
-import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.io.File;
-import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -21,60 +13,24 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 
 /**
- * ScoreboardScreen: หน้าจอที่ 5 - สรุปผลคะแนนหลังจบเกม (Remake)
- *
- * กติกาของไฟล์นี้:
- *  - ไม่พึ่งคลาสธีม/คลาสโหลดรูปภายนอก (สีและฟอนต์เก็บเป็นค่าคงที่ในไฟล์ รูปโหลดด้วย Toolkit)
- *  - ไม่วาดเอง (ไม่ override paintComponent) ใช้ JPanel / JLabel / JButton ธรรมดา
- *  - ไม่ใช้ lambda ใช้ inner class แทน
- *  - เงื่อนไขทุกจุดเขียน if { } else { } ครบ ไม่ใช้ ?: และ switch
+ * ScoreboardScreen: screen 5 - the standings after the last round. MainApp fills it in through
+ * setResults(); the values below are only the preview defaults used when the screen stands alone.
  */
 public class ScoreboardScreen extends JPanel {
 
-    // ===================== สี (คัดลอกค่าจากธีมเดิมเป็นตัวเลข) =====================
-    private static final Color BG_LIGHT       = new Color(241, 245, 249);
     private static final Color BG_DARK_HEADER = new Color(24, 34, 53);
-    private static final Color CARD_BG        = Color.WHITE;
-    private static final Color CARD_BORDER    = new Color(226, 232, 240);
-    private static final Color ROW_BG         = new Color(248, 250, 252);
+    private static final Color GOLD_BADGE_BG = new Color(254, 240, 138);
+    private static final Color DANGER_AVATAR = new Color(244, 63, 94);
 
-    private static final Color PRIMARY_BLUE   = new Color(37, 99, 235);
-    private static final Color PRIMARY_HOVER  = new Color(29, 78, 216);
-    private static final Color PRIMARY_PRESS  = new Color(30, 64, 175);
-    private static final Color BLUE_SOFT_TEXT = new Color(191, 219, 254);
+    private final ActionListener onNewGameAction;
+    private final ActionListener onQuitAction;
 
-    private static final Color SUCCESS_BG     = new Color(220, 252, 231);
-    private static final Color SUCCESS_TEXT   = new Color(22, 101, 52);
-    private static final Color SUCCESS_BORDER = new Color(187, 247, 208);
-
-    private static final Color GOLD_BG        = new Color(254, 243, 199);
-    private static final Color GOLD_TEXT      = new Color(180, 83, 9);
-    private static final Color GOLD_BORDER    = new Color(253, 230, 138);
-    private static final Color GOLD_BADGE_BG  = new Color(254, 240, 138);
-
-    private static final Color TEXT_DARK      = new Color(15, 23, 42);
-    private static final Color TEXT_MUTED     = new Color(100, 116, 139);
-    private static final Color TEXT_LIGHT     = new Color(148, 163, 184);
-
-    // ===================== ฟอนต์ =====================
-    private static final Font FONT_TITLE_LARGE = new Font("Tahoma", Font.BOLD, 24);
-    private static final Font FONT_BODY        = new Font("Tahoma", Font.PLAIN, 13);
-    private static final Font FONT_BODY_BOLD   = new Font("Tahoma", Font.BOLD, 13);
-    private static final Font FONT_SMALL       = new Font("Tahoma", Font.PLAIN, 11);
-    private static final Font FONT_SMALL_BOLD  = new Font("Tahoma", Font.BOLD, 11);
-
-    // โฟลเดอร์ที่เก็บไฟล์ PNG ทั้งหมด: <โฟลเดอร์โปรเจกต์>/shape
-    private static final String SHAPE_DIR = System.getProperty("user.dir") + "/shape/";
-
-    // ผลลัพธ์ปัจจุบัน (เรียงตามอันดับ 1 -> n) ค่าเริ่มต้นใช้เมื่อเปิดหน้านี้เดี่ยว ๆ โดยไม่เชื่อมต่อ
-    // MainApp จะเรียก setResults() เพื่อใส่คะแนนจริงจาก Server แทน
-    private String[] playerNames  = {"Aim", "Player 2", "Player 3", "Player 4"};
-    private int[]    playerScores = {8, 6, 4, 3};
-    private int roundsPlayed = 0;
-    private int totalRounds = 0;        // players x 2, set by the server through setResults()
+    private String[] playerNames = {"Aim", "Player 2", "Player 3", "Player 4"};
+    private int[] playerScores = {8, 6, 4, 3};
+    private int roundsPlayed;
+    private int totalRounds;             // players x 2, filled in by setResults()
     private boolean finalRound = true;
 
-    // อ้างอิงชิ้นส่วนที่ต้องอัปเดตเมื่อได้คะแนนใหม่จาก Server
     private JLabel congratsLabel;
     private JLabel gameOverBadge;
     private JLabel completeBadge;
@@ -85,44 +41,32 @@ public class ScoreboardScreen extends JPanel {
     private JLabel targetValue;
     private JButton nextBtn;
 
-    private final ActionListener onNewGameAction;
-    private final ActionListener onQuitAction;
-
     public ScoreboardScreen(ActionListener onNewGameAction, ActionListener onQuitAction) {
         this.onNewGameAction = onNewGameAction;
         this.onQuitAction = onQuitAction;
-
         setLayout(new BorderLayout());
-        setBackground(BG_LIGHT);
+        setBackground(AppDialog.BG_LIGHT);
 
-        // ซ้ายกว้างคงที่ ขวายืดเต็มพื้นที่ที่เหลือ
-        JPanel mainContent = new JPanel(new BorderLayout(32, 0));
-        mainContent.setOpaque(false);
+        var mainContent = AppDialog.panel();
+        mainContent.setLayout(new BorderLayout(32, 0));
         mainContent.setBorder(new EmptyBorder(30, 40, 30, 40));
 
-        JPanel leftColumn = buildLeftColumn();
+        var leftColumn = buildLeftColumn();
         leftColumn.setPreferredSize(new Dimension(480, 100));
-
         mainContent.add(leftColumn, BorderLayout.WEST);
         mainContent.add(buildRightColumn(), BorderLayout.CENTER);
-
         add(mainContent, BorderLayout.CENTER);
-
-        // เติมข้อความทุกจุดจากข้อมูลปัจจุบัน (ค่าเริ่มต้น หรือค่าที่ setResults() ส่งมา)
         refresh();
     }
 
     // =====================================================================
-    //  ข้อมูลจริงจาก Server
+    //  Results coming from the server
     // =====================================================================
 
-    /**
-     * ใส่ผลลัพธ์รอบล่าสุดที่ได้จาก Server แล้ววาดใหม่ทั้งหน้า
-     * ลำดับจะถูกเรียงจากคะแนนมากไปน้อยตามกติกาเดิมของโปรเจกต์
-     */
+    /** Takes the latest scores from the server, sorts them best first and rebuilds the whole screen. */
     public void setResults(String[] names, int[] scores, int rounds, int totalRounds, boolean isFinal) {
         if (names != null && scores != null && names.length > 0) {
-            // เรียงคู่ (ชื่อ, คะแนน) จากมากไปน้อย ด้วย insertion sort ง่าย ๆ
+            // Insertion sort, so equal scores keep the order the server sent them in.
             String[] sortedNames = new String[names.length];
             int[] sortedScores = new int[names.length];
             for (int i = 0; i < names.length; i++) {
@@ -150,17 +94,15 @@ public class ScoreboardScreen extends JPanel {
         refresh();
     }
 
-    /** ปุ่มไปต่อ/เริ่มใหม่กดได้เฉพาะ Host เท่านั้น */
+    /** The continue / new game button only works for the host. */
     public void setNextEnabled(boolean enabled) {
-        if (nextBtn != null) {
-            nextBtn.setEnabled(enabled);
-            nextBtn.setToolTipText(enabled
+        nextBtn.setEnabled(enabled);
+        nextBtn.setToolTipText(enabled
                 ? "Continue to the next round, or start a fresh tournament."
                 : "Only the host can continue or start a new game.");
-        }
     }
 
-    /** วาดทุกชิ้นที่ขึ้นกับคะแนน/สถานะรอบใหม่ */
+    /** Redraws everything that depends on the scores or on the round state. */
     private void refresh() {
         if (playerNames.length > 0) {
             congratsLabel.setText("Congratulations, " + playerNames[0] + "!");
@@ -171,11 +113,8 @@ public class ScoreboardScreen extends JPanel {
         }
 
         gameOverBadge.setText(finalRound ? "GAME OVER" : "ROUND SUMMARY");
-        if (finalRound) {
-            completeBadge.setText("TOURNAMENT COMPLETE");
-        } else {
-            completeBadge.setText("ROUND " + roundsPlayed + " OF " + totalRounds + " COMPLETE");
-        }
+        completeBadge.setText(finalRound ? "TOURNAMENT COMPLETE"
+                : "ROUND " + roundsPlayed + " OF " + totalRounds + " COMPLETE");
         nextBtn.setText(finalRound ? "NEW GAME" : "CONTINUE");
 
         roundsValue.setText(roundsPlayed + " / " + totalRounds);
@@ -189,484 +128,247 @@ public class ScoreboardScreen extends JPanel {
         }
         rowsPanel.revalidate();
         rowsPanel.repaint();
-
         revalidate();
         repaint();
     }
 
     // =====================================================================
-    //  คอลัมน์ซ้าย: ถ้วย, ป้าย GAME OVER, ข้อความ, การ์ดคะแนน
+    //  Left column: trophy, GAME OVER badge, the winner and the final score
     // =====================================================================
+
     private JPanel buildLeftColumn() {
-        JPanel left = new JPanel(new BorderLayout());
-        left.setOpaque(false);
-        // ดันเนื้อหาลงมาจากขอบบนแทนการจัดกึ่งกลางแนวตั้ง
+        var left = AppDialog.panel();
+        left.setLayout(new BorderLayout());
+        // Pushes the content down from the top edge instead of centering it vertically.
         left.setBorder(new EmptyBorder(40, 0, 0, 0));
 
-        gameOverBadge = buildBadge("GAME OVER", BG_DARK_HEADER, Color.WHITE, null, 4, 14);
+        gameOverBadge = AppDialog.badge("GAME OVER", BG_DARK_HEADER, Color.WHITE, null, 4, 14);
+        congratsLabel = AppDialog.label("Congratulations, " + playerNames[0] + "!", AppDialog.TITLE_LARGE,
+                AppDialog.TEXT_DARK, JLabel.CENTER);
+        var sub = AppDialog.label("<html><center>You read the room, matched the shapes,<br>and took first place.</center></html>",
+                AppDialog.BODY, AppDialog.TEXT_MUTED, JLabel.CENTER);
 
-        congratsLabel = new JLabel("Congratulations, " + playerNames[0] + "!", JLabel.CENTER);
-        congratsLabel.setFont(new Font("Tahoma", Font.BOLD, 26));
-        congratsLabel.setForeground(TEXT_DARK);
-
-        JLabel sub = new JLabel(
-            "<html><center>You read the room, matched the shapes,<br>and took first place.</center></html>",
-            JLabel.CENTER);
-        sub.setFont(FONT_BODY);
-        sub.setForeground(TEXT_MUTED);
-
-        JPanel[] items = new JPanel[5];
-        items[0] = wrapCenter(buildTrophyPanel(), 0);
-        items[1] = wrapCenter(gameOverBadge);
-        items[2] = wrapCenter(congratsLabel);
-        items[3] = wrapCenter(sub);
-        items[4] = wrapCenter(buildScoreCard(), 8);
-
-        left.add(buildStack(items, 12), BorderLayout.CENTER);
+        var items = new JPanel[] {
+            centered(buildTrophyPanel(), 0),
+            centered(gameOverBadge, 0),
+            centered(congratsLabel),
+            centered(sub),
+            centered(buildScoreCard(), 8)
+        };
+        left.add(stackItems(items, 12), BorderLayout.CENTER);
         return left;
     }
 
-    /** กล่องสี่เหลี่ยมพื้นเหลืองอ่อน ใส่รูปถ้วย ถ้าหาไฟล์ไม่เจอจะใช้ข้อความแทน */
+    /** Light yellow square with the trophy picture, or with plain text when the file is missing. */
     private JPanel buildTrophyPanel() {
-        JPanel trophy = new JPanel(new BorderLayout());
-        trophy.setOpaque(true);
-        trophy.setBackground(GOLD_BG);
-        trophy.setBorder(new LineBorder(GOLD_BORDER, 2));
+        var trophy = new JPanel(new BorderLayout());
+        trophy.setBackground(AppDialog.GOLD_BG);
+        trophy.setBorder(new LineBorder(AppDialog.GOLD_BORDER, 2));
         trophy.setPreferredSize(new Dimension(170, 170));
-
-        JLabel trophyLabel;
-        ImageIcon icon = loadIcon("trophy.png", 100, 100);
-        if (icon != null) {
-            // เจอไฟล์รูปถ้วย
-            trophyLabel = new JLabel(icon, JLabel.CENTER);
-        } else {
-            // ไม่เจอไฟล์ ใช้ข้อความแทน
-            trophyLabel = new JLabel("TROPHY", JLabel.CENTER);
-            trophyLabel.setFont(new Font("Tahoma", Font.BOLD, 20));
-            trophyLabel.setForeground(GOLD_TEXT);
-        }
-        trophy.add(trophyLabel, BorderLayout.CENTER);
+        trophy.add(ShapeImages.shape("Trophy", 100), BorderLayout.CENTER);
         return trophy;
     }
 
-    /** การ์ดสีน้ำเงิน แสดงคะแนนรวมของผู้ชนะ */
+    /** Blue card with the winner's total score. */
     private JPanel buildScoreCard() {
-        JPanel card = new JPanel(new GridLayout(3, 1, 0, 0));
-        card.setOpaque(true);
-        card.setBackground(PRIMARY_BLUE);
+        var card = new JPanel(new GridLayout(3, 1, 0, 0));
+        card.setBackground(AppDialog.PRIMARY_BLUE);
         card.setBorder(new EmptyBorder(14, 10, 14, 10));
         card.setPreferredSize(new Dimension(220, 140));
 
-        JLabel fsLabel = new JLabel("FINAL SCORE", JLabel.CENTER);
-        fsLabel.setFont(FONT_SMALL_BOLD);
-        fsLabel.setForeground(BLUE_SOFT_TEXT);
-
-        finalScoreValue = new JLabel(String.valueOf(playerScores[0]), JLabel.CENTER);
-        finalScoreValue.setFont(new Font("Tahoma", Font.BOLD, 36));
-        finalScoreValue.setForeground(Color.WHITE);
-
-        JLabel fsPoints = new JLabel("POINTS", JLabel.CENTER);
-        fsPoints.setFont(FONT_SMALL_BOLD);
-        fsPoints.setForeground(BLUE_SOFT_TEXT);
-
-        card.add(fsLabel);
+        finalScoreValue = AppDialog.label(String.valueOf(playerScores[0]), AppDialog.f(Font.BOLD, 36),
+                Color.WHITE, JLabel.CENTER);
+        card.add(AppDialog.label("FINAL SCORE", AppDialog.SMALL_BOLD, AppDialog.BLUE_BORDER, JLabel.CENTER));
         card.add(finalScoreValue);
-        card.add(fsPoints);
+        card.add(AppDialog.label("POINTS", AppDialog.SMALL_BOLD, AppDialog.BLUE_BORDER, JLabel.CENTER));
         return card;
     }
 
     // =====================================================================
-    //  คอลัมน์ขวา: การ์ดตารางคะแนน
+    //  Right column: the standings table
     // =====================================================================
+
     private JPanel buildRightColumn() {
-        JPanel card = new JPanel(new BorderLayout(0, 16));
-        card.setOpaque(true);
-        card.setBackground(CARD_BG);
-        card.setBorder(new CompoundBorder(
-            new LineBorder(CARD_BORDER, 1),
-            new EmptyBorder(24, 28, 24, 28)));
+        var card = new JPanel(new BorderLayout(0, 16));
+        card.setBackground(AppDialog.CARD_BG);
+        card.setBorder(new CompoundBorder(new LineBorder(AppDialog.CARD_BORDER, 1), new EmptyBorder(24, 28, 24, 28)));
 
-        // ---------- หัวการ์ด ----------
-        JPanel cardHeader = new JPanel(new BorderLayout());
-        cardHeader.setOpaque(false);
+        var titles = AppDialog.panel();
+        titles.setLayout(new GridLayout(2, 1, 0, 2));
+        titles.add(AppDialog.label("FINAL RESULTS", AppDialog.SMALL_BOLD, AppDialog.PRIMARY_BLUE));
+        titles.add(AppDialog.label("Scoreboard", AppDialog.TITLE_24, AppDialog.TEXT_DARK));
 
-        JPanel titles = new JPanel(new GridLayout(2, 1, 0, 2));
-        titles.setOpaque(false);
-
-        JLabel tag = new JLabel("FINAL RESULTS");
-        tag.setFont(FONT_SMALL_BOLD);
-        tag.setForeground(PRIMARY_BLUE);
-
-        JLabel title = new JLabel("Scoreboard");
-        title.setFont(FONT_TITLE_LARGE);
-        title.setForeground(TEXT_DARK);
-
-        titles.add(tag);
-        titles.add(title);
-        cardHeader.add(titles, BorderLayout.WEST);
-
-        completeBadge = buildBadge("TOURNAMENT COMPLETE", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER, 6, 14);
-        JPanel badgeHolder = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 6));
-        badgeHolder.setOpaque(false);
+        completeBadge = AppDialog.badge("TOURNAMENT COMPLETE", AppDialog.SUCCESS_BG, AppDialog.SUCCESS_TEXT,
+                AppDialog.SUCCESS_BORDER, 6, 14);
+        var badgeHolder = AppDialog.panel();
+        badgeHolder.setLayout(new FlowLayout(FlowLayout.RIGHT, 0, 6));
         badgeHolder.add(completeBadge);
-        cardHeader.add(badgeHolder, BorderLayout.EAST);
 
+        var cardHeader = AppDialog.panel();
+        cardHeader.setLayout(new BorderLayout());
+        cardHeader.add(titles, BorderLayout.WEST);
+        cardHeader.add(badgeHolder, BorderLayout.EAST);
         card.add(cardHeader, BorderLayout.NORTH);
 
-        // ---------- เนื้อหากลาง: หัวตาราง + แถวผู้เล่น + เส้นแบ่ง + สถิติ ----------
-        JPanel[] bodyItems = new JPanel[4];
-        bodyItems[0] = buildTableHeader();
-        bodyItems[1] = buildRowsPanel();
-        bodyItems[2] = buildDivider();
-        bodyItems[3] = buildStatsRow();
-        card.add(buildStack(bodyItems, 12), BorderLayout.CENTER);
+        card.add(stackItems(new JPanel[] {buildTableHeader(), buildRowsPanel(), buildDivider(), buildStatsRow()}, 12),
+                BorderLayout.CENTER);
 
-        // ---------- ปุ่มด้านล่าง ----------
-        JPanel btnRow = new JPanel(new GridLayout(1, 2, 12, 0));
-        btnRow.setOpaque(false);
-
-        nextBtn = buildButton("NEW GAME", PRIMARY_BLUE, PRIMARY_HOVER, PRIMARY_PRESS,
-            Color.WHITE, PRIMARY_BLUE);
+        nextBtn = AppDialog.button("NEW GAME", AppDialog.PRIMARY_BLUE, AppDialog.PRIMARY_HOVER, AppDialog.PRIMARY_PRESS,
+                Color.WHITE, AppDialog.PRIMARY_BLUE, 10, 18);
         nextBtn.setPreferredSize(new Dimension(160, 44));
         if (onNewGameAction != null) {
-            // มี action จากภายนอก (เช่น MainApp) ให้ผูกเข้าปุ่ม
             nextBtn.addActionListener(onNewGameAction);
-        } else {
-            // โหมดทดสอบหน้าเดียว: ไม่มี action ปุ่มนี้จึงไม่ทำอะไร
         }
 
-        JButton quitBtn = buildButton("QUIT", Color.WHITE, BG_LIGHT, CARD_BORDER,
-            TEXT_DARK, CARD_BORDER);
+        var quitBtn = AppDialog.button("QUIT", Color.WHITE, AppDialog.BG_LIGHT, AppDialog.CARD_BORDER,
+                AppDialog.TEXT_DARK, AppDialog.CARD_BORDER, 10, 18);
         quitBtn.setPreferredSize(new Dimension(160, 44));
         if (onQuitAction != null) {
-            // มี action จากภายนอก ให้ผูกเข้าปุ่ม
             quitBtn.addActionListener(onQuitAction);
         }
 
-        btnRow.add(nextBtn);
-        btnRow.add(quitBtn);
-        card.add(btnRow, BorderLayout.SOUTH);
-
+        var buttonRow = AppDialog.panel();
+        buttonRow.setLayout(new GridLayout(1, 2, 12, 0));
+        buttonRow.add(nextBtn);
+        buttonRow.add(quitBtn);
+        card.add(buttonRow, BorderLayout.SOUTH);
         return card;
     }
 
-    /** หัวตาราง RANK / PLAYER / SCORE (ขนาดคอลัมน์ตรงกับแถวผู้เล่น) */
+    /** RANK / PLAYER / SCORE header, sized to line up with the player rows. */
     private JPanel buildTableHeader() {
-        JPanel header = new JPanel(new BorderLayout(10, 0));
-        header.setOpaque(false);
+        var header = AppDialog.panel();
+        header.setLayout(new BorderLayout(10, 0));
         header.setBorder(new EmptyBorder(0, 13, 0, 13));
 
-        JLabel rankHeader = new JLabel("RANK");
-        rankHeader.setFont(FONT_SMALL_BOLD);
-        rankHeader.setForeground(TEXT_LIGHT);
-        rankHeader.setPreferredSize(new Dimension(36, 20));
-
-        JLabel playerHeader = new JLabel("PLAYER");
-        playerHeader.setFont(FONT_SMALL_BOLD);
-        playerHeader.setForeground(TEXT_LIGHT);
-
-        JLabel scoreHeader = new JLabel("SCORE", JLabel.RIGHT);
-        scoreHeader.setFont(FONT_SMALL_BOLD);
-        scoreHeader.setForeground(TEXT_LIGHT);
-        scoreHeader.setPreferredSize(new Dimension(50, 20));
-
-        header.add(rankHeader, BorderLayout.WEST);
-        header.add(playerHeader, BorderLayout.CENTER);
-        header.add(scoreHeader, BorderLayout.EAST);
+        header.add(tableTitle("RANK", 36, JLabel.LEFT), BorderLayout.WEST);
+        header.add(tableTitle("PLAYER", 0, JLabel.LEADING), BorderLayout.CENTER);
+        header.add(tableTitle("SCORE", 50, JLabel.RIGHT), BorderLayout.EAST);
         return header;
     }
 
-    /** รวมแถวผู้เล่นทุกคนเรียงลงมา เว้นช่อง 6px */
+    private static JLabel tableTitle(String text, int width, int align) {
+        var label = AppDialog.label(text, AppDialog.SMALL_BOLD, AppDialog.TEXT_LIGHT, align);
+        if (width > 0) {
+            label.setPreferredSize(new Dimension(width, 20));
+        }
+        return label;
+    }
+
     private JPanel buildRowsPanel() {
-        rowsPanel = new JPanel(new GridLayout(Math.max(1, playerNames.length), 1, 0, 6));
-        rowsPanel.setOpaque(false);
+        rowsPanel = AppDialog.panel();
+        rowsPanel.setLayout(new GridLayout(Math.max(1, playerNames.length), 1, 0, 6));
         for (int i = 0; i < playerNames.length; i++) {
             rowsPanel.add(buildLeaderboardRow(i + 1, playerNames[i], playerScores[i]));
         }
         return rowsPanel;
     }
 
-    /** แถวผู้เล่น 1 แถว: อันดับ + avatar + ชื่อ (+ป้าย WINNER) + คะแนน */
+    /** One row: rank, avatar, name (with a WINNER badge) and the score. */
     private JPanel buildLeaderboardRow(int rank, String name, int score) {
-        boolean isWinner;
-        if (rank == 1) {
-            isWinner = true;
-        } else {
-            isWinner = false;
-        }
+        boolean winner = rank == 1;
+        Color rowBg = winner ? AppDialog.GOLD_BG : AppDialog.ROW_BG;
+        Color rowBorder = winner ? AppDialog.GOLD_BORDER : AppDialog.ROW_BG;
+        Color rankColor = winner ? AppDialog.GOLD_TEXT : AppDialog.TEXT_MUTED;
+        Color scoreColor = winner ? AppDialog.GOLD_TEXT : AppDialog.PRIMARY_BLUE;
 
-        Color rowBg;
-        Color rowBorder;
-        Color rankColor;
-        Color scoreColor;
-        if (isWinner) {
-            // แถวผู้ชนะ: พื้นทอง
-            rowBg = GOLD_BG;
-            rowBorder = GOLD_BORDER;
-            rankColor = GOLD_TEXT;
-            scoreColor = GOLD_TEXT;
-        } else {
-            // แถวคนอื่น: พื้นเทาอ่อน (ขอบสีเดียวกับพื้นเพื่อให้ขนาดเท่ากัน)
-            rowBg = ROW_BG;
-            rowBorder = ROW_BG;
-            rankColor = TEXT_MUTED;
-            scoreColor = PRIMARY_BLUE;
-        }
-
-        JPanel row = new JPanel(new BorderLayout(10, 0));
-        row.setOpaque(true);
+        var row = new JPanel(new BorderLayout(10, 0));
         row.setBackground(rowBg);
-        row.setBorder(new CompoundBorder(
-            new LineBorder(rowBorder, 1),
-            new EmptyBorder(7, 12, 7, 12)));
+        row.setBorder(new CompoundBorder(new LineBorder(rowBorder, 1), new EmptyBorder(7, 12, 7, 12)));
 
-        // อันดับ
-        JLabel rankLabel = new JLabel(String.valueOf(rank));
-        rankLabel.setFont(FONT_BODY_BOLD);
-        rankLabel.setForeground(rankColor);
+        var rankLabel = AppDialog.label(String.valueOf(rank), AppDialog.BODY_BOLD, rankColor);
         rankLabel.setPreferredSize(new Dimension(36, 26));
         row.add(rankLabel, BorderLayout.WEST);
 
-        // avatar + ชื่อ + ป้ายผู้ชนะ
-        JPanel playerPart = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        playerPart.setOpaque(false);
-        playerPart.add(buildAvatar(name.substring(0, 1), getAvatarColor(rank), 28));
-
-        JLabel nameLabel = new JLabel(name);
-        nameLabel.setFont(FONT_BODY_BOLD);
-        nameLabel.setForeground(TEXT_DARK);
-        playerPart.add(nameLabel);
-
-        if (isWinner) {
-            // ผู้ชนะได้ป้าย WINNER
-            playerPart.add(buildBadge("WINNER", GOLD_BADGE_BG, GOLD_TEXT, null, 2, 8));
-        } else {
-            // คนอื่นไม่มีป้าย
+        var playerPart = AppDialog.panel();
+        playerPart.setLayout(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        playerPart.add(AppDialog.avatar(name.substring(0, 1), rankColor(rank), 28));
+        playerPart.add(AppDialog.label(name, AppDialog.BODY_BOLD, AppDialog.TEXT_DARK));
+        if (winner) {
+            playerPart.add(AppDialog.badge("WINNER", GOLD_BADGE_BG, AppDialog.GOLD_TEXT, null, 2, 8));
         }
         row.add(playerPart, BorderLayout.CENTER);
 
-        // คะแนน
-        JLabel scoreLabel = new JLabel(String.valueOf(score), JLabel.RIGHT);
-        scoreLabel.setFont(new Font("Tahoma", Font.BOLD, 18));
-        scoreLabel.setForeground(scoreColor);
+        var scoreLabel = AppDialog.label(String.valueOf(score), AppDialog.TITLE, scoreColor, JLabel.RIGHT);
         scoreLabel.setPreferredSize(new Dimension(50, 26));
         row.add(scoreLabel, BorderLayout.EAST);
-
         return row;
     }
 
-    /** เลือกสี avatar ตามอันดับ */
-    private Color getAvatarColor(int rank) {
-        Color result;
+    /** Avatar colour picked by rank; the podium places get their own colours. */
+    private static Color rankColor(int rank) {
         if (rank == 1) {
-            result = new Color(234, 179, 8);
-        } else if (rank == 2) {
-            result = new Color(56, 189, 248);
-        } else if (rank == 3) {
-            result = new Color(139, 92, 246);
-        } else {
-            result = new Color(244, 63, 94);
+            return new Color(234, 179, 8);
         }
-        return result;
+        if (rank == 2) {
+            return new Color(56, 189, 248);
+        }
+        return rank == 3 ? new Color(139, 92, 246) : DANGER_AVATAR;
     }
 
-    /** แถบสถิติ 3 ช่องใต้เส้นแบ่ง (ตัวเลขมาจากเกมจริง ไม่ใช่ค่าตัวอย่าง) */
+    /** The three statistics under the divider, all of them real game numbers. */
     private JPanel buildStatsRow() {
-        JPanel stats = new JPanel(new GridLayout(1, 3, 10, 0));
-        stats.setOpaque(false);
-        roundsValue = new JLabel(roundsPlayed + " / " + totalRounds);
-        playersValue = new JLabel(String.valueOf(playerNames.length));
-        targetValue = new JLabel(GameServer.MIN_SHAPES + "-" + GameServer.MAX_SHAPES + " each");
-        stats.add(buildStatItem("Rounds played", roundsValue));
-        stats.add(buildStatItem("Players", playersValue));
-        stats.add(buildStatItem("Secret shapes", targetValue));
+        roundsValue = AppDialog.label("", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
+        playersValue = AppDialog.label("", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
+        targetValue = AppDialog.label("", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
+
+        var stats = AppDialog.panel();
+        stats.setLayout(new GridLayout(1, 3, 10, 0));
+        stats.add(statItem("Rounds played", roundsValue));
+        stats.add(statItem("Players", playersValue));
+        stats.add(statItem("Secret shapes", targetValue));
         return stats;
     }
 
-    private JPanel buildStatItem(String label, JLabel valueText) {
-        JPanel item = new JPanel(new GridLayout(2, 1, 0, 2));
-        item.setOpaque(false);
-
-        JLabel labelText = new JLabel(label);
-        labelText.setFont(FONT_SMALL);
-        labelText.setForeground(TEXT_LIGHT);
-
-        valueText.setFont(FONT_BODY_BOLD);
-        valueText.setForeground(TEXT_DARK);
-
-        item.add(labelText);
-        item.add(valueText);
+    private static JPanel statItem(String title, JLabel value) {
+        var item = AppDialog.panel();
+        item.setLayout(new GridLayout(2, 1, 0, 2));
+        item.add(AppDialog.label(title, AppDialog.SMALL, AppDialog.TEXT_LIGHT));
+        item.add(value);
         return item;
     }
 
-    // =====================================================================
-    //  ตัวช่วยสร้างหน้าตา (แทน CardPanel / PillBadge / ModernButton / AvatarCircle / Separator)
-    // =====================================================================
-
-    /** ป้ายสี่เหลี่ยมพื้นสี (แทน PillBadge) borderColor เป็น null ได้ */
-    private JLabel buildBadge(String text, Color bg, Color fg, Color borderColor, int padV, int padH) {
-        JLabel badge = new JLabel(text, JLabel.CENTER);
-        badge.setFont(FONT_SMALL_BOLD);
-        badge.setForeground(fg);
-        badge.setBackground(bg);
-        badge.setOpaque(true);
-        if (borderColor != null) {
-            // มีเส้นขอบ
-            badge.setBorder(new CompoundBorder(
-                new LineBorder(borderColor, 1),
-                new EmptyBorder(padV, padH, padV, padH)));
-        } else {
-            // ไม่มีเส้นขอบ เพิ่ม padding 1px ให้ขนาดเท่ากับแบบมีขอบ
-            badge.setBorder(new EmptyBorder(padV + 1, padH + 1, padV + 1, padH + 1));
-        }
-        return badge;
-    }
-
-    /** avatar สี่เหลี่ยมจัตุรัสพื้นสี ตัวอักษรขาวอยู่กลาง (แทน AvatarCircle) */
-    private JLabel buildAvatar(String initial, Color color, int size) {
-        JLabel avatar = new JLabel(initial, JLabel.CENTER);
-        avatar.setFont(new Font("Tahoma", Font.BOLD, size / 2));
-        avatar.setForeground(Color.WHITE);
-        avatar.setBackground(color);
-        avatar.setOpaque(true);
-        avatar.setPreferredSize(new Dimension(size, size));
-        return avatar;
-    }
-
-    /** ปุ่ม JButton ธรรมดา สีเปลี่ยนตามสถานะผ่าน ButtonStateListener (แทน ModernButton) */
-    private JButton buildButton(String text, Color normal, Color hover, Color pressed,
-                                Color fg, Color borderColor) {
-        JButton btn = new JButton(text);
-        btn.setFont(FONT_BODY_BOLD);
-        btn.setForeground(fg);
-        btn.setBackground(normal);
-        btn.setContentAreaFilled(false); // เรียกก่อน setOpaque เพราะบาง look and feel จะรีเซ็ต opaque
-        btn.setOpaque(true);
-        btn.setBorderPainted(true);
-        btn.setBorder(new CompoundBorder(
-            new LineBorder(borderColor, 1),
-            new EmptyBorder(10, 18, 10, 18)));
-        btn.setFocusPainted(false);
-        btn.setFocusable(false);
-        btn.setRolloverEnabled(true);
-        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btn.addMouseListener(new ButtonStateListener(btn, normal, hover, pressed));
-        return btn;
-    }
-
-    /** เส้นแบ่งแนวนอนหนา 1px (แทน separator) */
-    private JPanel buildDivider() {
-        JPanel line = new JPanel();
-        line.setOpaque(true);
-        line.setBackground(CARD_BORDER);
+    /** 1px horizontal divider. */
+    private static JPanel buildDivider() {
+        var line = new JPanel();
+        line.setBackground(AppDialog.CARD_BORDER);
         line.setPreferredSize(new Dimension(1, 1));
         return line;
     }
 
-    /**
-     * วางหลายชิ้นเรียงลงมาตามลำดับ ชิดบน แต่ละชิ้นสูงเท่าที่ต้องการ (แทนการเรียงแนวตั้งด้วย glue)
-     * ใช้ BorderLayout ซ้อนกัน: ชิ้นแรกอยู่ NORTH ที่เหลืออยู่ในแผงถัดไปที่ CENTER
-     */
-    private JPanel buildStack(JPanel[] items, int gap) {
-        JPanel root = new JPanel(new BorderLayout(0, gap));
-        root.setOpaque(false);
-        JPanel current = root;
+    /** Stacks blocks top-aligned, each at its own height, with the given gap between them. */
+    private static JPanel stackItems(JPanel[] items, int gap) {
+        var root = AppDialog.panel();
+        root.setLayout(new BorderLayout(0, gap));
+        var current = root;
         for (int i = 0; i < items.length; i++) {
             current.add(items[i], BorderLayout.NORTH);
             if (i < items.length - 1) {
-                // ยังมีชิ้นต่อไป สร้างแผงชั้นถัดไป
-                JPanel next = new JPanel(new BorderLayout(0, gap));
-                next.setOpaque(false);
+                var next = AppDialog.panel();
+                next.setLayout(new BorderLayout(0, gap));
                 current.add(next, BorderLayout.CENTER);
                 current = next;
-            } else {
-                // ชิ้นสุดท้าย ไม่ต้องสร้างชั้นต่อ
             }
         }
         return root;
     }
 
-    /** ครอบชิ้นเดียวให้อยู่กึ่งกลางแนวนอน */
-    private JPanel wrapCenter(JPanel inner, int vPad) {
-        JPanel holder = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, vPad));
-        holder.setOpaque(false);
+    /** Centers one block horizontally, with an optional vertical padding around it. */
+    private static JPanel centered(JPanel inner, int padV) {
+        var holder = AppDialog.panel();
+        holder.setLayout(new FlowLayout(FlowLayout.CENTER, 0, padV));
         holder.add(inner);
         return holder;
     }
 
-    private JPanel wrapCenter(JLabel inner) {
-        JPanel holder = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
-        holder.setOpaque(false);
+    private static JPanel centered(JLabel inner) {
+        return centered(inner, 0);
+    }
+
+    private static JPanel centered(JLabel inner, int padV) {
+        var holder = AppDialog.panel();
+        holder.setLayout(new FlowLayout(FlowLayout.CENTER, 0, padV));
         holder.add(inner);
         return holder;
-    }
-
-    /** โหลดรูปจากโฟลเดอร์ shape ด้วย Toolkit ถ้าไม่เจอคืนค่า null */
-    private ImageIcon loadIcon(String fileName, int width, int height) {
-        ImageIcon result = null;
-        File f = new File(SHAPE_DIR + fileName);
-        if (f.exists() && f.isFile()) {
-            Image raw = Toolkit.getDefaultToolkit().createImage(f.getPath());
-            Image scaled = raw.getScaledInstance(width, height, Image.SCALE_SMOOTH);
-            result = new ImageIcon(scaled);
-        } else {
-            // ไม่เจอไฟล์ในโฟลเดอร์ shape
-        }
-        return result;
-    }
-
-    // =====================================================================
-    //  Inner classes (แทน lambda)
-    // =====================================================================
-
-    /** เปลี่ยนสีพื้นปุ่มจากเหตุการณ์เมาส์: กดอยู่ -> เมาส์อยู่บนปุ่ม -> ปกติ (ปุ่มที่ปิดใช้งานอยู่ไม่แตะ) */
-    private static class ButtonStateListener extends MouseAdapter {
-        private final JButton button;
-        private final Color normal;
-        private final Color hover;
-        private final Color pressed;
-        private boolean inside = false;
-
-        ButtonStateListener(JButton button, Color normal, Color hover, Color pressed) {
-            this.button = button;
-            this.normal = normal;
-            this.hover = hover;
-            this.pressed = pressed;
-        }
-
-        @Override
-        public void mouseEntered(MouseEvent event) {
-            inside = true;
-            if (button.isEnabled()) {
-                button.setBackground(hover);
-            }
-        }
-
-        @Override
-        public void mouseExited(MouseEvent event) {
-            inside = false;
-            if (button.isEnabled()) {
-                button.setBackground(normal);
-            }
-        }
-
-        @Override
-        public void mousePressed(MouseEvent event) {
-            if (button.isEnabled()) {
-                button.setBackground(pressed);
-            }
-        }
-
-        @Override
-        public void mouseReleased(MouseEvent event) {
-            if (!button.isEnabled()) {
-                return;
-            }
-            if (inside) {
-                button.setBackground(hover);
-            } else {
-                button.setBackground(normal);
-            }
-        }
     }
 }

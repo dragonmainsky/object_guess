@@ -7,72 +7,40 @@ import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.GridLayout;
-import java.awt.Image;
-import java.awt.Toolkit;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.io.File;
 import java.util.List;
-import javax.swing.*;
+import javax.swing.JButton;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JTextField;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 
 /**
- * JoinScreen: Screen 1 - host a room or join one, over the same LAN/Wi-Fi.
- *
- * Two entry points:
- *   CREATE GAME - starts a GameServer on this machine and shows the address others
- *                 should type to join. The host also plays, so the app connects a
- *                 GameClient back to its own server afterwards.
- *   JOIN GAME   - validates the name / IP / port and asks the parent to open a
- *                 GameClient to that address.
- *
- * This screen never opens sockets itself: it validates input and reports through a
- * {@link JoinListener}. The parent does the blocking network work on a worker thread
- * and calls back into showStatus()/setBusy() so the UI never freezes.
- *
- * Standard AWT/Swing implementation without Graphics2D or GradientPaint.
- * Layouts: BorderLayout, FlowLayout and GridLayout only.
- * Uses Toolkit to load images from the "shape" folder.
+ * JoinScreen: screen 1 - host a room on this machine or join a friend's room over the same LAN.
+ * The screen never opens a socket itself: it validates the input and reports through {@link JoinListener}.
  */
 public class JoinScreen extends JPanel {
 
-    /** Called when the player chooses to host or to join. Runs on the EDT; do networking off it. */
+    /** Called when the player chooses to host or to join. Runs on the event thread; do networking off it. */
     public interface JoinListener {
         void onCreateGame(String playerName, int port);
 
         void onJoinGame(String playerName, String serverIp, int port);
     }
 
-    private static final Color BG_LIGHT       = new Color(244, 246, 250);
-    private static final Color PRIMARY_BLUE   = new Color(37, 99, 235);
-    private static final Color PRIMARY_HOVER  = new Color(29, 78, 216);
-    private static final Color SECONDARY_HOVER = new Color(241, 245, 249);
-    private static final Color DANGER_HOVER   = new Color(220, 38, 38);
-    private static final Color TEXT_DARK      = new Color(17, 24, 39);
-    private static final Color TEXT_MUTED     = new Color(107, 114, 128);
-    private static final Color CARD_BORDER    = new Color(226, 232, 240);
-    private static final Color WARNING_BG     = new Color(255, 247, 230);
+    // Colours and fonts that are particular to this screen (the rest comes from AppDialog).
+    private static final Color BG_LIGHT = new Color(244, 246, 250), TEXT_DARK = new Color(17, 24, 39);
+    private static final Color TEXT_MUTED = new Color(107, 114, 128), DANGER_HOVER = new Color(220, 38, 38);
+    private static final Color WARNING_BG = new Color(255, 247, 230), WARNING_TEXT = new Color(146, 84, 0);
     private static final Color WARNING_BORDER = new Color(250, 219, 150);
-    private static final Color WARNING_TEXT   = new Color(146, 84, 0);
-    private static final Color SUCCESS_BG     = new Color(220, 252, 231);
-    private static final Color SUCCESS_BORDER = new Color(187, 247, 208);
-    private static final Color SUCCESS_TEXT   = new Color(22, 101, 52);
-    private static final Color DANGER_BG      = new Color(254, 226, 226);
-    private static final Color DANGER_BORDER  = new Color(254, 202, 202);
-    private static final Color DANGER_TEXT    = new Color(153, 27, 27);
+    private static final Color NAVY = new Color(15, 28, 55), BRAND_TEXT = new Color(186, 203, 236);
+    private static final Color BRAND_FOOT = new Color(147, 171, 217);
 
-    private static final Font FONT_SMALL       = new Font("Tahoma", Font.PLAIN, 12);
-    private static final Font FONT_SMALL_BOLD  = new Font("Tahoma", Font.BOLD, 12);
-    private static final Font FONT_BODY        = new Font("Tahoma", Font.PLAIN, 14);
-    private static final Font FONT_BODY_BOLD   = new Font("Tahoma", Font.BOLD, 14);
-    private static final Font FONT_TITLE_LARGE = new Font("Tahoma", Font.BOLD, 26);
-
-    private static final String IMAGE_DIR = "shape";
     private static final int DEFAULT_PORT = GameServer.DEFAULT_PORT;
 
+    private final JoinListener listener;
     private JTextField nameField;
     private JTextField ipField;
     private JTextField portField;
@@ -83,29 +51,20 @@ public class JoinScreen extends JPanel {
     private JLabel statusLabel;
     private JLabel statusTagLabel;
     private JPanel statusBanner;
-    private final JoinListener listener;
 
-    /** Dark navy background with faint decorative arc using standard Graphics (no Graphics2D or GradientPaint). */
-    private static class GradientPanel extends JPanel {
-        GradientPanel() {
+    /** Deep navy background with one faint decorative circle, painted with plain Graphics. */
+    private static class BrandPanel extends JPanel {
+        BrandPanel() {
             super(new BorderLayout());
         }
 
         @Override
         protected void paintComponent(Graphics g) {
-            super.paintComponent(g);
-
-            int w = getWidth();
-            int h = getHeight();
-
-            // Solid deep navy background (eliminates horizontal scanline artifacts)
-            g.setColor(new Color(15, 28, 55));
-            g.fillRect(0, 0, w, h);
-
-            // Large faint decorative circle on the right side
+            g.setColor(NAVY);
+            g.fillRect(0, 0, getWidth(), getHeight());
+            int circle = (int) (getHeight() * 1.6);
             g.setColor(new Color(255, 255, 255, 8));
-            int circleSize = (int) (h * 1.6);
-            g.fillOval(w - circleSize / 2, -circleSize / 4, circleSize, circleSize);
+            g.fillOval(getWidth() - circle / 2, -circle / 4, circle, circle);
         }
     }
 
@@ -114,201 +73,128 @@ public class JoinScreen extends JPanel {
         setLayout(new BorderLayout());
         setBackground(BG_LIGHT);
 
-        // Split layout: left branding panel and right connection form panel
-        JPanel splitPanel = new JPanel(new GridLayout(1, 2));
-        splitPanel.add(buildLeftPanel());
-        splitPanel.add(buildRightPanel());
-
-        add(splitPanel, BorderLayout.CENTER);
+        // Split layout: branding on the left, the connection form on the right.
+        var split = new JPanel(new GridLayout(1, 2));
+        split.add(buildLeftPanel());
+        split.add(buildRightPanel());
+        add(split, BorderLayout.CENTER);
     }
 
     private JPanel buildLeftPanel() {
-        JPanel leftBrandPanel = new GradientPanel();
-        leftBrandPanel.setBorder(new EmptyBorder(30, 40, 40, 40));
+        var brand = new BrandPanel();
+        brand.setBorder(new EmptyBorder(30, 40, 40, 40));
 
-        // Header: the LAN address other machines should use to reach this host
-        JPanel brandHeader = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        brandHeader.setOpaque(false);
-
-        hostInfoLabel = new JLabel();
-        hostInfoLabel.setFont(FONT_SMALL);
-        hostInfoLabel.setForeground(new Color(186, 203, 236));
-        brandHeader.add(hostInfoLabel);
+        var header = AppDialog.panel();
+        header.setLayout(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        hostInfoLabel = AppDialog.label("", AppDialog.SMALL_12, BRAND_TEXT);
+        header.add(hostInfoLabel);
         refreshHostInfo(DEFAULT_PORT);
+        brand.add(header, BorderLayout.NORTH);
 
-        leftBrandPanel.add(brandHeader, BorderLayout.NORTH);
+        // Empty first and last rows keep the group vertically centered.
+        var center = AppDialog.panel();
+        center.setLayout(new GridLayout(5, 1, 0, 8));
+        var title = AppDialog.label("<html>Guess What<br>It Looks Like?</html>", AppDialog.f(Font.BOLD, 36), Color.WHITE);
+        var desc = AppDialog.label("Pick the shapes. Read your friends. Win the round.", AppDialog.SCREEN_SUB, BRAND_TEXT);
+        center.add(AppDialog.panel());
+        center.add(leftAligned(ShapeImages.shape("logo", 100)));
+        center.add(leftAligned(title));
+        center.add(leftAligned(desc));
+        center.add(AppDialog.panel());
+        brand.add(center, BorderLayout.CENTER);
 
-        // Center: logo, title, description (empty first/last rows keep the group vertically centered)
-        JPanel brandCenter = new JPanel(new GridLayout(5, 1, 0, 8));
-        brandCenter.setOpaque(false);
-
-        JLabel brandTitle = new JLabel("<html>Guess What<br>It Looks Like?</html>");
-        brandTitle.setFont(new Font("Tahoma", Font.BOLD, 36));
-        brandTitle.setForeground(Color.WHITE);
-
-        JLabel brandDesc = new JLabel("Pick the shapes. Read your friends. Win the round.");
-        brandDesc.setFont(new Font("Tahoma", Font.PLAIN, 15));
-        brandDesc.setForeground(new Color(186, 203, 236));
-
-        JPanel brandLogo = makeImageView("logo.png", 100, 100);
-
-        brandCenter.add(makeSpacer());
-        brandCenter.add(leftAligned(brandLogo));
-        brandCenter.add(leftAligned(brandTitle));
-        brandCenter.add(leftAligned(brandDesc));
-        brandCenter.add(makeSpacer());
-
-        leftBrandPanel.add(brandCenter, BorderLayout.CENTER);
-
-        // Footer: shape icons + small text
-        JPanel brandFooter = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        brandFooter.setOpaque(false);
-
-        String[] iconNames = {"Triangle.png", "Circle.png", "Rectangle.png"};
-        for (String iconName : iconNames) {
-            brandFooter.add(makeImageView(iconName, 22, 22));
+        var footer = AppDialog.panel();
+        footer.setLayout(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        for (String name : new String[] {"Triangle", "Circle", ShapeImages.NAMES[2]}) {
+            footer.add(ShapeImages.shape(name, 22));
         }
-
-        JLabel footerText = new JLabel("A quick LAN party game for 2-8 players on one Wi-Fi");
-        footerText.setFont(FONT_SMALL);
-        footerText.setForeground(new Color(147, 171, 217));
-        brandFooter.add(footerText);
-
-        leftBrandPanel.add(brandFooter, BorderLayout.SOUTH);
-
-        return leftBrandPanel;
+        footer.add(AppDialog.label("A quick LAN party game for 2-8 players on one Wi-Fi", AppDialog.SMALL_12, BRAND_FOOT));
+        brand.add(footer, BorderLayout.SOUTH);
+        return brand;
     }
 
     private JPanel buildRightPanel() {
-        // Margin around the card keeps it centered; the card scales with the window
-        JPanel rightWrapper = new JPanel(new GridLayout(1, 1));
-        rightWrapper.setBackground(BG_LIGHT);
-        rightWrapper.setBorder(new EmptyBorder(40, 60, 40, 60));
+        var wrapper = new JPanel(new GridLayout(1, 1));
+        wrapper.setBackground(BG_LIGHT);
+        wrapper.setBorder(new EmptyBorder(40, 60, 40, 60));
 
-        JPanel formContent = new JPanel(new BorderLayout());
-        formContent.setOpaque(false);
+        var form = AppDialog.panel();
+        form.setLayout(new BorderLayout());
 
-        // NORTH: header text
-        JPanel header = new JPanel(new GridLayout(3, 1, 0, 4));
-        header.setOpaque(false);
+        var header = AppDialog.panel();
+        header.setLayout(new GridLayout(3, 1, 0, 4));
         header.setBorder(new EmptyBorder(0, 0, 24, 0));
+        header.add(AppDialog.label("HOST OR JOIN", AppDialog.SMALL_BOLD_12, AppDialog.PRIMARY_BLUE));
+        header.add(AppDialog.label("Find your party", AppDialog.TITLE_LARGE, TEXT_DARK));
+        header.add(AppDialog.label("<html>Host a room on this machine, or join a friend on the same Wi-Fi.</html>",
+                AppDialog.PLAIN_14, TEXT_MUTED));
+        form.add(header, BorderLayout.NORTH);
 
-        JLabel joinServerTag = new JLabel("HOST OR JOIN");
-        joinServerTag.setFont(FONT_SMALL_BOLD);
-        joinServerTag.setForeground(PRIMARY_BLUE);
-        header.add(joinServerTag);
-
-        JLabel formTitle = new JLabel("Find your party");
-        formTitle.setFont(FONT_TITLE_LARGE);
-        formTitle.setForeground(TEXT_DARK);
-        header.add(formTitle);
-
-        JLabel formSub = new JLabel("<html>Host a room on this machine, or join a friend on the same Wi-Fi.</html>");
-        formSub.setFont(FONT_BODY);
-        formSub.setForeground(TEXT_MUTED);
-        header.add(formSub);
-
-        formContent.add(header, BorderLayout.NORTH);
-
-        // CENTER: inputs (Name, Server IP, Port)
+        // Name, server IP and port, one framed text field each.
         String[] labels = {"Name", "Server IP (host)", "Port"};
         String[] defaults = {"", "", String.valueOf(DEFAULT_PORT)};
-        JTextField[] fields = new JTextField[labels.length];
-
-        JPanel inputs = new JPanel(new GridLayout(labels.length, 1, 0, 16));
-        inputs.setOpaque(false);
-
+        var inputs = AppDialog.panel();
+        inputs.setLayout(new GridLayout(labels.length, 1, 0, 16));
+        var fields = new JTextField[labels.length];
         for (int i = 0; i < labels.length; i++) {
-            JLabel label = new JLabel(labels[i]);
-            label.setFont(FONT_BODY_BOLD);
-            label.setForeground(TEXT_DARK);
+            var label = AppDialog.label(labels[i], AppDialog.SUBTITLE, TEXT_DARK);
             label.setVerticalAlignment(JLabel.BOTTOM);
-
             fields[i] = makeField(defaults[i]);
-            JPanel fieldBox = framed(fields[i], Color.WHITE, CARD_BORDER, 0, 12, 0, 12);
-            fieldBox.setPreferredSize(new Dimension(100, 42));
-
-            JPanel block = new JPanel(new GridLayout(2, 1, 0, 6));
-            block.setOpaque(false);
+            var box = framed(fields[i], Color.WHITE, AppDialog.CARD_BORDER, 0, 12, 0, 12);
+            box.setPreferredSize(new Dimension(100, 42));
+            var block = AppDialog.panel();
+            block.setLayout(new GridLayout(2, 1, 0, 6));
             block.add(label);
-            block.add(fieldBox);
+            block.add(box);
             inputs.add(block);
         }
         nameField = fields[0];
         ipField = fields[1];
         portField = fields[2];
+        form.add(inputs, BorderLayout.CENTER);
 
-        formContent.add(inputs, BorderLayout.CENTER);
-
-        // SOUTH: status banner + action buttons
-        JPanel bannerContent = new JPanel(new BorderLayout());
-        bannerContent.setOpaque(false);
-
-        statusTagLabel = new JLabel("STATUS");
-        statusTagLabel.setFont(FONT_SMALL_BOLD);
-        statusTagLabel.setForeground(WARNING_TEXT);
-
-        statusLabel = new JLabel("Ready. Host a game or enter a host address.");
-        statusLabel.setFont(FONT_SMALL_BOLD);
-        statusLabel.setForeground(WARNING_TEXT);
-
+        // Status banner plus the three action buttons.
+        statusTagLabel = AppDialog.label("STATUS", AppDialog.SMALL_BOLD_12, WARNING_TEXT);
+        statusLabel = AppDialog.label("Ready. Host a game or enter a host address.", AppDialog.SMALL_BOLD_12, WARNING_TEXT);
+        var bannerContent = AppDialog.panel();
+        bannerContent.setLayout(new BorderLayout());
         bannerContent.add(statusTagLabel, BorderLayout.WEST);
         bannerContent.add(statusLabel, BorderLayout.EAST);
-
         statusBanner = framed(bannerContent, WARNING_BG, WARNING_BORDER, 6, 12, 6, 12);
         statusBanner.setPreferredSize(new Dimension(100, 38));
 
-        createBtn = makeButton("CREATE GAME (HOST)", PRIMARY_BLUE, Color.WHITE, PRIMARY_HOVER, false);
+        createBtn = makeButton("CREATE GAME (HOST)", AppDialog.PRIMARY_BLUE, Color.WHITE, AppDialog.PRIMARY_HOVER, false);
         createBtn.setPreferredSize(new Dimension(100, 44));
-        createBtn.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                onCreateGame();
-            }
-        });
+        createBtn.addActionListener(event -> onCreateGame());
 
-        joinBtn = makeButton("JOIN GAME", PRIMARY_BLUE, Color.WHITE, PRIMARY_HOVER, false);
+        joinBtn = makeButton("JOIN GAME", AppDialog.PRIMARY_BLUE, Color.WHITE, AppDialog.PRIMARY_HOVER, false);
         joinBtn.setPreferredSize(new Dimension(100, 44));
-        joinBtn.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                onJoinGame();
-            }
-        });
+        joinBtn.addActionListener(event -> onJoinGame());
 
         exitBtn = makeButton("EXIT", Color.WHITE, TEXT_DARK, DANGER_HOVER, true);
         exitBtn.setPreferredSize(new Dimension(100, 42));
-        exitBtn.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                boolean confirmed = AppDialog.showConfirm(
-                        JoinScreen.this,
-                        "Exit Game",
-                        "Are you sure you want to exit?",
-                        "Yes",
-                        "No");
-                if (confirmed) {
-                    System.exit(0);
-                }
+        exitBtn.addActionListener(event -> {
+            boolean confirmed = AppDialog.showConfirm(this, "Exit Game", "Are you sure you want to exit?", "Yes", "No");
+            if (confirmed) {
+                System.exit(0);
             }
         });
 
-        JPanel actions = new JPanel(new GridLayout(4, 1, 0, 10));
-        actions.setOpaque(false);
+        var actions = AppDialog.panel();
+        actions.setLayout(new GridLayout(4, 1, 0, 10));
         actions.setBorder(new EmptyBorder(20, 0, 0, 0));
         actions.add(statusBanner);
         actions.add(createBtn);
         actions.add(joinBtn);
         actions.add(exitBtn);
+        form.add(actions, BorderLayout.SOUTH);
 
-        formContent.add(actions, BorderLayout.SOUTH);
-
-        rightWrapper.add(framed(formContent, Color.WHITE, CARD_BORDER, 36, 36, 36, 36));
-        return rightWrapper;
+        wrapper.add(framed(form, Color.WHITE, AppDialog.CARD_BORDER, 36, 36, 36, 36));
+        return wrapper;
     }
 
     // =====================================================================
-    //  Actions + validation
+    //  Actions and validation
     // =====================================================================
 
     private void onCreateGame() {
@@ -323,37 +209,28 @@ public class JoinScreen extends JPanel {
             return;
         }
         int port = parsePort();
-        if (port < 0) {
-            return;
+        if (port >= 0) {
+            listener.onCreateGame(name, port);
         }
-        listener.onCreateGame(name, port);
     }
 
     private void onJoinGame() {
         String name = getPlayerName();
         String ip = getServerIp();
-
         if (name.isEmpty()) {
             fail("Please enter your player name.", "Name required");
-            return;
-        }
-        if (name.length() > GameServer.MAX_NAME_LENGTH) {
+        } else if (name.length() > GameServer.MAX_NAME_LENGTH) {
             fail("Name must be at most " + GameServer.MAX_NAME_LENGTH + " characters.", "Name too long");
-            return;
-        }
-        if (ip.isEmpty()) {
+        } else if (ip.isEmpty()) {
             fail("Please enter the host's IP address.", "Server IP required");
-            return;
-        }
-        if (!isValidAddress(ip)) {
+        } else if (!isValidAddress(ip)) {
             fail("\"" + ip + "\" does not look like a valid IPv4 address or host name.", "Invalid address");
-            return;
+        } else {
+            int port = parsePort();
+            if (port >= 0) {
+                listener.onJoinGame(name, ip, port);
+            }
         }
-        int port = parsePort();
-        if (port < 0) {
-            return;
-        }
-        listener.onJoinGame(name, ip, port);
     }
 
     private int parsePort() {
@@ -381,43 +258,29 @@ public class JoinScreen extends JPanel {
         AppDialog.showWarning(this, dialogTitle, status);
     }
 
-    /** Accepts a dotted IPv4 literal or a plain host name (so "localhost" also works for local tests). */
+    /** Accepts a dotted IPv4 literal or a plain host name, so "localhost" works for local tests too. */
     private static boolean isValidAddress(String value) {
-        if (value.isEmpty() || value.length() > 253) {
-            return false;
-        }
-        if (value.indexOf(' ') >= 0) {
+        if (value.isEmpty() || value.length() > 253 || value.indexOf(' ') >= 0) {
             return false;
         }
         String[] parts = value.split("\\.", -1);
-        if (parts.length == 4) {
-            boolean allNumeric = true;
-            for (String part : parts) {
-                if (part.isEmpty() || !isNumeric(part)) {
-                    allNumeric = false;
-                    break;
-                }
-            }
-            if (allNumeric) {
+        if (parts.length == 4 && isNumeric(parts[0]) && isNumeric(parts[1]) && isNumeric(parts[2]) && isNumeric(parts[3])) {
+            try {
                 for (String part : parts) {
-                    int octet;
-                    try {
-                        octet = Integer.parseInt(part);
-                    } catch (NumberFormatException e) {
-                        return false;
-                    }
+                    int octet = Integer.parseInt(part);
                     if (octet < 0 || octet > 255) {
                         return false;
                     }
                 }
                 return true;
+            } catch (NumberFormatException e) {
+                return false;
             }
         }
-        // Fall back to host-name rules.
         for (int i = 0; i < value.length(); i++) {
             char c = value.charAt(i);
-            boolean ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
-                    || (c >= '0' && c <= '9') || c == '.' || c == '-';
+            boolean ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+                    || c == '.' || c == '-';
             if (!ok) {
                 return false;
             }
@@ -438,7 +301,7 @@ public class JoinScreen extends JPanel {
     }
 
     // =====================================================================
-    //  Public state updates used by the parent (MainApp)
+    //  Public state updates used by MainApp
     // =====================================================================
 
     public String getPlayerName() {
@@ -466,17 +329,17 @@ public class JoinScreen extends JPanel {
         applyStatus(text, WARNING_BG, WARNING_BORDER, WARNING_TEXT);
     }
 
-    /** Error line in the status banner; also shown in dialog form by callers when needed. */
+    /** Error line in the status banner. */
     public void showStatus(String text, boolean error) {
         if (error) {
-            applyStatus(text, DANGER_BG, DANGER_BORDER, DANGER_TEXT);
+            applyStatus(text, AppDialog.DANGER_BG, AppDialog.DANGER_BORDER, AppDialog.DANGER_TEXT);
         } else {
             showStatus(text);
         }
     }
 
     public void showSuccess(String text) {
-        applyStatus(text, SUCCESS_BG, SUCCESS_BORDER, SUCCESS_TEXT);
+        applyStatus(text, AppDialog.SUCCESS_BG, AppDialog.SUCCESS_BORDER, AppDialog.SUCCESS_TEXT);
     }
 
     private void applyStatus(String text, Color bg, Color border, Color fg) {
@@ -503,36 +366,29 @@ public class JoinScreen extends JPanel {
 
     private void refreshHostInfo(int port) {
         List<String> addresses = GameServer.getLanAddresses();
-        String text;
         if (addresses.isEmpty()) {
-            text = "No LAN address found - check your Wi-Fi / Ethernet connection.";
-        } else {
-            StringBuilder builder = new StringBuilder("Others join at: ");
-            for (int i = 0; i < addresses.size(); i++) {
-                if (i > 0) {
-                    builder.append("  or  ");
-                }
-                builder.append(addresses.get(i)).append(":").append(port);
-            }
-            text = builder.toString();
+            hostInfoLabel.setText("No LAN address found - check your Wi-Fi / Ethernet connection.");
+            return;
         }
-        if (hostInfoLabel != null) {
-            hostInfoLabel.setText(text);
+        var text = new StringBuilder("Others join at: ");
+        for (int i = 0; i < addresses.size(); i++) {
+            text.append(i > 0 ? "  or  " : "").append(addresses.get(i)).append(":").append(port);
         }
+        hostInfoLabel.setText(text.toString());
     }
 
-    /**
-     * Wraps content in a filled box with a 1px line border and inner padding.
-     * Uses two nested panels (LineBorder outside, EmptyBorder inside) so no compound border is needed.
-     */
-    private static JPanel framed(Container content, Color fill, Color line,
-                                 int top, int left, int bottom, int right) {
-        JPanel inner = new JPanel(new BorderLayout());
-        inner.setOpaque(false);
+    // =====================================================================
+    //  Small factories
+    // =====================================================================
+
+    /** Filled box with a 1px line border and inner padding. */
+    private static JPanel framed(Container content, Color fill, Color line, int top, int left, int bottom, int right) {
+        var inner = AppDialog.panel();
+        inner.setLayout(new BorderLayout());
         inner.setBorder(new EmptyBorder(top, left, bottom, right));
         inner.add(content, BorderLayout.CENTER);
 
-        JPanel outer = new JPanel(new BorderLayout());
+        var outer = new JPanel(new BorderLayout());
         outer.setBackground(fill);
         outer.setBorder(new LineBorder(line, 1));
         outer.add(inner, BorderLayout.CENTER);
@@ -541,98 +397,47 @@ public class JoinScreen extends JPanel {
 
     /** Keeps a component at its preferred size, aligned left, inside a GridLayout cell. */
     private static JPanel leftAligned(Container c) {
-        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        p.setOpaque(false);
-        p.add(c);
-        return p;
+        var holder = AppDialog.panel();
+        holder.setLayout(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        holder.add(c);
+        return holder;
     }
 
-    private static JPanel makeSpacer() {
-        JPanel p = new JPanel();
-        p.setOpaque(false);
-        return p;
+    /** Borderless text field; the box and the padding come from framed(). */
+    private static JTextField makeField(String initialText) {
+        var field = new JTextField(initialText);
+        field.setFont(AppDialog.PLAIN_14);
+        field.setForeground(TEXT_DARK);
+        field.setBackground(Color.WHITE);
+        field.setBorder(new EmptyBorder(0, 0, 0, 0));
+        return field;
     }
 
-    /** Loads image from "shape/" directory using Toolkit without Graphics2D. */
-    private static Image loadImage(String fileName) {
-        Toolkit tk = Toolkit.getDefaultToolkit();
-        String path = System.getProperty("user.dir") + File.separator + IMAGE_DIR + File.separator + fileName;
-        File file = new File(path);
-
-        if (file.exists()) {
-            return tk.createImage(file.getPath());
-        } else {
-            java.net.URL url = JoinScreen.class.getResource("/" + IMAGE_DIR + "/" + fileName);
-            if (url != null) {
-                return tk.createImage(url);
-            } else {
-                return tk.createImage(path);
-            }
-        }
-    }
-
-    /** Creates a JPanel that paints an Image using standard Graphics.drawImage. */
-    private static JPanel makeImageView(String fileName, int width, int height) {
-        final Image img = loadImage(fileName);
-
-        JPanel view = new JPanel() {
+    private static JButton makeButton(String text, Color normal, Color fg, Color hover, boolean outlined) {
+        var button = new JButton(text);
+        button.setFont(AppDialog.SUBTITLE);
+        button.setForeground(fg);
+        button.setBackground(normal);
+        button.setOpaque(true);
+        button.setContentAreaFilled(true);
+        button.setFocusPainted(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setBorder(outlined ? new LineBorder(AppDialog.CARD_BORDER, 1) : new EmptyBorder(0, 0, 0, 0));
+        button.addMouseListener(new MouseAdapter() {
             @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                if (img != null) {
-                    g.drawImage(img, 0, 0, getWidth(), getHeight(), this);
+            public void mouseEntered(MouseEvent event) {
+                if (button.isEnabled()) {
+                    button.setBackground(hover);
                 }
             }
-        };
-        view.setOpaque(false);
-        view.setPreferredSize(new Dimension(width, height));
-        return view;
-    }
-
-    /** Borderless text field; the surrounding box and padding come from framed(). */
-    private static JTextField makeField(String initialText) {
-        JTextField f = new JTextField(initialText);
-        f.setFont(FONT_BODY);
-        f.setForeground(TEXT_DARK);
-        f.setBackground(Color.WHITE);
-        f.setBorder(new EmptyBorder(0, 0, 0, 0));
-        return f;
-    }
-
-    private static JButton makeButton(String text, final Color normal, Color fg,
-                                      final Color hover, boolean outlined) {
-        final JButton b = new JButton(text);
-        b.setFont(FONT_BODY_BOLD);
-        b.setForeground(fg);
-        b.setBackground(normal);
-        b.setOpaque(true);
-        b.setContentAreaFilled(true);
-        b.setFocusPainted(false);
-        b.setCursor(new Cursor(Cursor.HAND_CURSOR));
-
-        if (outlined) {
-            b.setBorder(new LineBorder(CARD_BORDER, 1));
-        } else {
-            b.setBorder(new EmptyBorder(0, 0, 0, 0));
-        }
-
-        b.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) {
-                applyHover(b, true, normal, hover);
-            }
 
             @Override
-            public void mouseExited(MouseEvent e) {
-                applyHover(b, false, normal, hover);
+            public void mouseExited(MouseEvent event) {
+                if (button.isEnabled()) {
+                    button.setBackground(normal);
+                }
             }
         });
-        return b;
-    }
-
-    private static void applyHover(JButton b, boolean inside, Color normal, Color hover) {
-        if (b.isEnabled()) {
-            b.setBackground(inside ? hover : normal);
-        }
+        return button;
     }
 }

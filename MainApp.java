@@ -1,6 +1,7 @@
-import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+import java.awt.BorderLayout;
+import java.awt.Dimension;
+import java.awt.Insets;
+import java.awt.Toolkit;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
@@ -11,22 +12,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import javax.swing.*;
+import javax.swing.JFrame;
+import javax.swing.JPanel;
 
 /**
- * MainApp: master window that owns the CardLayout and, in multiplayer mode, the two
- * network objects. It is the only place that knows how a server event maps onto a screen.
- *
- * Responsibilities:
- *   - CREATE GAME: start a GameServer, then connect the host's own GameClient to it so
- *     the host is a normal player rather than only a listener.
- *   - JOIN GAME: connect a GameClient to the address the player typed.
- *   - Route every server message to the right screen (lobby list, round start, secret
- *     lock, guess submissions, round results, chat, disconnects).
- *
- * All socket work runs on a background executor; every screen update is pushed back onto
- * the Event Dispatch Thread with SwingUtilities.invokeLater(). Nothing in this class
- * blocks the EDT.
+ * MainApp: the master window. It owns the six screens, the network objects and is the only place that
+ * knows how one server message maps onto a screen.
  */
 public class MainApp extends JFrame implements JoinScreen.JoinListener {
 
@@ -37,10 +28,10 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     public static final String SCREEN_SCOREBOARD = "SCOREBOARD";
     public static final String SCREEN_ROUND_RESULT = "ROUND_RESULT";
 
-    private final CardLayout cardLayout = new CardLayout();
-    private final JPanel cardPanel = new JPanel(cardLayout);
+    /** The visible area holds exactly one screen: showScreen() swaps that one panel. */
+    private final JPanel screenHost = new JPanel(new BorderLayout());
+    private final Map<String, JPanel> screens = new LinkedHashMap<>();
 
-    // ===== Screens =====
     private final JoinScreen joinScreen;
     private final LobbyScreen lobbyScreen;
     private final QuestionerScreen questionerScreen;
@@ -48,9 +39,9 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     private final ScoreboardScreen scoreboardScreen;
     private final RoundResultScreen roundResultScreen;
 
-    // ===== Network state =====
-    private final ExecutorService netExecutor = Executors.newSingleThreadExecutor(runnable -> {
-        Thread thread = new Thread(runnable, "MainApp-Net");
+    /** Every socket call runs here so the UI thread is never blocked by networking. */
+    private final ExecutorService netExecutor = Executors.newSingleThreadExecutor(task -> {
+        var thread = new Thread(task, "MainApp-Net");
         thread.setDaemon(true);
         return thread;
     });
@@ -58,62 +49,42 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     private GameClient client;
     private GameServer server;
     private String myName = "";
-    private boolean isHost = false;
+    private boolean isHost;
     private String connectAddress = "";
-    private boolean intentionalLeave = false;
+    private boolean intentionalLeave;
     private String currentScreen = SCREEN_JOIN;
 
-    /** How long we wait for JOIN_SUCCESS / JOIN_FAILED before giving up and re-enabling the buttons. */
+    /** How long the join waits for JOIN_SUCCESS / JOIN_FAILED before giving up. */
     private static final int JOIN_REPLY_TIMEOUT_MS = 8000;
-    private javax.swing.Timer joinTimeout;   // EDT only
+    private Thread joinTimeout;
 
     private final List<String> playerNames = new ArrayList<>();
     private final Map<String, Boolean> readyStates = new LinkedHashMap<>();
     private final Map<String, Integer> lastScores = new LinkedHashMap<>();
     private String hostName = "";
-    private int currentRound = 0;          // the round the UI is currently showing
-    private int knownTotalRounds = 0;      // totalRounds as reported by the server
-    private boolean roundInProgress = false;
+    private int currentRound;          // the round the UI is showing
+    private int knownTotalRounds;      // totalRounds as reported by the server
+    private boolean roundInProgress;
 
     public MainApp() {
         setTitle("Guess What It Looks Like? - Multiplayer Party Game (LAN)");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        // Fit the window to the usable screen so the bottom buttons are never pushed off a small display.
-        Toolkit toolkit = Toolkit.getDefaultToolkit();
-        Insets usableInsets = toolkit.getScreenInsets(getGraphicsConfiguration());
+        // Fit the window to the usable screen so the bottom buttons never fall off a small display.
+        var toolkit = Toolkit.getDefaultToolkit();
+        Insets usable = toolkit.getScreenInsets(getGraphicsConfiguration());
         Dimension screen = toolkit.getScreenSize();
-        int width = Math.min(1360, screen.width - usableInsets.left - usableInsets.right);
-        int height = Math.min(800, screen.height - usableInsets.top - usableInsets.bottom);
+        int width = Math.min(1360, screen.width - usable.left - usable.right);
+        int height = Math.min(800, screen.height - usable.top - usable.bottom);
         setSize(width, height);
         setMinimumSize(new Dimension(Math.min(1100, width), Math.min(680, height)));
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
 
-        // --- Screen Instances with Flow Interactivity ---
-        // JoinScreen reports host/join requests back to this frame.
+        // JoinScreen reports the host / join requests back to this frame.
         joinScreen = new JoinScreen(this);
 
-        // Lobby: START GAME asks the server, LEAVE ROOM tears the session down.
-        lobbyScreen = new LobbyScreen(
-            new ActionListener() {
-                @Override
-                public void actionPerformed(ActionEvent event) {
-                    requestStartGame();
-                }
-            },
-            new ActionListener() {
-                @Override
-                public void actionPerformed(ActionEvent event) {
-                    leaveRoom();
-                }
-            }
-        );
-        lobbyScreen.setReadyAction(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent event) {
-                toggleReady();
-            }
-        });
+        lobbyScreen = new LobbyScreen(event -> requestStartGame(), event -> leaveRoom());
+        lobbyScreen.setReadyAction(event -> toggleReady());
         lobbyScreen.setChatAction(text -> {
             if (client != null) {
                 client.sendChat(text);
@@ -121,63 +92,31 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         });
 
         // Questioner CONFIRM sends the secret; the server decides what happens next.
-        questionerScreen = new QuestionerScreen(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent event) {
-                submitSecret();
-            }
-        });
-
+        questionerScreen = new QuestionerScreen(event -> submitSecret());
         // Guesser SUBMIT sends the guess; the server scores it.
-        guesserScreen = new GuesserScreen(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent event) {
-                submitGuess();
-            }
-        });
+        guesserScreen = new GuesserScreen(event -> submitGuess());
+        scoreboardScreen = new ScoreboardScreen(event -> requestNewGame(), event -> leaveRoom());
+        // The round result has no buttons: its countdown is display only and the server owns the clock.
+        roundResultScreen = new RoundResultScreen();
 
-        // Scoreboard: CONTINUE / NEW GAME returns everyone to the lobby, QUIT leaves the room.
-        scoreboardScreen = new ScoreboardScreen(
-            new ActionListener() {
-                @Override
-                public void actionPerformed(ActionEvent event) {
-                    requestNewGame();
-                }
-            },
-            new ActionListener() {
-                @Override
-                public void actionPerformed(ActionEvent event) {
-                    leaveRoom();
-                }
-            }
-        );
+        screens.put(SCREEN_JOIN, joinScreen);
+        screens.put(SCREEN_LOBBY, lobbyScreen);
+        screens.put(SCREEN_QUESTIONER, questionerScreen);
+        screens.put(SCREEN_GUESSER, guesserScreen);
+        screens.put(SCREEN_ROUND_RESULT, roundResultScreen);
+        screens.put(SCREEN_SCOREBOARD, scoreboardScreen);
 
-        // Round result: no buttons any more. Its countdown is display-only - the server is the
-        // single source of truth for when the tournament is over, and only SHOW_SCOREBOARD opens
-        // the final scoreboard (see handleShowScoreboard). A stale countdown from a previous round
-        // must never be allowed to decide anything, so no callback is wired here.
-        roundResultScreen = new RoundResultScreen(null);
-
-        // Add to CardPanel
-        cardPanel.add(joinScreen, SCREEN_JOIN);
-        cardPanel.add(lobbyScreen, SCREEN_LOBBY);
-        cardPanel.add(questionerScreen, SCREEN_QUESTIONER);
-        cardPanel.add(guesserScreen, SCREEN_GUESSER);
-        cardPanel.add(roundResultScreen, SCREEN_ROUND_RESULT);
-        cardPanel.add(scoreboardScreen, SCREEN_SCOREBOARD);
-
-        // The card panel fills the whole window; screens change only through the game flow.
-        add(cardPanel, BorderLayout.CENTER);
-
-        // Show initial screen (Join)
+        add(screenHost, BorderLayout.CENTER);
         showScreen(SCREEN_JOIN);
-
         setVisible(true);
     }
 
     public void showScreen(String name) {
         currentScreen = name;
-        cardLayout.show(cardPanel, name);
+        screenHost.removeAll();
+        screenHost.add(screens.get(name), BorderLayout.CENTER);
+        screenHost.revalidate();
+        screenHost.repaint();
     }
 
     /** True when the terminal handlers have already returned the user to the join screen. */
@@ -186,11 +125,11 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     }
 
     // =====================================================================
-    //  JoinScreen.JoinListener  (called on the EDT by JoinScreen)
+    //  JoinScreen.JoinListener (called on the UI thread)
     // =====================================================================
 
     @Override
-    public void onCreateGame(final String playerName, final int port) {
+    public void onCreateGame(String playerName, int port) {
         if (server != null && server.isRunning()) {
             joinScreen.setBusy(false);
             joinScreen.showStatus("This machine is already hosting a room. Leave it first.", true);
@@ -203,7 +142,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     }
 
     @Override
-    public void onJoinGame(final String playerName, final String serverIp, final int port) {
+    public void onJoinGame(String playerName, String serverIp, int port) {
         if (client != null && client.isConnected()) {
             joinScreen.setBusy(false);
             joinScreen.showStatus("Already connected. Leave the room before joining another.", true);
@@ -215,92 +154,84 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     }
 
     // =====================================================================
-    //  Network lifecycle (all methods below run off the EDT)
+    //  Network lifecycle (everything below runs on the network thread)
     // =====================================================================
 
-    private void startHost(final String playerName, final int port) {
-        GameServer newServer = new GameServer(port);
+    private void startHost(String playerName, int port) {
+        var newServer = new GameServer(port);
         try {
             newServer.start();
         } catch (IOException e) {
-            onEdt(() -> {
-                joinScreen.setBusy(false);
-                joinScreen.showStatus("Could not host on port " + port + ": " + e.getMessage() + ". "
-                        + "Another program may be using it, or the firewall blocked it.", true);
-                showError("Could not start the room",
-                        "Port " + port + " could not be opened on this machine.\n"
-                        + e.getMessage() + "\n\nTry a different port, or allow Java through your firewall.");
-            });
+            joinScreen.setBusy(false);
+            joinScreen.showStatus("Could not host on port " + port + ": " + e.getMessage() + ". "
+                    + "Another program may be using it, or the firewall blocked it.", true);
+            showError("Could not start the room", "Port " + port + " could not be opened on this machine.\n"
+                    + e.getMessage() + "\n\nTry a different port, or allow Java through your firewall.");
             return;
         }
         server = newServer;
-        onEdt(() -> joinScreen.showStatus("Room is up on port " + port + ". Joining as host..."));
+        joinScreen.showStatus("Room is up on port " + port + ". Joining as host...");
 
-        // The host joins its own room through the normal loopback path, so it behaves exactly
-        // like any other player. Only the address shown to other machines must be the LAN IP.
+        // The host joins through the normal loopback path, so it behaves exactly like any other player.
         connectAndJoin(playerName, "127.0.0.1", port, true);
     }
 
-    private void connectAndJoin(final String playerName, final String ip, final int port, final boolean host) {
-        GameClient newClient = new GameClient(ip, port, new NetworkListener());
+    private void connectAndJoin(String playerName, String ip, int port, boolean host) {
+        var newClient = new GameClient(ip, port, new NetworkListener());
         try {
             newClient.connect();
         } catch (IOException e) {
-            final String message = describeConnectionFailure(e, ip, port);
-            onEdt(() -> {
-                if (host && server != null) {
-                    server.shutdown();
-                    server = null;
-                }
-                joinScreen.setBusy(false);
-                joinScreen.showStatus(message, true);
-                showError("Connection failed", message);
-            });
+            String message = describeConnectionFailure(e, ip, port);
+            if (host && server != null) {
+                server.shutdown();
+                server = null;
+            }
+            joinScreen.setBusy(false);
+            joinScreen.showStatus(message, true);
+            showError("Connection failed", message);
             return;
         }
 
         client = newClient;
         intentionalLeave = false;
-        final String displayAddress;
         if (host) {
             String lan = GameServer.getPreferredLanAddress();
-            displayAddress = (lan.isEmpty() ? "127.0.0.1" : lan) + ":" + port;
+            connectAddress = (lan.isEmpty() ? "127.0.0.1" : lan) + ":" + port;
         } else {
-            displayAddress = ip + ":" + port;
+            connectAddress = ip + ":" + port;
         }
-        onEdt(() -> connectAddress = displayAddress);
         newClient.join(playerName);
-        onEdt(() -> {
-            joinScreen.showStatus("Connected. Asking the host to let you in...");
-            startJoinTimeout();
-        });
+        joinScreen.showStatus("Connected. Asking the host to let you in...");
+        startJoinTimeout();
     }
 
-    /** If the host never answers the JOIN request, stop waiting and give the buttons back to the player. */
+    /** Stops waiting when the host never answers the JOIN request, and gives the buttons back. */
     private void startJoinTimeout() {
         cancelJoinTimeout();
-        joinTimeout = new javax.swing.Timer(JOIN_REPLY_TIMEOUT_MS, new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent event) {
-                joinTimeout = null;
-                if (!alreadyAtJoinScreen()) {
-                    return; // the join already succeeded
-                }
-                teardownSession();
-                joinScreen.setBusy(false);
-                String message = "The host did not answer the join request. "
-                        + "Check that the IP and port are right and that the host's firewall allows Java.";
-                joinScreen.showStatus(message, true);
-                showError("No reply from the host", message);
+        joinTimeout = new Thread(() -> {
+            try {
+                Thread.sleep(JOIN_REPLY_TIMEOUT_MS);
+            } catch (InterruptedException e) {
+                return;   // cancelled: the join answer arrived in time
             }
-        });
-        joinTimeout.setRepeats(false);
+            if (joinTimeout != Thread.currentThread() || !alreadyAtJoinScreen()) {
+                return;   // a newer attempt replaced this one, or the join already succeeded
+            }
+            joinTimeout = null;
+            teardownSession();
+            joinScreen.setBusy(false);
+            String message = "The host did not answer the join request. "
+                    + "Check that the IP and port are right and that the host's firewall allows Java.";
+            joinScreen.showStatus(message, true);
+            showError("No reply from the host", message);
+        }, "MainApp-JoinTimeout");
+        joinTimeout.setDaemon(true);
         joinTimeout.start();
     }
 
     private void cancelJoinTimeout() {
         if (joinTimeout != null) {
-            joinTimeout.stop();
+            joinTimeout.interrupt();
             joinTimeout = null;
         }
     }
@@ -359,10 +290,9 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     }
 
     private void toggleReady() {
-        if (client == null) {
-            return;
+        if (client != null) {
+            client.setReady(!lobbyScreen.isReady());
         }
-        client.setReady(!lobbyScreen.isReady());
     }
 
     private void submitSecret() {
@@ -401,50 +331,34 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     }
 
     // =====================================================================
-    //  Server message handling (always executed on the EDT)
+    //  Server message handling
     // =====================================================================
 
     private void handleMessage(String type, String[] args) {
-        if (GameServer.JOIN_SUCCESS.equals(type)) {
-            handleJoinSuccess(args);
-        } else if (GameServer.JOIN_FAILED.equals(type)) {
-            handleJoinFailed(args);
-        } else if (GameServer.PLAYER_LIST.equals(type)) {
-            handlePlayerList(args);
-        } else if (GameServer.ROUND_INFO.equals(type)) {
-            handleRoundInfo(args);
-        } else if (GameServer.SECRET_LOCKED.equals(type)) {
-            handleSecretLocked(args);
-        } else if (GameServer.GUESS_ACCEPTED.equals(type)) {
-            guesserScreen.markSubmitted();
-        } else if (GameServer.GUESS_SUBMITTED.equals(type)) {
-            handleGuessSubmitted(args);
-        } else if (GameServer.ROUND_RESULT.equals(type)) {
-            handleRoundResult(args);
-        } else if (GameServer.TO_LOBBY.equals(type)) {
-            handleToLobby(args);
-        } else if (GameServer.SHOW_SCOREBOARD.equals(type)) {
-            handleShowScoreboard();
-        } else if (GameServer.TICK.equals(type)) {
-            handleTick(args);
-        } else if (GameServer.CHAT.equals(type)) {
-            lobbyScreen.addChatMessage(args.length > 0 ? args[0] : "?", args.length > 1 ? args[1] : "");
-        } else if (GameServer.SYSTEM.equals(type)) {
-            lobbyScreen.addChatMessage("System", args.length > 0 ? args[0] : "");
-        } else if (GameServer.SERVER_CLOSED.equals(type)) {
-            handleServerClosed();
-        } else if (GameServer.ERROR.equals(type)) {
-            showError("Server message", args.length > 0 ? args[0] : "Unknown error");
-        } else if (GameServer.PLAYER_LEFT.equals(type)) {
-            // The refreshed PLAYER_LIST right after this already updates the lobby rows.
-        }
+        // Every branch is one line; unknown types are ignored, exactly like before.
+        if (GameServer.JOIN_SUCCESS.equals(type)) { handleJoinSuccess(args); }
+        else if (GameServer.JOIN_FAILED.equals(type)) { handleJoinFailed(args); }
+        else if (GameServer.PLAYER_LIST.equals(type)) { handlePlayerList(args); }
+        else if (GameServer.ROUND_INFO.equals(type)) { handleRoundInfo(args); }
+        else if (GameServer.SECRET_LOCKED.equals(type)) { handleSecretLocked(args); }
+        else if (GameServer.GUESS_ACCEPTED.equals(type)) { guesserScreen.markSubmitted(); }
+        else if (GameServer.GUESS_SUBMITTED.equals(type)) { handleGuessSubmitted(args); }
+        else if (GameServer.ROUND_RESULT.equals(type)) { handleRoundResult(args); }
+        else if (GameServer.TO_LOBBY.equals(type)) { handleToLobby(args); }
+        else if (GameServer.SHOW_SCOREBOARD.equals(type)) { handleShowScoreboard(); }
+        else if (GameServer.TICK.equals(type)) { handleTick(args); }
+        else if (GameServer.CHAT.equals(type)) { lobbyScreen.addChatMessage(args.length > 0 ? args[0] : "?", arg(args, 1)); }
+        else if (GameServer.SYSTEM.equals(type)) { lobbyScreen.addChatMessage("System", arg(args, 0)); }
+        else if (GameServer.SERVER_CLOSED.equals(type)) { handleServerClosed(); }
+        else if (GameServer.ERROR.equals(type)) { showError("Server message", arg(args, 0).isEmpty() ? "Unknown error" : arg(args, 0)); }
+        // PLAYER_LEFT needs nothing: the refreshed PLAYER_LIST that follows updates the lobby rows.
     }
 
     private void handleJoinSuccess(String[] args) {
         cancelJoinTimeout();
-        myName = args.length > 0 ? args[0] : "";
-        isHost = args.length > 1 && "1".equals(args[1]);
-        hostName = myName; // corrected by the first PLAYER_LIST
+        myName = arg(args, 0);
+        isHost = "1".equals(arg(args, 1));
+        hostName = myName;   // corrected by the first PLAYER_LIST
 
         lobbyScreen.setMyName(myName);
         lobbyScreen.setHost(isHost);
@@ -471,7 +385,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     }
 
     private void handleJoinFailed(String[] args) {
-        String reason = args.length > 0 ? args[0] : "The host refused the connection.";
+        String reason = arg(args, 0).isEmpty() ? "The host refused the connection." : arg(args, 0);
         teardownSession();
         joinScreen.setBusy(false);
         joinScreen.showStatus("Could not join: " + reason, true);
@@ -480,12 +394,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     }
 
     private void handlePlayerList(String[] args) {
-        int count;
-        try {
-            count = Integer.parseInt(args.length > 0 ? args[0] : "0");
-        } catch (NumberFormatException e) {
-            return;
-        }
+        int count = parseInt(arg(args, 0), 0);
         playerNames.clear();
         readyStates.clear();
         hostName = "";
@@ -495,14 +404,12 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
                 break;
             }
             String name = arg(args, base);
-            boolean ready = "1".equals(arg(args, base + 1));
-            boolean host = "1".equals(arg(args, base + 2));
             if (name.isEmpty()) {
                 continue;
             }
             playerNames.add(name);
-            readyStates.put(name, Boolean.valueOf(ready));
-            if (host) {
+            readyStates.put(name, "1".equals(arg(args, base + 1)));
+            if ("1".equals(arg(args, base + 2))) {
                 hostName = name;
             }
         }
@@ -514,13 +421,11 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         int round = parseInt(arg(args, 0), 1);
         int total = parseInt(arg(args, 1), 0);
         String questioner = arg(args, 2);
-        // Fourth field: the random shape count the server drew for this round (1-5).
+        // Fourth field: the random shape count the server drew for this round.
         int requiredShapes = parseInt(arg(args, 3), GameServer.MIN_SHAPES);
 
         // A new round is starting, so the previous round-result countdown is finished with.
-        // Cancelling it here stops a late tick from a previous round's screen firing later.
         roundResultScreen.stopCountdown();
-
         currentRound = round;
         knownTotalRounds = total;
         roundInProgress = true;
@@ -545,7 +450,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         }
     }
 
-    /** Countdown from the server. Ticks for an old round, or after the round ended, are dropped. */
+    /** Countdown from the server; ticks of an old round, or after the round ended, are dropped. */
     private void handleTick(String[] args) {
         int tickRound = parseInt(arg(args, 0), -1);
         int remaining = parseInt(arg(args, 1), -1);
@@ -560,19 +465,17 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         String who = arg(args, 0);
         String submitted = arg(args, 1);
         String total = arg(args, 2);
-        String line = "Guesses in: " + submitted + " / " + total
-                + (who.isEmpty() ? "" : " (last: " + who + ")");
-        questionerScreen.setStatus(line);
+        questionerScreen.setStatus("Guesses in: " + submitted + " / " + total
+                + (who.isEmpty() ? "" : " (last: " + who + ")"));
         if (!who.equals(myName)) {
             guesserScreen.setStatus("Waiting for the other players... " + submitted + " / " + total);
         }
     }
 
     /**
-     * Payload layout:
-     * [round, totalRounds, isFinal, secretCsv, reason, questioner, playerCount,
-     *  (name, delta, total, guessCsv, correctCount, bonus) * playerCount]
-     * Player blocks therefore start at index 7 and use a stride of 6.
+     * Payload: [round, totalRounds, isFinal, secretCsv, reason, questioner, playerCount,
+     * (name, delta, total, guessCsv, correctCount, bonus) * playerCount], so the player blocks
+     * start at index 7 with a stride of 6.
      */
     private void handleRoundResult(String[] args) {
         int round = parseInt(arg(args, 0), 1);
@@ -588,12 +491,12 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         knownTotalRounds = total;
 
         lastScores.clear();
-        String[] names = new String[playerCount];
-        int[] deltas = new int[playerCount];
-        int[] totals = new int[playerCount];
-        String[][] guesses = new String[playerCount][];
-        int[] correctCounts = new int[playerCount];
-        boolean[] bonuses = new boolean[playerCount];
+        var names = new String[playerCount];
+        var deltas = new int[playerCount];
+        var totals = new int[playerCount];
+        var guesses = new String[playerCount][];
+        var correctCounts = new int[playerCount];
+        var bonuses = new boolean[playerCount];
         for (int i = 0; i < playerCount; i++) {
             int base = 7 + i * 6;
             names[i] = arg(args, base);
@@ -603,33 +506,30 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
             correctCounts[i] = parseInt(arg(args, base + 4), 0);
             bonuses[i] = "1".equals(arg(args, base + 5));
             if (!names[i].isEmpty()) {
-                lastScores.put(names[i], Integer.valueOf(totals[i]));
+                lastScores.put(names[i], totals[i]);
             }
         }
 
         pushScoreboards();
 
-        // The overall standings stay ready, but the final ScoreboardScreen is only opened on demand.
+        // The overall standings stay ready, but the final scoreboard only opens on demand.
         scoreboardScreen.setResults(names, totals, round, total, isFinal);
         scoreboardScreen.setNextEnabled(isHost);
 
-        roundResultScreen.showResult(round, total, isFinal, splitCsv(secretCsv), reason, questioner,
-                names, deltas, totals, guesses, correctCounts, bonuses);
+        roundResultScreen.showResult(round, total, isFinal, splitCsv(secretCsv), reason, questioner, names,
+                deltas, totals, guesses, correctCounts, bonuses);
         showScreen(SCREEN_ROUND_RESULT);
     }
 
     /** Splits a comma separated shape list; an empty string becomes an empty array. */
     private static String[] splitCsv(String csv) {
-        if (csv == null || csv.isEmpty()) {
-            return new String[0];
-        }
-        return csv.split(",");
+        return (csv == null || csv.isEmpty()) ? new String[0] : csv.split(",");
     }
 
     private void handleToLobby(String[] args) {
-        String reason = args.length > 1 ? args[1] : "";
+        String reason = arg(args, 1);
         roundInProgress = false;
-        if (reason != null && !reason.isEmpty()) {
+        if (!reason.isEmpty()) {
             lobbyScreen.setStatusText(reason);
             showInfo(reason, "Back to the lobby");
         }
@@ -638,9 +538,8 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     }
 
     /**
-     * The server says the tournament is over (sent once, right after the last round's
-     * intermission): open the final standings for every player at the same moment. This is the
-     * ONLY place the scoreboard is opened at the end of a game.
+     * The server says the tournament is over, so the final standings open for every player at the
+     * same moment. This is the only place the final scoreboard is opened.
      */
     private void handleShowScoreboard() {
         roundResultScreen.stopCountdown();
@@ -650,25 +549,25 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     }
 
     private void handleServerClosed() {
-        if (intentionalLeave || alreadyAtJoinScreen()) {
-            return;
-        }
-        teardownSession();
-        joinScreen.reset();
-        showScreen(SCREEN_JOIN);
-        showError("Room closed", "The host closed the room. You have been returned to the join screen.");
+        endSession("Room closed", "The host closed the room. You have been returned to the join screen.");
     }
 
     private void handleDisconnected(String reason) {
+        endSession("Disconnected", reason);
+    }
+
+    /**
+     * Ends a session that stopped on its own. Nothing happens when the player left on purpose or a
+     * terminal handler has already cleaned everything up.
+     */
+    private void endSession(String title, String message) {
         if (intentionalLeave || alreadyAtJoinScreen()) {
-            // Either the player left on purpose, or a terminal handler (server closed / join
-            // failed) already cleaned up. Either way there is nothing left to report.
             return;
         }
         teardownSession();
         joinScreen.reset();
         showScreen(SCREEN_JOIN);
-        showError("Disconnected", reason);
+        showError(title, message);
     }
 
     /** Closes the client and the server (when this machine was hosting) and forgets the room. */
@@ -688,7 +587,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     /** Rebuilds both in-game side scoreboards from the latest known player list and scores. */
     private void pushScoreboards() {
         String[] names = playerNames.toArray(new String[0]);
-        int[] scores = new int[names.length];
+        var scores = new int[names.length];
         for (int i = 0; i < names.length; i++) {
             Integer value = lastScores.get(names[i]);
             scores[i] = (value == null) ? 0 : value.intValue();
@@ -702,10 +601,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     // =====================================================================
 
     private static String arg(String[] args, int index) {
-        if (index < 0 || index >= args.length) {
-            return "";
-        }
-        return args[index];
+        return (index < 0 || index >= args.length) ? "" : args[index];
     }
 
     private static int parseInt(String value, int fallback) {
@@ -716,10 +612,6 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         }
     }
 
-    private void onEdt(Runnable runnable) {
-        SwingUtilities.invokeLater(runnable);
-    }
-
     private void showError(String title, String message) {
         AppDialog.showError(this, title, message);
     }
@@ -728,25 +620,20 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         AppDialog.showInfo(this, title, message);
     }
 
-    /** Reader-thread callbacks: hand everything to the EDT and never touch Swing here. */
+    /** Reader-thread callbacks: the message handlers run straight on the network threads. */
     private class NetworkListener implements GameClient.Listener {
         @Override
-        public void onMessage(final String type, final String[] args) {
-            onEdt(() -> handleMessage(type, args));
+        public void onMessage(String type, String[] args) {
+            handleMessage(type, args);
         }
 
         @Override
-        public void onDisconnected(final String reason) {
-            onEdt(() -> handleDisconnected(reason));
+        public void onDisconnected(String reason) {
+            handleDisconnected(reason);
         }
     }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                new MainApp();
-            }
-        });
+        new MainApp();
     }
 }

@@ -10,16 +10,9 @@ import java.net.SocketException;
 import java.util.List;
 
 /**
- * GameClient: the networking half of one player's screen.
- *
- * It owns a single socket to the host and runs one background reader thread. Every
- * message the server sends is handed to a {@link Listener} callback; every request is
- * written straight to the socket under a small write lock. Nothing here touches Swing,
- * so the caller can safely run connect() off the Event Dispatch Thread and push the
- * callback results onto the UI with SwingUtilities.invokeLater().
- *
- * The message framing is the exact mirror of GameServer.Message (writeUTF/readInt/writeUTF),
- * so the two sides always agree on where one message ends and the next begins.
+ * GameClient: the networking half of one player's screen. It owns a single socket to the host and one
+ * background reader thread that hands every server message to a {@link Listener}. Nothing here touches
+ * Swing, so callers may run connect() off the event thread.
  */
 public class GameClient {
 
@@ -31,7 +24,6 @@ public class GameClient {
     }
 
     private static final int CONNECT_TIMEOUT_MS = 5000;
-    private static final int SOCKET_READ_TIMEOUT_MS = 0; // 0 = wait indefinitely for server messages
 
     private final String host;
     private final int port;
@@ -41,8 +33,6 @@ public class GameClient {
     private Socket socket;
     private DataInputStream in;
     private DataOutputStream out;
-    private Thread readerThread;
-
     private volatile boolean connected;
     private volatile boolean closing;
 
@@ -52,58 +42,36 @@ public class GameClient {
         this.listener = listener;
     }
 
-    public String getHost() {
-        return host;
-    }
-
-    public int getPort() {
-        return port;
-    }
-
     public boolean isConnected() {
         return connected;
     }
 
-    /**
-     * Opens the socket and starts the reader thread. This blocks for at most
-     * CONNECT_TIMEOUT_MS, so call it from a worker thread, never from the EDT.
-     * Throws IOException (unknown host / refused / timed out) so the caller can explain it.
-     */
+    /** Opens the socket and starts the reader thread; blocks for at most CONNECT_TIMEOUT_MS. */
     public void connect() throws IOException {
-        Socket newSocket = new Socket();
+        var newSocket = new Socket();
         try {
             newSocket.connect(new InetSocketAddress(host, port), CONNECT_TIMEOUT_MS);
             newSocket.setTcpNoDelay(true);
-            newSocket.setSoTimeout(SOCKET_READ_TIMEOUT_MS);
             in = new DataInputStream(new BufferedInputStream(newSocket.getInputStream()));
             out = new DataOutputStream(new BufferedOutputStream(newSocket.getOutputStream()));
         } catch (IOException e) {
-            try {
-                newSocket.close();
-            } catch (IOException ignored) {
-                // nothing to clean up
-            }
-            throw e;
+            closeQuietly(newSocket);
+            throw e;   // unknown host, refused or timed out: the caller explains it
         }
-
         socket = newSocket;
         connected = true;
         closing = false;
 
-        readerThread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                readLoop();
-            }
-        }, "GameClient-Reader");
-        readerThread.setDaemon(true);
-        readerThread.start();
+        var reader = new Thread(this::readLoop, "GameClient-Reader");
+        reader.setDaemon(true);
+        reader.start();
     }
 
+    /** Reads whole messages off the socket until the connection ends, then reports it once. */
     private void readLoop() {
         try {
             while (connected) {
-                GameServer.Message message = GameServer.Message.readFrom(in);
+                var message = GameServer.Message.readFrom(in);
                 if (listener != null) {
                     listener.onMessage(message.type, message.args);
                 }
@@ -124,24 +92,20 @@ public class GameClient {
     }
 
     private void notifyDisconnected(String reason) {
-        if (closing) {
-            return;
-        }
-        closing = true;
-        if (listener != null) {
-            listener.onDisconnected(reason);
+        if (!closing) {
+            closing = true;
+            if (listener != null) {
+                listener.onDisconnected(reason);
+            }
         }
     }
 
-    /** Sends one protocol message. Thread-safe: many screens may call this at once. */
+    /** Sends one protocol message; thread-safe, because several screens may call it at once. */
     public void send(String type, String... args) {
-        if (!connected) {
+        if (!connected || out == null) {
             return;
         }
         synchronized (writeLock) {
-            if (out == null) {
-                return;
-            }
             try {
                 new GameServer.Message(type, args).writeTo(out);
             } catch (IOException e) {
@@ -150,7 +114,7 @@ public class GameClient {
         }
     }
 
-    // ===== Request shortcuts (thin wrappers so screens do not hard-code protocol strings) =====
+    // ===== Request shortcuts, so the screens never spell out a protocol string =====
 
     public void join(String playerName) {
         send(GameServer.JOIN, playerName);
@@ -168,23 +132,18 @@ public class GameClient {
         send(GameServer.NEW_GAME);
     }
 
-    /**
-     * Sends the questioner's secret. The exact count for the round is random (1-5) and is
-     * enforced by the server, so this only sanity-checks the global bounds here.
-     */
+    /** Sends the questioner's secret; the exact count was drawn by the server for this round. */
     public void submitSecret(List<String> shapes) {
-        if (shapes == null || shapes.size() < GameServer.MIN_SHAPES || shapes.size() > GameServer.MAX_SHAPES) {
-            return;
+        if (shapes != null && shapes.size() >= GameServer.MIN_SHAPES && shapes.size() <= GameServer.MAX_SHAPES) {
+            send(GameServer.SECRET, shapes.toArray(new String[0]));
         }
-        send(GameServer.SECRET, shapes.toArray(new String[0]));
     }
 
-    /** Sends the full guess. Its count must equal the secret count the server announced. */
+    /** Sends the full guess; its count must equal the count the server announced. */
     public void submitGuess(List<String> shapes) {
-        if (shapes == null || shapes.isEmpty() || shapes.size() > GameServer.MAX_SHAPES) {
-            return;
+        if (shapes != null && !shapes.isEmpty() && shapes.size() <= GameServer.MAX_SHAPES) {
+            send(GameServer.GUESS, shapes.toArray(new String[0]));
         }
-        send(GameServer.GUESS, shapes.toArray(new String[0]));
     }
 
     public void sendChat(String text) {
@@ -204,6 +163,10 @@ public class GameClient {
     public void close() {
         closing = true;
         connected = false;
+        closeQuietly(socket);
+    }
+
+    private static void closeQuietly(Socket socket) {
         try {
             if (socket != null && !socket.isClosed()) {
                 socket.close();

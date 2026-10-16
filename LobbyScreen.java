@@ -1,96 +1,35 @@
-import java.awt.*;
-import java.awt.event.ActionEvent;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.GridLayout;
 import java.awt.event.ActionListener;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.io.File;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import javax.swing.*;
+import javax.swing.JButton;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextField;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 
 /**
- * LobbyScreen: Screen 2 - waiting room. Every value on this screen now comes from the
- * server through {@link #setPlayers}/{@link #setAddress}/{@link #addChatMessage}; nothing
- * is hard-coded, so all machines show the same room.
- *
- * The layout, colors, fonts and helper factories are unchanged from the original design.
- * What changed is who fills them: the player rows, ready counter, progress track and chat
- * are rebuilt from the latest PlayerList that MainApp pushes in.
- *
- * Stacking trick used everywhere: a card placed at BorderLayout.NORTH keeps its
- * preferred height, and the leftover space below stays empty.
+ * LobbyScreen: the waiting room. Every value on it (players, ready flags, address, chat) is pushed in
+ * by MainApp from the server, so every machine in the room shows exactly the same thing.
  */
 public class LobbyScreen extends JPanel {
 
-    // ===== Colors =====
-    private static final Color BG_LIGHT          = new Color(241, 245, 249);
-    private static final Color CARD_BG           = Color.WHITE;
-    private static final Color CARD_BORDER       = new Color(226, 232, 240);
-
-    private static final Color PRIMARY_BLUE      = new Color(37, 99, 235);
-    private static final Color PRIMARY_HOVER     = new Color(29, 78, 216);
-    private static final Color PRIMARY_PRESSED   = new Color(30, 64, 175);
-    private static final Color SECONDARY_PRESSED = new Color(226, 232, 240);
-    private static final Color BLUE_LIGHT_BG     = new Color(239, 246, 255);
-    private static final Color BLUE_BORDER       = new Color(191, 219, 254);
-
-    private static final Color SUCCESS_BG        = new Color(220, 252, 231);
-    private static final Color SUCCESS_TEXT      = new Color(22, 101, 52);
-    private static final Color SUCCESS_BORDER    = new Color(187, 247, 208);
-
-    private static final Color WARNING_BG        = new Color(254, 249, 195);
-    private static final Color WARNING_TEXT      = new Color(133, 77, 14);
-    private static final Color WARNING_BORDER    = new Color(254, 240, 138);
-
-    private static final Color TEXT_DARK         = new Color(15, 23, 42);
-    private static final Color TEXT_MUTED        = new Color(100, 116, 139);
-    private static final Color TEXT_DISABLED     = new Color(148, 163, 184);
-
-    private static final Color EMPTY_SLOT_BG     = new Color(241, 245, 249);
-    private static final Color EMPTY_SLOT_BORDER = new Color(203, 213, 225);
-    private static final Color TRACK_GREY        = new Color(226, 232, 240);
-    private static final Color PLACEHOLDER_BG    = new Color(220, 230, 242);
-    private static final Color DISABLED_BG       = new Color(226, 232, 240);
-
-    // ===== Fonts =====
-    private static final Font FONT_TITLE_LARGE = new Font("Tahoma", Font.BOLD, 26);
-    private static final Font FONT_TITLE       = new Font("Tahoma", Font.BOLD, 18);
-    private static final Font FONT_SUBTITLE    = new Font("Tahoma", Font.BOLD, 14);
-    private static final Font FONT_BODY        = new Font("Tahoma", Font.PLAIN, 13);
-    private static final Font FONT_BODY_BOLD   = new Font("Tahoma", Font.BOLD, 13);
-    private static final Font FONT_SMALL       = new Font("Tahoma", Font.PLAIN, 11);
-    private static final Font FONT_SMALL_BOLD  = new Font("Tahoma", Font.BOLD, 11);
-
-    // ===== Header strip fonts (the enlarged sizes shared by all four game screens) =====
-    private static final Font FONT_SCREEN_EYEBROW = new Font("Tahoma", Font.BOLD, 14);
-    private static final Font FONT_SCREEN_SUB     = new Font("Tahoma", Font.PLAIN, 15);
-    private static final Font FONT_TOP_BADGE      = new Font("Tahoma", Font.BOLD, 14);
-
-    // ===== Sizes =====
     private static final int SIDE_WIDTH = 320;
     private static final int PREVIEW_ICON = 80;
 
-    /** Avatar colors cycled by join order. */
-    private static final Color[] AVATAR_COLORS = {
-        new Color(37, 99, 235), new Color(139, 92, 246), new Color(236, 72, 153),
-        new Color(16, 185, 129), new Color(245, 158, 11), new Color(14, 165, 233),
-        new Color(244, 63, 94), new Color(99, 102, 241)
-    };
+    /** The three shapes shown in the preview strip (the third one is the rectangle). */
+    private static final String[] PREVIEW_NAMES = {"Triangle", "Circle", ShapeImages.NAMES[2]};
 
-    // Folder that holds every PNG picture: <project folder>/shape
-    private static final String SHAPE_DIR = System.getProperty("user.dir") + "/shape/";
-
-    // Preview shapes: picture file + name shown when the picture is missing
-    private static final String[] PREVIEW_FILES = {"Triangle.png", "Circle.png", "Rectangle.png"};
-    private static final String[] PREVIEW_NAMES = {"Triangle", "Circle", "Rectangle"};
-
-    private final Image[] previewImages = new Image[PREVIEW_FILES.length];
     private final ActionListener onStartGameAction;
     private final ActionListener onLeaveAction;
 
@@ -99,11 +38,11 @@ public class LobbyScreen extends JPanel {
     private final Map<String, Boolean> readyStates = new LinkedHashMap<>();
     private String myName = "";
     private String hostName = "";
-    private boolean isHost = false;
+    private boolean isHost;
     private ActionListener readyAction;
     private Consumer<String> chatAction;
 
-    // ===== Widgets that are rebuilt from room state =====
+    // ===== Widgets that are rebuilt from the room state =====
     private JPanel playerRowsPanel;
     private JLabel playersCountLabel;
     private JLabel addressValueLabel;
@@ -118,36 +57,32 @@ public class LobbyScreen extends JPanel {
     private JTextField chatField;
     private JButton readyBtn;
     private JButton startBtn;
-    private JButton leaveBtn;
 
     public LobbyScreen(ActionListener onStartGameAction, ActionListener onLeaveAction) {
         this.onStartGameAction = onStartGameAction;
         this.onLeaveAction = onLeaveAction;
-        loadPreviewImages();
-
         setLayout(new BorderLayout());
-        setBackground(BG_LIGHT);
+        setBackground(AppDialog.BG_LIGHT);
 
-        JPanel mainContent = new JPanel(new BorderLayout(14, 14));
-        mainContent.setOpaque(false);
+        var mainContent = AppDialog.panel();
+        mainContent.setLayout(new BorderLayout(14, 14));
         mainContent.setBorder(new EmptyBorder(18, 24, 16, 24));
         mainContent.add(createSubHeader(), BorderLayout.NORTH);
 
-        // 3 columns: fixed-width left, flexible center, fixed-width right
-        JPanel left = createLeftPanel();
+        // Three columns: fixed-width left, flexible center, fixed-width right.
+        var left = createLeftPanel();
         left.setPreferredSize(new Dimension(SIDE_WIDTH, 0));
-        JPanel right = createRightPanel();
+        var right = createRightPanel();
         right.setPreferredSize(new Dimension(SIDE_WIDTH, 0));
 
-        JPanel columns = new JPanel(new BorderLayout(16, 0));
-        columns.setOpaque(false);
+        var columns = AppDialog.panel();
+        columns.setLayout(new BorderLayout(16, 0));
         columns.add(left, BorderLayout.WEST);
         columns.add(createCenterPanel(), BorderLayout.CENTER);
         columns.add(right, BorderLayout.EAST);
 
         mainContent.add(columns, BorderLayout.CENTER);
         add(mainContent, BorderLayout.CENTER);
-
         refreshPlayers();
     }
 
@@ -156,171 +91,147 @@ public class LobbyScreen extends JPanel {
     // =====================================================================
 
     private JPanel createSubHeader() {
-        JPanel subHeader = new JPanel(new BorderLayout());
-        subHeader.setOpaque(false);
+        var subHeader = AppDialog.panel();
+        subHeader.setLayout(new BorderLayout());
 
-        JPanel subTitles = new JPanel(new GridLayout(3, 1, 0, 2));
-        subTitles.setOpaque(false);
-        subTitles.add(makeLabel("GAME LOBBY", FONT_SCREEN_EYEBROW, PRIMARY_BLUE));
-        subTitles.add(makeLabel("Room", FONT_TITLE_LARGE, TEXT_DARK));
-        subHeaderStatusLabel = makeLabel("Waiting for players to join...", FONT_SCREEN_SUB, TEXT_MUTED);
-        subTitles.add(subHeaderStatusLabel);
-        subHeader.add(subTitles, BorderLayout.WEST);
+        var titles = AppDialog.panel();
+        titles.setLayout(new GridLayout(3, 1, 0, 2));
+        titles.add(AppDialog.label("GAME LOBBY", AppDialog.SUBTITLE, AppDialog.PRIMARY_BLUE));
+        titles.add(AppDialog.label("Room", AppDialog.TITLE_LARGE, AppDialog.TEXT_DARK));
+        subHeaderStatusLabel = AppDialog.label("Waiting for players to join...", AppDialog.SCREEN_SUB, AppDialog.TEXT_MUTED);
+        titles.add(subHeaderStatusLabel);
+        subHeader.add(titles, BorderLayout.WEST);
 
-        // Room code badge: two plain labels stacked in one bordered box
-        JPanel roomCodeBadge = new JPanel(new GridLayout(2, 1, 0, 0));
-        roomCodeBadge.setOpaque(true);
-        roomCodeBadge.setBackground(BLUE_LIGHT_BG);
-        roomCodeBadge.setBorder(new CompoundBorder(
-            new LineBorder(BLUE_BORDER, 1),
-            new EmptyBorder(8, 16, 8, 16)));
-        roomCodeBadge.add(makeCenteredLabel("PORT", FONT_TOP_BADGE, PRIMARY_BLUE));
-        roomCodeValueLabel = makeCenteredLabel("----", FONT_TOP_BADGE, PRIMARY_BLUE);
-        roomCodeBadge.add(roomCodeValueLabel);
+        // Room code badge: two plain labels stacked in one bordered box.
+        var roomCode = new JPanel(new GridLayout(2, 1, 0, 0));
+        roomCode.setBackground(AppDialog.BLUE_LIGHT_BG);
+        roomCode.setBorder(new CompoundBorder(new LineBorder(AppDialog.BLUE_BORDER, 1), new EmptyBorder(8, 16, 8, 16)));
+        roomCode.add(AppDialog.label("PORT", AppDialog.SUBTITLE, AppDialog.PRIMARY_BLUE, JLabel.CENTER));
+        roomCodeValueLabel = AppDialog.label("----", AppDialog.SUBTITLE, AppDialog.PRIMARY_BLUE, JLabel.CENTER);
+        roomCode.add(roomCodeValueLabel);
 
-        // FlowLayout lets the badge keep its own size at the right edge
-        JPanel codeSlot = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        codeSlot.setOpaque(false);
-        codeSlot.add(roomCodeBadge);
+        var codeSlot = AppDialog.panel();
+        codeSlot.setLayout(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        codeSlot.add(roomCode);
         subHeader.add(codeSlot, BorderLayout.EAST);
-
         return subHeader;
     }
 
-    /** Left column: players list + server information. */
+    /** Left column: the players list and the server information. */
     private JPanel createLeftPanel() {
-        JPanel left = new JPanel(new BorderLayout(0, 12));
-        left.setOpaque(false);
-
-        // --- Card 1: Players ---
-        JPanel playersCard = makeCard();
+        var playersCard = AppDialog.card();
         playersCard.setLayout(new BorderLayout(0, 12));
-
-        JPanel playersHeader = new JPanel(new BorderLayout());
-        playersHeader.setOpaque(false);
-        playersCountLabel = makeLabel("Players in room: 0", FONT_SUBTITLE, TEXT_DARK);
-        playersHeader.add(playersCountLabel, BorderLayout.WEST);
-        playersCard.add(playersHeader, BorderLayout.NORTH);
+        playersCountLabel = AppDialog.label("Players in room: 0", AppDialog.SUBTITLE, AppDialog.TEXT_DARK);
+        playersCard.add(playersCountLabel, BorderLayout.NORTH);
 
         playerRowsPanel = new JPanel(new GridLayout(0, 1, 0, 8));
         playerRowsPanel.setOpaque(false);
-
-        JPanel playersBody = new JPanel(new BorderLayout(0, 8));
-        playersBody.setOpaque(false);
+        var playersBody = AppDialog.panel();
+        playersBody.setLayout(new BorderLayout(0, 8));
         playersBody.add(playerRowsPanel, BorderLayout.NORTH);
         playersBody.add(createEmptySlot(), BorderLayout.CENTER);
         playersCard.add(playersBody, BorderLayout.CENTER);
 
-        // --- Card 2: Server information ---
-        JPanel serverCard = makeCard();
+        var serverCard = AppDialog.card();
         serverCard.setLayout(new BorderLayout(0, 10));
-        serverCard.add(makeLabel("Server information", FONT_SUBTITLE, TEXT_DARK), BorderLayout.NORTH);
+        serverCard.add(AppDialog.label("Server information", AppDialog.SUBTITLE, AppDialog.TEXT_DARK), BorderLayout.NORTH);
 
-        JPanel serverRows = new JPanel(new GridLayout(0, 1, 0, 6));
-        serverRows.setOpaque(false);
-        addressValueLabel = makeLabel("-", FONT_BODY_BOLD, TEXT_DARK);
-        hostValueLabel = makeLabel("-", FONT_BODY_BOLD, TEXT_DARK);
-        playersValueLabel = makeLabel("-", FONT_BODY_BOLD, TEXT_DARK);
+        var serverRows = AppDialog.panel();
+        serverRows.setLayout(new GridLayout(0, 1, 0, 6));
+        addressValueLabel = AppDialog.label("-", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
+        hostValueLabel = AppDialog.label("-", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
+        playersValueLabel = AppDialog.label("-", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
         serverRows.add(createInfoRow("Address", addressValueLabel));
         serverRows.add(createInfoRow("Host", hostValueLabel));
         serverRows.add(createInfoRow("Players", playersValueLabel));
 
-        JPanel serverBody = new JPanel(new BorderLayout(0, 12));
-        serverBody.setOpaque(false);
+        var serverBody = AppDialog.panel();
+        serverBody.setLayout(new BorderLayout(0, 12));
         serverBody.add(serverRows, BorderLayout.NORTH);
-        minPlayersBadge = makeBadge("Waiting for players", WARNING_BG, WARNING_TEXT, WARNING_BORDER);
+        minPlayersBadge = AppDialog.badge("Waiting for players", AppDialog.WARNING_BG, AppDialog.WARNING_TEXT,
+                AppDialog.WARNING_BORDER, 4, 10);
         serverBody.add(minPlayersBadge, BorderLayout.SOUTH);
         serverCard.add(serverBody, BorderLayout.CENTER);
 
-        // Both cards keep their natural height; leftover space stays empty at the bottom
-        JPanel leftRest = new JPanel(new BorderLayout());
-        leftRest.setOpaque(false);
-        leftRest.add(serverCard, BorderLayout.NORTH);
-
+        // Both cards keep their natural height; the leftover space stays empty at the bottom.
+        var left = AppDialog.panel();
+        left.setLayout(new BorderLayout(0, 12));
         left.add(playersCard, BorderLayout.NORTH);
-        left.add(leftRest, BorderLayout.CENTER);
+        left.add(AppDialog.pin(serverCard, BorderLayout.NORTH), BorderLayout.CENTER);
         return left;
     }
 
-    /** Center column: shapes preview, ready progress and the action buttons. */
+    /** Center column: the shape preview, the ready progress and the action buttons. */
     private JPanel createCenterPanel() {
-        JPanel center = new JPanel(new BorderLayout(0, 14));
-        center.setOpaque(false);
+        var center = AppDialog.panel();
+        center.setLayout(new BorderLayout(0, 14));
 
-        JPanel previewCard = makeCard();
+        var previewCard = AppDialog.card();
         previewCard.setLayout(new BorderLayout(0, 20));
 
-        // Preview canvas: light-blue panel with 3 shape pictures
-        JPanel canvasBox = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 30));
-        canvasBox.setOpaque(true);
-        canvasBox.setBackground(BLUE_LIGHT_BG);
-        canvasBox.setBorder(new LineBorder(BLUE_BORDER, 1));
-        for (int i = 0; i < PREVIEW_FILES.length; i++) {
-            canvasBox.add(createPreviewPicture(previewImages[i], PREVIEW_NAMES[i]));
+        var canvas = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 30));
+        canvas.setBackground(AppDialog.BLUE_LIGHT_BG);
+        canvas.setBorder(new LineBorder(AppDialog.BLUE_BORDER, 1));
+        for (String name : PREVIEW_NAMES) {
+            canvas.add(ShapeImages.shape(name, PREVIEW_ICON));
         }
-        previewCard.add(canvasBox, BorderLayout.NORTH);
+        previewCard.add(canvas, BorderLayout.NORTH);
 
-        // Headings: one plain label per line
-        JPanel headings = new JPanel(new GridLayout(3, 1, 0, 4));
-        headings.setOpaque(false);
-        headings.add(makeCenteredLabel("Almost ready!", FONT_TITLE, TEXT_DARK));
-        headings.add(makeCenteredLabel("Every player must press READY", FONT_BODY, TEXT_MUTED));
-        headings.add(makeCenteredLabel("before the host can start the game.", FONT_BODY, TEXT_MUTED));
+        var headings = AppDialog.panel();
+        headings.setLayout(new GridLayout(3, 1, 0, 4));
+        headings.add(AppDialog.label("Almost ready!", AppDialog.TITLE, AppDialog.TEXT_DARK, JLabel.CENTER));
+        headings.add(AppDialog.label("Every player must press READY", AppDialog.BODY, AppDialog.TEXT_MUTED, JLabel.CENTER));
+        headings.add(AppDialog.label("before the host can start the game.", AppDialog.BODY, AppDialog.TEXT_MUTED, JLabel.CENTER));
 
-        // Progress: label row + one segment per player (filled segments = ready players)
-        JPanel progressHeader = new JPanel(new BorderLayout());
-        progressHeader.setOpaque(false);
-        progressHeader.add(makeLabel("Players ready", FONT_SMALL_BOLD, TEXT_DARK), BorderLayout.WEST);
-        readyCountLabel = makeLabel("0 of 0", FONT_SMALL_BOLD, PRIMARY_BLUE);
+        // Progress: a label row plus one segment per player (filled segments are ready players).
+        var progressHeader = AppDialog.panel();
+        progressHeader.setLayout(new BorderLayout());
+        progressHeader.add(AppDialog.label("Players ready", AppDialog.SMALL_BOLD, AppDialog.TEXT_DARK), BorderLayout.WEST);
+        readyCountLabel = AppDialog.label("0 of 0", AppDialog.SMALL_BOLD, AppDialog.PRIMARY_BLUE);
         progressHeader.add(readyCountLabel, BorderLayout.EAST);
 
         trackPanel = new JPanel(new GridLayout(1, 1, 0, 0));
-        trackPanel.setOpaque(true);
-        trackPanel.setBackground(TRACK_GREY);
+        trackPanel.setBackground(AppDialog.CARD_BORDER);
         trackPanel.setPreferredSize(new Dimension(0, 8));
-        JPanel trackSlot = new JPanel(new BorderLayout());
-        trackSlot.setOpaque(false);
+        var trackSlot = AppDialog.panel();
+        trackSlot.setLayout(new BorderLayout());
         trackSlot.add(trackPanel, BorderLayout.NORTH);
 
-        JPanel progress = new JPanel(new BorderLayout(0, 6));
-        progress.setOpaque(false);
+        var progress = AppDialog.panel();
+        progress.setLayout(new BorderLayout(0, 6));
         progress.add(progressHeader, BorderLayout.NORTH);
         progress.add(trackSlot, BorderLayout.CENTER);
 
-        JPanel info = new JPanel(new BorderLayout(0, 18));
-        info.setOpaque(false);
+        var info = AppDialog.panel();
+        info.setLayout(new BorderLayout(0, 18));
         info.add(headings, BorderLayout.NORTH);
         info.add(progress, BorderLayout.CENTER);
 
-        JPanel infoSlot = new JPanel(new BorderLayout());
-        infoSlot.setOpaque(false);
+        var infoSlot = AppDialog.panel();
+        infoSlot.setLayout(new BorderLayout());
         infoSlot.add(info, BorderLayout.NORTH);
         previewCard.add(infoSlot, BorderLayout.CENTER);
-
         center.add(previewCard, BorderLayout.CENTER);
 
-        // Buttons at bottom
-        JPanel buttonRow = new JPanel(new GridLayout(1, 2, 12, 0));
-        buttonRow.setOpaque(false);
-
-        readyBtn = makeButton("READY", true, 12, 18);
+        readyBtn = AppDialog.button("READY", AppDialog.PRIMARY_BLUE, AppDialog.PRIMARY_HOVER, AppDialog.PRIMARY_PRESS,
+                Color.WHITE, AppDialog.PRIMARY_BLUE, 12, 18);
         readyBtn.setPreferredSize(new Dimension(160, 44));
-        readyBtn.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (readyAction != null) {
-                    readyAction.actionPerformed(e);
-                }
+        readyBtn.addActionListener(event -> {
+            if (readyAction != null) {
+                readyAction.actionPerformed(event);
             }
         });
 
-        startBtn = makeButton("START GAME", false, 12, 18);
+        startBtn = AppDialog.button("START GAME", Color.WHITE, AppDialog.BG_LIGHT, AppDialog.CARD_BORDER,
+                AppDialog.TEXT_DARK, AppDialog.CARD_BORDER, 12, 18);
         startBtn.setPreferredSize(new Dimension(160, 44));
         startBtn.setToolTipText("Only the host can start, once every other player is ready.");
         if (onStartGameAction != null) {
             startBtn.addActionListener(onStartGameAction);
         }
 
+        var buttonRow = AppDialog.panel();
+        buttonRow.setLayout(new GridLayout(1, 2, 12, 0));
         buttonRow.add(readyBtn);
         buttonRow.add(startBtn);
         center.add(buttonRow, BorderLayout.SOUTH);
@@ -329,81 +240,71 @@ public class LobbyScreen extends JPanel {
 
     /** Right column: chat, round settings and the leave button. */
     private JPanel createRightPanel() {
-        JPanel right = new JPanel(new BorderLayout(0, 12));
-        right.setOpaque(false);
+        var right = AppDialog.panel();
+        right.setLayout(new BorderLayout(0, 12));
 
-        // --- Card 1: Chat ---
-        JPanel chatCard = makeCard();
+        var chatCard = AppDialog.card();
         chatCard.setLayout(new BorderLayout(0, 10));
-        chatCard.add(makeLabel("Chat", FONT_SUBTITLE, TEXT_DARK), BorderLayout.NORTH);
+        chatCard.add(AppDialog.label("Chat", AppDialog.SUBTITLE, AppDialog.TEXT_DARK), BorderLayout.NORTH);
 
         chatListPanel = new JPanel(new GridLayout(0, 1, 0, 6));
         chatListPanel.setOpaque(false);
-
-        JPanel chatSlot = new JPanel(new BorderLayout());
-        chatSlot.setOpaque(false);
+        var chatSlot = AppDialog.panel();
+        chatSlot.setLayout(new BorderLayout());
         chatSlot.add(chatListPanel, BorderLayout.NORTH);
 
-        JScrollPane scroll = new JScrollPane(chatSlot);
+        var scroll = new JScrollPane(chatSlot);
         scroll.setBorder(null);
-        scroll.getViewport().setBackground(CARD_BG);
+        scroll.getViewport().setBackground(AppDialog.CARD_BG);
         scroll.setPreferredSize(new Dimension(220, 130));
         chatCard.add(scroll, BorderLayout.CENTER);
 
-        chatField = makeTextField("");
-        final JButton sendBtn = makeButton("Send", true, 8, 14);
-        ActionListener sendChat = new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String text = chatField.getText().trim();
-                if (text.isEmpty()) {
-                    return;
-                }
-                if (chatAction != null) {
-                    chatAction.accept(text);
-                }
-                chatField.setText("");
+        chatField = makeTextField();
+        var sendBtn = AppDialog.button("Send", AppDialog.PRIMARY_BLUE, AppDialog.PRIMARY_HOVER, AppDialog.PRIMARY_PRESS,
+                Color.WHITE, AppDialog.PRIMARY_BLUE, 8, 14);
+        ActionListener sendChat = event -> {
+            String text = chatField.getText().trim();
+            if (text.isEmpty()) {
+                return;
             }
+            if (chatAction != null) {
+                chatAction.accept(text);
+            }
+            chatField.setText("");
         };
         sendBtn.addActionListener(sendChat);
         chatField.addActionListener(sendChat);
 
-        JPanel inputRow = new JPanel(new BorderLayout(6, 0));
-        inputRow.setOpaque(false);
+        var inputRow = AppDialog.panel();
+        inputRow.setLayout(new BorderLayout(6, 0));
         inputRow.add(chatField, BorderLayout.CENTER);
         inputRow.add(sendBtn, BorderLayout.EAST);
         chatCard.add(inputRow, BorderLayout.SOUTH);
 
-        // --- Card 2: Round settings (values come from the server's constants) ---
-        JPanel settingsCard = makeCard();
+        // Round settings, straight from the server's own constants.
+        var settingsCard = AppDialog.card();
         settingsCard.setLayout(new BorderLayout(0, 10));
-        settingsCard.add(makeLabel("Round settings", FONT_SUBTITLE, TEXT_DARK), BorderLayout.NORTH);
-
-        JPanel settingRows = new JPanel(new GridLayout(0, 1, 0, 6));
-        settingRows.setOpaque(false);
+        settingsCard.add(AppDialog.label("Round settings", AppDialog.SUBTITLE, AppDialog.TEXT_DARK), BorderLayout.NORTH);
+        var settingRows = AppDialog.panel();
+        settingRows.setLayout(new GridLayout(0, 1, 0, 6));
         settingRows.add(createInfoRow("Target", GameServer.MIN_SHAPES + "-" + GameServer.MAX_SHAPES + " shapes"));
         settingRows.add(createInfoRow("Round time", GameServer.ROUND_SECONDS + " sec"));
         settingRows.add(createInfoRow("Rounds", "players x " + GameServer.ROUNDS_PER_PLAYER));
         settingsCard.add(settingRows, BorderLayout.CENTER);
 
-        // --- Leave button ---
-        leaveBtn = makeButton("LEAVE ROOM", false, 10, 18);
+        var leaveBtn = AppDialog.button("LEAVE ROOM", Color.WHITE, AppDialog.BG_LIGHT, AppDialog.CARD_BORDER,
+                AppDialog.TEXT_DARK, AppDialog.CARD_BORDER, 10, 18);
         if (onLeaveAction != null) {
             leaveBtn.addActionListener(onLeaveAction);
         }
 
-        // Each block keeps its natural height; leftover space stays empty at the bottom
-        JPanel leaveSlot = new JPanel(new BorderLayout());
-        leaveSlot.setOpaque(false);
-        leaveSlot.add(leaveBtn, BorderLayout.NORTH);
-
-        JPanel settingsAndLeave = new JPanel(new BorderLayout(0, 12));
-        settingsAndLeave.setOpaque(false);
-        settingsAndLeave.add(settingsCard, BorderLayout.NORTH);
-        settingsAndLeave.add(leaveSlot, BorderLayout.CENTER);
+        var rest = AppDialog.panel();
+        rest.setLayout(new BorderLayout(0, 12));
+        rest.add(settingsCard, BorderLayout.NORTH);
+        rest.add(AppDialog.pin(leaveBtn, BorderLayout.NORTH), BorderLayout.CENTER);
 
         right.add(chatCard, BorderLayout.NORTH);
-        right.add(settingsAndLeave, BorderLayout.CENTER);
+        right.add(rest, BorderLayout.CENTER);
         return right;
     }
 
@@ -412,20 +313,20 @@ public class LobbyScreen extends JPanel {
     // =====================================================================
 
     public void setMyName(String name) {
-        this.myName = (name == null) ? "" : name;
+        myName = (name == null) ? "" : name;
     }
 
     public void setHost(boolean host) {
-        this.isHost = host;
+        isHost = host;
         refreshPlayers();
     }
 
     public void setReadyAction(ActionListener action) {
-        this.readyAction = action;
+        readyAction = action;
     }
 
     public void setChatAction(Consumer<String> action) {
-        this.chatAction = action;
+        chatAction = action;
     }
 
     public boolean isReady() {
@@ -434,10 +335,10 @@ public class LobbyScreen extends JPanel {
 
     /** Shows the host address players typed in (IP:port). */
     public void setAddress(String address) {
-        addressValueLabel.setText(address == null || address.isEmpty() ? "-" : address);
+        addressValueLabel.setText((address == null || address.isEmpty()) ? "-" : address);
     }
 
-    /** Fills the port badge from the port actually in use. */
+    /** Fills the port badge with the port actually in use. */
     public void setPort(int port) {
         roomCodeValueLabel.setText(port > 0 ? String.valueOf(port) : "----");
     }
@@ -472,29 +373,36 @@ public class LobbyScreen extends JPanel {
             String name = playerNames.get(i);
             boolean ready = Boolean.TRUE.equals(readyStates.get(name));
             boolean rowIsHost = name.equals(hostName);
-            String initial = name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase();
             String status;
             Color bg;
             Color fg;
             Color border;
             if (rowIsHost) {
                 status = "Host";
-                bg = BLUE_LIGHT_BG;
-                fg = PRIMARY_BLUE;
-                border = BLUE_BORDER;
+                bg = AppDialog.BLUE_LIGHT_BG;
+                fg = AppDialog.PRIMARY_BLUE;
+                border = AppDialog.BLUE_BORDER;
             } else if (ready) {
                 status = "Ready";
-                bg = SUCCESS_BG;
-                fg = SUCCESS_TEXT;
-                border = SUCCESS_BORDER;
+                bg = AppDialog.SUCCESS_BG;
+                fg = AppDialog.SUCCESS_TEXT;
+                border = AppDialog.SUCCESS_BORDER;
             } else {
                 status = "Waiting";
-                bg = WARNING_BG;
-                fg = WARNING_TEXT;
-                border = WARNING_BORDER;
+                bg = AppDialog.WARNING_BG;
+                fg = AppDialog.WARNING_TEXT;
+                border = AppDialog.WARNING_BORDER;
             }
-            playerRowsPanel.add(createPlayerRow(initial, AVATAR_COLORS[i % AVATAR_COLORS.length],
-                    name, myName.equals(name) ? name + " (you)" : name, status, bg, fg, border));
+            String display = myName.equals(name) ? name + " (you)" : name;
+            var row = AppDialog.panel();
+            row.setLayout(new BorderLayout(8, 0));
+            var who = AppDialog.panel();
+            who.setLayout(new FlowLayout(FlowLayout.LEFT, 8, 0));
+            who.add(AppDialog.avatar(AppDialog.initialOf(name), AppDialog.avatarColor(i), 26));
+            who.add(AppDialog.label(display, AppDialog.BODY_BOLD, AppDialog.TEXT_DARK));
+            row.add(who, BorderLayout.WEST);
+            row.add(AppDialog.badge(status, bg, fg, border, 4, 10), BorderLayout.EAST);
+            playerRowsPanel.add(row);
         }
         playerRowsPanel.revalidate();
         playerRowsPanel.repaint();
@@ -511,25 +419,23 @@ public class LobbyScreen extends JPanel {
         }
         readyCountLabel.setText(readyCount + " of " + total);
 
-        // Progress track: one segment per player, filled while that player is ready
+        // One track segment per player, filled while that player is ready.
         trackPanel.removeAll();
         trackPanel.setLayout(new GridLayout(1, Math.max(1, total), 0, 0));
         for (int i = 0; i < Math.max(1, total); i++) {
-            JPanel segment = new JPanel();
-            segment.setOpaque(true);
-            boolean filled = i < readyCount;
-            segment.setBackground(filled ? PRIMARY_BLUE : TRACK_GREY);
+            var segment = new JPanel();
+            segment.setBackground(i < readyCount ? AppDialog.PRIMARY_BLUE : AppDialog.CARD_BORDER);
             trackPanel.add(segment);
         }
         trackPanel.revalidate();
         trackPanel.repaint();
 
         if (total < GameServer.MIN_PLAYERS) {
-            applyBadge(minPlayersBadge, "Minimum " + GameServer.MIN_PLAYERS + " players needed",
-                    WARNING_BG, WARNING_TEXT, WARNING_BORDER);
+            AppDialog.paintBadge(minPlayersBadge, "Minimum " + GameServer.MIN_PLAYERS + " players needed",
+                    AppDialog.WARNING_BG, AppDialog.WARNING_TEXT, AppDialog.WARNING_BORDER, 4, 10);
         } else {
-            applyBadge(minPlayersBadge, "Minimum " + GameServer.MIN_PLAYERS + " players reached",
-                    SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER);
+            AppDialog.paintBadge(minPlayersBadge, "Minimum " + GameServer.MIN_PLAYERS + " players reached",
+                    AppDialog.SUCCESS_BG, AppDialog.SUCCESS_TEXT, AppDialog.SUCCESS_BORDER, 4, 10);
         }
 
         boolean allOthersReady = total >= GameServer.MIN_PLAYERS;
@@ -542,8 +448,8 @@ public class LobbyScreen extends JPanel {
 
         startBtn.setEnabled(canStart);
         startBtn.setText(isHost ? "START GAME" : "HOST STARTS");
-        startBtn.setBackground(canStart ? Color.WHITE : DISABLED_BG);
-        startBtn.setForeground(canStart ? TEXT_DARK : TEXT_DISABLED);
+        startBtn.setBackground(canStart ? Color.WHITE : AppDialog.CARD_BORDER);
+        startBtn.setForeground(canStart ? AppDialog.TEXT_DARK : AppDialog.TEXT_LIGHT);
         if (!isHost) {
             startBtn.setToolTipText("Only the host can start the game.");
         } else if (!allOthersReady) {
@@ -552,9 +458,8 @@ public class LobbyScreen extends JPanel {
             startBtn.setToolTipText("All players are ready - start the round.");
         }
 
-        // The ready button keeps its primary blue look; only its label changes with state.
-        boolean meReady = Boolean.TRUE.equals(readyStates.get(myName));
-        readyBtn.setText(meReady ? "CANCEL READY" : "READY");
+        // The ready button keeps its primary blue look; only its label changes with the state.
+        readyBtn.setText(isReady() ? "CANCEL READY" : "READY");
 
         setStatusText(total < GameServer.MIN_PLAYERS
                 ? "Waiting for more players to join..."
@@ -565,311 +470,61 @@ public class LobbyScreen extends JPanel {
     //  Chat
     // =====================================================================
 
-    /** Removes all chat lines (used when a fresh room is joined). */
+    /** Removes every chat line (a fresh room starts with an empty chat). */
     public void clearChat() {
         chatListPanel.removeAll();
         chatListPanel.revalidate();
         chatListPanel.repaint();
     }
 
-    /** Adds one chat line. System lines are drawn muted to match the original look. */
+    /** Adds one chat line; system lines are drawn muted. */
     public void addChatMessage(String sender, String text) {
         boolean isUser = sender != null && sender.equals(myName);
         boolean isSystem = "System".equalsIgnoreCase(sender);
-        chatListPanel.add(createChatMessage(sender, text, isUser, isSystem));
+        Color senderColor = isUser ? AppDialog.PRIMARY_BLUE : (isSystem ? AppDialog.WARNING_TEXT : AppDialog.TEXT_MUTED);
+
+        var message = AppDialog.panel();
+        message.setLayout(new GridLayout(2, 1, 0, 0));
+        message.add(AppDialog.label(sender, AppDialog.SMALL_BOLD, senderColor));
+        message.add(AppDialog.label(text, AppDialog.SMALL, AppDialog.TEXT_DARK));
+        chatListPanel.add(message);
         chatListPanel.revalidate();
         chatListPanel.repaint();
     }
 
     // =====================================================================
-    //  Rows
+    //  Rows and small factories
     // =====================================================================
 
-    private JPanel createPlayerRow(String initial, Color avatarColor, String name,
-                                   String displayName, String status, Color bg, Color fg, Color border) {
-        JPanel row = new JPanel(new BorderLayout(8, 0));
-        row.setOpaque(false);
-
-        JPanel who = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        who.setOpaque(false);
-        who.add(makeAvatar(initial, avatarColor, 26));
-        who.add(makeLabel(displayName, FONT_BODY_BOLD, TEXT_DARK));
-
-        row.add(who, BorderLayout.WEST);
-        row.add(makeBadge(status, bg, fg, border), BorderLayout.EAST);
-        return row;
-    }
-
-    /** Solid-border slot for the next player to join. */
+    /** Solid-bordered slot for the next player to join. */
     private JPanel createEmptySlot() {
-        JPanel slot = new JPanel(new BorderLayout());
-        slot.setOpaque(true);
-        slot.setBackground(EMPTY_SLOT_BG);
-        slot.setBorder(new CompoundBorder(
-            new LineBorder(EMPTY_SLOT_BORDER, 1),
-            new EmptyBorder(8, 8, 8, 8)));
-        slot.add(makeCenteredLabel("Waiting for player...", FONT_SMALL, TEXT_MUTED), BorderLayout.CENTER);
+        var slot = new JPanel(new BorderLayout());
+        slot.setBackground(AppDialog.BG_LIGHT);
+        slot.setBorder(new CompoundBorder(new LineBorder(AppDialog.SLOT_BORDER, 1), new EmptyBorder(8, 8, 8, 8)));
+        slot.add(AppDialog.label("Waiting for player...", AppDialog.SMALL, AppDialog.TEXT_MUTED, JLabel.CENTER),
+                BorderLayout.CENTER);
         return slot;
     }
 
     private JPanel createInfoRow(String label, String value) {
-        return createInfoRow(label, makeLabel(value, FONT_BODY_BOLD, TEXT_DARK));
+        return createInfoRow(label, AppDialog.label(value, AppDialog.BODY_BOLD, AppDialog.TEXT_DARK));
     }
 
     private JPanel createInfoRow(String label, JLabel valueLabel) {
-        JPanel row = new JPanel(new BorderLayout());
-        row.setOpaque(false);
-        row.add(makeLabel(label, FONT_BODY, TEXT_MUTED), BorderLayout.WEST);
+        var row = AppDialog.panel();
+        row.setLayout(new BorderLayout());
+        row.add(AppDialog.label(label, AppDialog.BODY, AppDialog.TEXT_MUTED), BorderLayout.WEST);
         row.add(valueLabel, BorderLayout.EAST);
         return row;
     }
 
-    private JPanel createChatMessage(String sender, String text, boolean isUser, boolean isSystem) {
-        Color senderColor;
-        if (isUser) {
-            senderColor = PRIMARY_BLUE;
-        } else if (isSystem) {
-            senderColor = WARNING_TEXT;
-        } else {
-            senderColor = TEXT_MUTED;
-        }
-
-        JPanel msg = new JPanel(new GridLayout(2, 1, 0, 0));
-        msg.setOpaque(false);
-        msg.add(makeLabel(sender, FONT_SMALL_BOLD, senderColor));
-        msg.add(makeLabel(text, FONT_SMALL, TEXT_DARK));
-        return msg;
-    }
-
-    /** One shape picture, or a grey box with the shape name when the file is missing. */
-    private JLabel createPreviewPicture(Image image, String name) {
-        JLabel picture;
-        if (image != null) {
-            picture = new JLabel(new ImageIcon(image));
-        } else {
-            picture = new JLabel(name, JLabel.CENTER);
-            picture.setFont(FONT_SMALL_BOLD);
-            picture.setForeground(TEXT_MUTED);
-            picture.setOpaque(true);
-            picture.setBackground(PLACEHOLDER_BG);
-            picture.setBorder(new LineBorder(EMPTY_SLOT_BORDER, 1));
-            picture.setPreferredSize(new Dimension(PREVIEW_ICON, PREVIEW_ICON));
-        }
-        return picture;
-    }
-
-    // =====================================================================
-    //  Picture loading (AWT Toolkit)
-    // =====================================================================
-
-    private void loadPreviewImages() {
-        for (int i = 0; i < PREVIEW_FILES.length; i++) {
-            Image source = loadImage(PREVIEW_FILES[i]);
-            previewImages[i] = scaleImage(source, PREVIEW_ICON);
-        }
-    }
-
-    /** Returns a fully loaded image, or null when the file cannot be found. */
-    private Image loadImage(String filename) {
-        Toolkit toolkit = Toolkit.getDefaultToolkit();
-        File file = new File(SHAPE_DIR + filename);
-
-        if (file.isFile()) {
-            Image candidate = toolkit.createImage(file.getPath());
-            if (waitForImage(candidate)) {
-                return candidate;
-            }
-        }
-
-        return null;
-    }
-
-    private Image scaleImage(Image source, int size) {
-        if (source == null) {
-            return null;
-        }
-        Image scaled = source.getScaledInstance(size, size, Image.SCALE_SMOOTH);
-        if (waitForImage(scaled)) {
-            return scaled;
-        } else {
-            return null;
-        }
-    }
-
-    /** True once the picture has finished loading; false when the file is missing or the picture is broken. */
-    private boolean waitForImage(Image image) {
-        // Constructing the icon waits for the picture; status 8 means it completed, and a missing
-        // file reports 4 (errored) or 2 (aborted) instead.
-        return new ImageIcon(image).getImageLoadStatus() == 8;
-    }
-
-    // =====================================================================
-    //  Small factories
-    // =====================================================================
-
-    private static JPanel makeCard() {
-        JPanel card = new JPanel();
-        card.setOpaque(true);
-        card.setBackground(CARD_BG);
-        card.setBorder(new CompoundBorder(
-            new LineBorder(CARD_BORDER, 1),
-            new EmptyBorder(16, 16, 16, 16)));
-        return card;
-    }
-
-    private static JLabel makeLabel(String text, Font font, Color color) {
-        JLabel label = new JLabel(text);
-        label.setFont(font);
-        label.setForeground(color);
-        return label;
-    }
-
-    /** Same as makeLabel, but the text sits in the middle of the label's width. */
-    private static JLabel makeCenteredLabel(String text, Font font, Color color) {
-        JLabel label = makeLabel(text, font, color);
-        label.setHorizontalAlignment(JLabel.CENTER);
-        return label;
-    }
-
-    /** Small label with fill + border. */
-    private static JLabel makeBadge(String text, Color bg, Color fg, Color border) {
-        JLabel badge = makeCenteredLabel(text, FONT_SMALL_BOLD, fg);
-        badge.setBackground(bg);
-        badge.setOpaque(true);
-        badge.setBorder(new CompoundBorder(
-            new LineBorder(border, 1),
-            new EmptyBorder(4, 10, 4, 10)));
-        return badge;
-    }
-
-    /** Recolors an existing badge in place (text + fill + border). */
-    private static void applyBadge(JLabel badge, String text, Color bg, Color fg, Color border) {
-        badge.setText(text);
-        badge.setForeground(fg);
-        badge.setBackground(bg);
-        badge.setBorder(new CompoundBorder(
-            new LineBorder(border, 1),
-            new EmptyBorder(4, 10, 4, 10)));
-        badge.repaint();
-    }
-
-    /** Square colored tile with the player's initial, locked to size x size. */
-    private static JLabel makeAvatar(String text, Color bg, int size) {
-        JLabel avatar = new JLabel(text, JLabel.CENTER);
-        avatar.setOpaque(true);
-        avatar.setBackground(bg);
-        avatar.setForeground(Color.WHITE);
-        avatar.setFont(new Font("Tahoma", Font.BOLD, size / 2));
-        Dimension d = new Dimension(size, size);
-        avatar.setPreferredSize(d);
-        avatar.setMinimumSize(d);
-        avatar.setMaximumSize(d);
-        return avatar;
-    }
-
-    /**
-     * Plain JButton with a flat fill and thin border. The fill changes with
-     * mouse enter / exit / press through ButtonHoverListener.
-     */
-    private static JButton makeButton(String text, boolean primary, int padV, int padH) {
-        Color normal;
-        Color hover;
-        Color pressed;
-        Color edge;
-        Color textColor;
-        if (primary) {
-            normal = PRIMARY_BLUE;
-            hover = PRIMARY_HOVER;
-            pressed = PRIMARY_PRESSED;
-            edge = PRIMARY_BLUE;
-            textColor = Color.WHITE;
-        } else {
-            normal = Color.WHITE;
-            hover = BG_LIGHT;
-            pressed = SECONDARY_PRESSED;
-            edge = CARD_BORDER;
-            textColor = TEXT_DARK;
-        }
-
-        JButton button = new JButton(text);
-        button.setFont(FONT_BODY_BOLD);
-        button.setForeground(textColor);
-        button.setBackground(normal);
-        button.setContentAreaFilled(false); // call first: some look and feels reset opaque when it changes
-        button.setOpaque(true);
-        button.setBorderPainted(true);
-        button.setBorder(new CompoundBorder(
-            new LineBorder(edge, 1),
-            new EmptyBorder(padV, padH, padV, padH)));
-        button.setFocusPainted(false);
-        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        button.addMouseListener(new ButtonHoverListener(button, normal, hover, pressed));
-        return button;
-    }
-
-    private static JTextField makeTextField(String text) {
-        JTextField field = new JTextField(text);
+    /** Borderless text field; the border and the padding come from the panel around it. */
+    private static JTextField makeTextField() {
+        var field = new JTextField("");
         field.setBackground(Color.WHITE);
-        field.setForeground(TEXT_DARK);
-        field.setFont(FONT_BODY);
-        field.setBorder(new CompoundBorder(
-            new LineBorder(CARD_BORDER, 1),
-            new EmptyBorder(8, 12, 8, 12)));
+        field.setForeground(AppDialog.TEXT_DARK);
+        field.setFont(AppDialog.BODY);
+        field.setBorder(new CompoundBorder(new LineBorder(AppDialog.CARD_BORDER, 1), new EmptyBorder(8, 12, 8, 12)));
         return field;
-    }
-
-    // =====================================================================
-    //  Inner classes
-    // =====================================================================
-
-    /** Colors a button from mouse events: normal, hover (mouse inside) and pressed. Disabled buttons are left alone. */
-    private static class ButtonHoverListener extends MouseAdapter {
-        private final JButton button;
-        private final Color normal;
-        private final Color hover;
-        private final Color pressed;
-        private boolean inside = false;
-
-        ButtonHoverListener(JButton button, Color normal, Color hover, Color pressed) {
-            this.button = button;
-            this.normal = normal;
-            this.hover = hover;
-            this.pressed = pressed;
-        }
-
-        @Override
-        public void mouseEntered(MouseEvent e) {
-            inside = true;
-            if (button.isEnabled()) {
-                button.setBackground(hover);
-            }
-        }
-
-        @Override
-        public void mouseExited(MouseEvent e) {
-            inside = false;
-            if (button.isEnabled()) {
-                button.setBackground(normal);
-            }
-        }
-
-        @Override
-        public void mousePressed(MouseEvent e) {
-            if (button.isEnabled()) {
-                button.setBackground(pressed);
-            }
-        }
-
-        @Override
-        public void mouseReleased(MouseEvent e) {
-            if (!button.isEnabled()) {
-                return;
-            }
-            if (inside) {
-                button.setBackground(hover);
-            } else {
-                button.setBackground(normal);
-            }
-        }
     }
 }

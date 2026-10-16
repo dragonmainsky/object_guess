@@ -2,103 +2,30 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.awt.Font;
 import java.awt.GridLayout;
-import java.awt.Rectangle;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import javax.swing.BoxLayout;
-import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.Scrollable;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 
 /**
- * RoundResultScreen: the scoreboard for ONE round, shown between rounds.
- *
- * It is built from the ROUND_RESULT payload only, so every machine shows the same numbers:
- *   - the secret shapes the questioner picked, as large pictures in ONE full-width row on top
- *   - below it, the round table: per player (in names[] order) the shapes they guessed
- *     (green border = in the secret, red = not), the points won this round ("BONUS +2" when the
- *     speed bonus applied) and the running total, inside a scroll pane so no player is cut off
- *
- * Style rules copied from ScoreboardScreen: no lambdas, no ternary expressions and no
- * custom paintComponent - everything is an ordinary JPanel / JLabel with an ImageIcon.
- *
- * There are no buttons. The screen runs a 10-second countdown with a javax.swing.Timer; the
- * server owns the clock too and starts the next round (or the final scoreboard) on its own,
- * so this countdown is only the visible half of that wait.
+ * RoundResultScreen: the scoreboard of ONE round, shown between rounds. It is built from the
+ * ROUND_RESULT payload only, so every machine shows the same secret shapes and the same numbers.
  */
 public class RoundResultScreen extends JPanel {
 
-    // ===== Colors =====
-    private static final Color BG_LIGHT      = new Color(241, 245, 249);
-    private static final Color CARD_BG       = Color.WHITE;
-    private static final Color CARD_BORDER   = new Color(226, 232, 240);
-    private static final Color ROW_BG        = new Color(248, 250, 252);
-    private static final Color HEADER_TEXT   = new Color(148, 163, 184);
-
-    private static final Color PRIMARY_BLUE  = new Color(37, 99, 235);
-    private static final Color PRIMARY_HOVER = new Color(29, 78, 216);
-    private static final Color PRIMARY_PRESS = new Color(30, 64, 175);
-
-    private static final Color SUCCESS_BG    = new Color(220, 252, 231);
-    private static final Color SUCCESS_TEXT  = new Color(22, 101, 52);
-    private static final Color SUCCESS_LINE  = new Color(22, 163, 74);
-
-    private static final Color DANGER_BG     = new Color(254, 226, 226);
-    private static final Color DANGER_TEXT   = new Color(153, 27, 27);
-    private static final Color DANGER_LINE   = new Color(220, 38, 38);
-
-    private static final Color GOLD_BG       = new Color(254, 243, 199);
-    private static final Color GOLD_TEXT     = new Color(180, 83, 9);
-    private static final Color GOLD_LINE     = new Color(253, 230, 138);
-
-    private static final Color TEXT_DARK     = new Color(15, 23, 42);
-    private static final Color TEXT_MUTED    = new Color(100, 116, 139);
-    private static final Color PLACEHOLDER_BG = new Color(220, 230, 242);
-
-    // ===== Fonts =====
-    private static final Font FONT_TITLE_LARGE = new Font("Tahoma", Font.BOLD, 26);
-    private static final Font FONT_TITLE       = new Font("Tahoma", Font.BOLD, 18);
-    private static final Font FONT_SUBTITLE    = new Font("Tahoma", Font.BOLD, 14);
-    private static final Font FONT_BODY        = new Font("Tahoma", Font.PLAIN, 13);
-    private static final Font FONT_BODY_BOLD   = new Font("Tahoma", Font.BOLD, 13);
-    private static final Font FONT_SMALL       = new Font("Tahoma", Font.PLAIN, 11);
-    private static final Font FONT_SMALL_BOLD  = new Font("Tahoma", Font.BOLD, 11);
-
-    // ===== Header strip fonts (the enlarged sizes shared by all four game screens) =====
-    private static final Font FONT_SCREEN_EYEBROW = new Font("Tahoma", Font.BOLD, 14);
-    private static final Font FONT_SCREEN_SUB     = new Font("Tahoma", Font.PLAIN, 15);
-
-    // ===== Sizes =====
+    private static final Color SUCCESS_LINE = new Color(22, 163, 74);
+    private static final Color DANGER_LINE = new Color(220, 38, 38);
     private static final int SECRET_ICON = 110;
-    private static final int SECRET_GAP  = 16;
-    private static final int GUESS_ICON  = 42;
+    private static final int SECRET_GAP = 16;
+    private static final int GUESS_ICON = 42;
     private static final int AVATAR_SIZE = 34;
-    private static final int ROW_GAP     = 6;
-
-    /** Card title; reused in setText() as "Secret shapes (n)" when the count is shown. */
-    private static final String SECRET_TITLE = "Secret shapes";
-
-    /** Avatar colors cycled by row order, matching the lobby palette. */
-    private static final Color[] AVATAR_COLORS = {
-        new Color(37, 99, 235), new Color(139, 92, 246), new Color(236, 72, 153),
-        new Color(16, 185, 129), new Color(245, 158, 11), new Color(14, 165, 233),
-        new Color(244, 63, 94), new Color(99, 102, 241)
-    };
-
-    // ===== Countdown =====
+    private static final int ROW_GAP = 6;
     private static final int COUNTDOWN_SECONDS = GameServer.INTERMISSION_SECONDS;
 
-    /** Notified on the EDT when the countdown reaches zero (used for the final switch). */
-    private final ActionListener onCountdownFinished;
-
-    // ===== Widgets rebuilt by showResult() =====
     private JLabel tagLabel;
     private JLabel titleLabel;
     private JLabel questionerLabel;
@@ -111,18 +38,15 @@ public class RoundResultScreen extends JPanel {
     private JPanel rowsPanel;
     private JLabel countdownLabel;
 
-    // ===== Countdown state (EDT only) =====
-    private javax.swing.Timer countdownTimer;
-    private int secondsLeft;
+    private Thread countdown;          // one thread per round, replaced when the next round starts
+    private volatile int secondsLeft;
 
-    public RoundResultScreen(ActionListener onCountdownFinished) {
-        this.onCountdownFinished = onCountdownFinished;
-
+    public RoundResultScreen() {
         setLayout(new BorderLayout());
-        setBackground(BG_LIGHT);
+        setBackground(AppDialog.BG_LIGHT);
 
-        JPanel mainContent = new JPanel(new BorderLayout(24, 16));
-        mainContent.setOpaque(false);
+        var mainContent = AppDialog.panel();
+        mainContent.setLayout(new BorderLayout(24, 16));
         mainContent.setBorder(new EmptyBorder(24, 32, 24, 32));
         mainContent.add(buildHeader(), BorderLayout.NORTH);
         mainContent.add(buildBody(), BorderLayout.CENTER);
@@ -135,164 +59,123 @@ public class RoundResultScreen extends JPanel {
     // =====================================================================
 
     private JPanel buildHeader() {
-        JPanel header = new JPanel(new BorderLayout());
-        header.setOpaque(false);
+        var header = AppDialog.panel();
+        header.setLayout(new BorderLayout());
 
-        JPanel titles = new JPanel(new GridLayout(3, 1, 0, 2));
-        titles.setOpaque(false);
-
-        tagLabel = new JLabel("ROUND SUMMARY");
-        tagLabel.setFont(FONT_SCREEN_EYEBROW);
-        tagLabel.setForeground(PRIMARY_BLUE);
-
-        titleLabel = new JLabel("Round 1");
-        titleLabel.setFont(FONT_TITLE_LARGE);
-        titleLabel.setForeground(TEXT_DARK);
-
-        questionerLabel = new JLabel("Questioner: -");
-        questionerLabel.setFont(FONT_SCREEN_SUB);
-        questionerLabel.setForeground(TEXT_MUTED);
-
+        var titles = AppDialog.panel();
+        titles.setLayout(new GridLayout(3, 1, 0, 2));
+        tagLabel = AppDialog.label("ROUND SUMMARY", AppDialog.SUBTITLE, AppDialog.PRIMARY_BLUE);
+        titleLabel = AppDialog.label("Round 1", AppDialog.TITLE_LARGE, AppDialog.TEXT_DARK);
+        questionerLabel = AppDialog.label("Questioner: -", AppDialog.SCREEN_SUB, AppDialog.TEXT_MUTED);
         titles.add(tagLabel);
         titles.add(titleLabel);
         titles.add(questionerLabel);
         header.add(titles, BorderLayout.WEST);
 
-        reasonBadge = buildBadge("Round complete", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_LINE, 8, 16);
-        reasonBadge.setFont(FONT_SCREEN_EYEBROW);
-        JPanel badgeHolder = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 6));
-        badgeHolder.setOpaque(false);
+        reasonBadge = AppDialog.badge("Round complete", AppDialog.SUCCESS_BG, AppDialog.SUCCESS_TEXT,
+                SUCCESS_LINE, 8, 16);
+        reasonBadge.setFont(AppDialog.SUBTITLE);
+        var badgeHolder = AppDialog.panel();
+        badgeHolder.setLayout(new FlowLayout(FlowLayout.RIGHT, 0, 6));
         badgeHolder.add(reasonBadge);
         header.add(badgeHolder, BorderLayout.EAST);
-
         return header;
     }
 
     // =====================================================================
-    //  Body: the secret shapes on top, the round table under it
+    //  Body: the secret shapes on top, the round table under them
     // =====================================================================
 
-    /** Secret card (top, full width) over the round score card (below, full width). */
     private JPanel buildBody() {
-        JPanel body = new JPanel(new BorderLayout(0, 16));
-        body.setOpaque(false);
+        var body = AppDialog.panel();
+        body.setLayout(new BorderLayout(0, 16));
         body.add(buildSecretCard(), BorderLayout.NORTH);
         body.add(buildResultsCard(), BorderLayout.CENTER);
         return body;
     }
 
     private JPanel buildSecretCard() {
-        JPanel card = buildCard();
+        var card = roundCard();
         card.setLayout(new BorderLayout(0, 14));
 
-        JPanel titles = new JPanel(new GridLayout(2, 1, 0, 2));
-        titles.setOpaque(false);
-        secretTitleLabel = new JLabel(SECRET_TITLE);
-        secretTitleLabel.setFont(FONT_SUBTITLE);
-        secretTitleLabel.setForeground(TEXT_DARK);
-        secretSubLabel = new JLabel("Chosen by -");
-        secretSubLabel.setFont(FONT_SMALL);
-        secretSubLabel.setForeground(TEXT_MUTED);
+        var titles = AppDialog.panel();
+        titles.setLayout(new GridLayout(2, 1, 0, 2));
+        secretTitleLabel = AppDialog.label("Secret shapes", AppDialog.SUBTITLE, AppDialog.TEXT_DARK);
+        secretSubLabel = AppDialog.label("Chosen by -", AppDialog.SMALL, AppDialog.TEXT_MUTED);
         titles.add(secretTitleLabel);
         titles.add(secretSubLabel);
         card.add(titles, BorderLayout.NORTH);
 
-        // One centred row with a fixed gap: 5 icons of SECRET_ICON plus 4 gaps fit the narrowest
-        // supported window (1100 px), so the row never wraps and never gets clipped.
-        secretRow = new JPanel(new FlowLayout(FlowLayout.CENTER, SECRET_GAP, 8));
-        secretRow.setOpaque(false);
+        // One centred row: five pictures plus four gaps still fit the narrowest supported window.
+        secretRow = AppDialog.panel();
+        secretRow.setLayout(new FlowLayout(FlowLayout.CENTER, SECRET_GAP, 8));
         card.add(secretRow, BorderLayout.CENTER);
-
         return card;
     }
 
-    /** One secret shape: big picture with a name in small text underneath. */
+    /** One secret shape: the picture with the shape name in small text underneath. */
     private JPanel buildSecretItem(String shapeName) {
-        JPanel item = new JPanel(new BorderLayout(0, 6));
-        item.setOpaque(false);
-        item.add(shapeIcon(shapeName, SECRET_ICON, CARD_BORDER, 1), BorderLayout.CENTER);
-
-        JLabel nameLabel = new JLabel(shapeName, JLabel.CENTER);
-        nameLabel.setFont(FONT_SMALL);
-        nameLabel.setForeground(TEXT_MUTED);
-        item.add(nameLabel, BorderLayout.SOUTH);
+        var item = AppDialog.panel();
+        item.setLayout(new BorderLayout(0, 6));
+        item.add(shapeIcon(shapeName, SECRET_ICON, AppDialog.CARD_BORDER, 1), BorderLayout.CENTER);
+        item.add(AppDialog.label(shapeName, AppDialog.SMALL, AppDialog.TEXT_MUTED, JLabel.CENTER), BorderLayout.SOUTH);
         return item;
     }
 
     private JPanel buildResultsCard() {
-        JPanel card = buildCard();
+        var card = roundCard();
         card.setLayout(new BorderLayout(0, 14));
 
-        JPanel titles = new JPanel(new BorderLayout());
-        titles.setOpaque(false);
-        resultsTitleLabel = new JLabel("Round score");
-        resultsTitleLabel.setFont(FONT_TITLE);
-        resultsTitleLabel.setForeground(TEXT_DARK);
+        resultsTitleLabel = AppDialog.label("Round score", AppDialog.TITLE, AppDialog.TEXT_DARK);
+        resultsBadge = AppDialog.badge("-", AppDialog.BG_LIGHT, AppDialog.TEXT_DARK, AppDialog.CARD_BORDER, 4, 10);
+        var titles = AppDialog.panel();
+        titles.setLayout(new BorderLayout());
         titles.add(resultsTitleLabel, BorderLayout.WEST);
-        resultsBadge = buildBadge("-", BG_LIGHT, TEXT_DARK, CARD_BORDER, 4, 10);
-        JPanel badgeHolder = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        badgeHolder.setOpaque(false);
+        var badgeHolder = AppDialog.panel();
+        badgeHolder.setLayout(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         badgeHolder.add(resultsBadge);
         titles.add(badgeHolder, BorderLayout.EAST);
         card.add(titles, BorderLayout.NORTH);
 
-        // Rows keep their natural height (no stretching) and scroll when there are many players.
-        // The column header stays fixed above the scrolling rows, so it is always visible.
-        rowsPanel = new ScrollableRowsPanel();
+        // The rows keep their natural height and scroll when many players are in the room.
+        rowsPanel = AppDialog.panel();
         rowsPanel.setLayout(new BoxLayout(rowsPanel, BoxLayout.Y_AXIS));
-        rowsPanel.setOpaque(false);
-
-        JScrollPane scroll = new JScrollPane(rowsPanel);
+        var scroll = new JScrollPane(rowsPanel);
         scroll.setBorder(null);
         scroll.setOpaque(false);
         scroll.getViewport().setOpaque(false);
         scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         scroll.getVerticalScrollBar().setUnitIncrement(16);
+        scroll.getVerticalScrollBar().setBlockIncrement(80);
         scroll.setColumnHeaderView(buildTableHeader());
-        if (scroll.getColumnHeader() != null) {
-            scroll.getColumnHeader().setOpaque(false);
-        }
         card.add(scroll, BorderLayout.CENTER);
-
         return card;
     }
 
     private JPanel buildTableHeader() {
-        JPanel header = new JPanel(new BorderLayout(10, 0));
-        header.setOpaque(false);
-        // 15 px matches a row's border (1) plus padding (14) so headers line up with the columns.
+        var header = AppDialog.panel();
+        header.setLayout(new BorderLayout(10, 0));
+        // 15 px matches a row's border (1) plus padding (14), so the headers line up with the columns.
         header.setBorder(new EmptyBorder(0, 15, 0, 15));
+        header.add(columnTitle("PLAYER", 0), BorderLayout.WEST);
+        header.add(columnTitle("GUESSED", 0), BorderLayout.CENTER);
 
-        JLabel playerHeader = new JLabel("PLAYER");
-        playerHeader.setFont(FONT_SMALL_BOLD);
-        playerHeader.setForeground(HEADER_TEXT);
-
-        JLabel guessHeader = new JLabel("GUESSED");
-        guessHeader.setFont(FONT_SMALL_BOLD);
-        guessHeader.setForeground(HEADER_TEXT);
-
-        JLabel roundHeader = new JLabel("ROUND");
-        roundHeader.setFont(FONT_SMALL_BOLD);
-        roundHeader.setForeground(HEADER_TEXT);
-        roundHeader.setPreferredSize(new Dimension(86, 18));
-        roundHeader.setHorizontalAlignment(JLabel.RIGHT);
-
-        JLabel totalHeader = new JLabel("TOTAL");
-        totalHeader.setFont(FONT_SMALL_BOLD);
-        totalHeader.setForeground(HEADER_TEXT);
-        totalHeader.setPreferredSize(new Dimension(50, 18));
-        totalHeader.setHorizontalAlignment(JLabel.RIGHT);
-
-        header.add(playerHeader, BorderLayout.WEST);
-        header.add(guessHeader, BorderLayout.CENTER);
-
-        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        right.setOpaque(false);
-        right.add(roundHeader);
-        right.add(totalHeader);
+        var right = AppDialog.panel();
+        right.setLayout(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        right.add(columnTitle("ROUND", 86));
+        right.add(columnTitle("TOTAL", 50));
         header.add(right, BorderLayout.EAST);
         return header;
+    }
+
+    private static JLabel columnTitle(String text, int width) {
+        var label = AppDialog.label(text, AppDialog.SMALL_BOLD, AppDialog.TEXT_LIGHT,
+                width > 0 ? JLabel.RIGHT : JLabel.LEFT);
+        if (width > 0) {
+            label.setPreferredSize(new Dimension(width, 18));
+        }
+        return label;
     }
 
     // =====================================================================
@@ -300,22 +183,16 @@ public class RoundResultScreen extends JPanel {
     // =====================================================================
 
     private JPanel buildFooter() {
-        JPanel footer = new JPanel(new BorderLayout(12, 0));
-        footer.setOpaque(false);
-
-        countdownLabel = new JLabel("Next round in " + COUNTDOWN_SECONDS + "s...");
-        countdownLabel.setFont(FONT_BODY_BOLD);
-        countdownLabel.setForeground(PRIMARY_BLUE);
+        var footer = AppDialog.panel();
+        footer.setLayout(new BorderLayout(12, 0));
+        countdownLabel = AppDialog.label("Next round in " + COUNTDOWN_SECONDS + "s...", AppDialog.BODY_BOLD,
+                AppDialog.PRIMARY_BLUE);
         footer.add(countdownLabel, BorderLayout.WEST);
 
-        JLabel note = new JLabel("The next screen opens automatically.");
-        note.setFont(FONT_SMALL);
-        note.setForeground(TEXT_MUTED);
-        JPanel noteSlot = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        noteSlot.setOpaque(false);
-        noteSlot.add(note);
+        var noteSlot = AppDialog.panel();
+        noteSlot.setLayout(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        noteSlot.add(AppDialog.label("The next screen opens automatically.", AppDialog.SMALL, AppDialog.TEXT_MUTED));
         footer.add(noteSlot, BorderLayout.EAST);
-
         return footer;
     }
 
@@ -324,9 +201,8 @@ public class RoundResultScreen extends JPanel {
     // =====================================================================
 
     /**
-     * Draws the whole screen from one ROUND_RESULT. The arrays are parallel and every one of
-     * them has one entry per player; guesses[i] is empty when that player did not submit.
-     * Players are shown in the same order as names[] (never re-sorted).
+     * Draws the whole screen from one ROUND_RESULT. The arrays are parallel and hold one entry per
+     * player; guesses[i] is empty when that player did not submit. Players keep the order of names[].
      */
     public void showResult(int round, int totalRounds, boolean isFinal, String[] secret, String reason,
                            String questioner, String[] names, int[] deltas, int[] totals,
@@ -337,11 +213,14 @@ public class RoundResultScreen extends JPanel {
         tagLabel.setText(isFinal ? "FINAL ROUND SUMMARY" : "ROUND SUMMARY");
 
         if ("time".equals(reason)) {
-            setBadge(reasonBadge, "Time is up", DANGER_BG, DANGER_TEXT, DANGER_LINE);
+            AppDialog.paintBadge(reasonBadge, "Time is up", AppDialog.DANGER_BG, AppDialog.DANGER_TEXT,
+                    DANGER_LINE, 8, 16);
         } else if ("all".equals(reason)) {
-            setBadge(reasonBadge, "All guesses in", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_LINE);
+            AppDialog.paintBadge(reasonBadge, "All guesses in", AppDialog.SUCCESS_BG, AppDialog.SUCCESS_TEXT,
+                    SUCCESS_LINE, 8, 16);
         } else {
-            setBadge(reasonBadge, "Round complete", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_LINE);
+            AppDialog.paintBadge(reasonBadge, "Round complete", AppDialog.SUCCESS_BG, AppDialog.SUCCESS_TEXT,
+                    SUCCESS_LINE, 8, 16);
         }
 
         secretSubLabel.setText("Chosen by " + (questionerName.isEmpty() ? "-" : questionerName));
@@ -350,13 +229,11 @@ public class RoundResultScreen extends JPanel {
             for (String shapeName : secret) {
                 secretRow.add(buildSecretItem(shapeName));
             }
-            secretTitleLabel.setText(SECRET_TITLE + " (" + secret.length + ")");
+            secretTitleLabel.setText("Secret shapes (" + secret.length + ")");
         } else {
-            JLabel none = new JLabel("No secret shapes were locked in this round.");
-            none.setFont(FONT_BODY);
-            none.setForeground(TEXT_MUTED);
-            secretRow.add(none);
-            secretTitleLabel.setText(SECRET_TITLE);
+            secretRow.add(AppDialog.label("No secret shapes were locked in this round.", AppDialog.BODY,
+                    AppDialog.TEXT_MUTED));
+            secretTitleLabel.setText("Secret shapes");
         }
         secretRow.revalidate();
         secretRow.repaint();
@@ -365,160 +242,126 @@ public class RoundResultScreen extends JPanel {
 
         rowsPanel.removeAll();
         for (int i = 0; i < names.length; i++) {
-            String name = names[i];
             int delta = (i < deltas.length) ? deltas[i] : 0;
             int total = (i < totals.length) ? totals[i] : 0;
             String[] guess = (i < guesses.length) ? guesses[i] : new String[0];
             int correct = (i < correctCounts.length) ? correctCounts[i] : 0;
             boolean bonus = (i < bonuses.length) && bonuses[i];
-            boolean isQuestioner = name.equals(questionerName);
-            JPanel row = buildPlayerRow(i, name, delta, total, guess, correct, bonus, isQuestioner, secret);
-            // BoxLayout only stretches up to the max size, so locking the height to the row's own
-            // preferred height keeps rows natural instead of filling the whole viewport.
+            var row = buildPlayerRow(i, names[i], delta, total, guess, correct, bonus,
+                    names[i].equals(questionerName), secret);
+            // BoxLayout only stretches up to the maximum size, so the height is locked to the row's own.
             row.setAlignmentX(JPanel.LEFT_ALIGNMENT);
             row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
             rowsPanel.add(row);
             if (i < names.length - 1) {
-                rowsPanel.add(strut(ROW_GAP));
+                rowsPanel.add(AppDialog.strut(ROW_GAP));
             }
         }
         rowsPanel.revalidate();
         rowsPanel.repaint();
 
-        // No Continue button any more: the server starts the next round on its own clock, and
-        // this countdown just shows how long the wait is.
         startCountdown(isFinal);
-
         revalidate();
         repaint();
     }
 
     // =====================================================================
-    //  Countdown (10 -> 0), driven by a javax.swing.Timer on the EDT
+    //  Countdown from INTERMISSION_SECONDS down to zero (its own thread, one per round)
     // =====================================================================
 
-    /** Restarts the 10-second countdown for the round just shown. */
-    private void startCountdown(final boolean isFinal) {
+    /** Restarts the countdown for the round just shown; the server owns the real clock. */
+    private void startCountdown(boolean isFinal) {
         stopCountdown();
         secondsLeft = COUNTDOWN_SECONDS;
         setCountdownText(isFinal);
-        countdownTimer = new javax.swing.Timer(1000, new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent event) {
+        countdown = new Thread(() -> {
+            while (true) {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    return;   // a new round, the scoreboard or the shutdown ended this countdown
+                }
+                if (countdown != Thread.currentThread()) {
+                    return;
+                }
                 secondsLeft--;
                 if (secondsLeft <= 0) {
                     secondsLeft = 0;
                     setCountdownText(isFinal);
-                    stopCountdown();
-                    if (onCountdownFinished != null) {
-                        onCountdownFinished.actionPerformed(new ActionEvent(
-                            RoundResultScreen.this, ActionEvent.ACTION_PERFORMED, "countdown"));
-                    }
-                } else {
-                    setCountdownText(isFinal);
+                    countdown = null;
+                    return;
                 }
+                setCountdownText(isFinal);
             }
-        });
-        countdownTimer.setRepeats(true);
-        countdownTimer.start();
+        }, "RoundResult-Countdown");
+        countdown.setDaemon(true);
+        countdown.start();
     }
 
     private void setCountdownText(boolean isFinal) {
-        if (countdownLabel == null) {
-            return;
-        }
-        if (isFinal) {
-            countdownLabel.setText("Final scoreboard in " + secondsLeft + "s...");
-        } else {
-            countdownLabel.setText("Next round in " + secondsLeft + "s...");
-        }
+        countdownLabel.setText((isFinal ? "Final scoreboard in " : "Next round in ") + secondsLeft + "s...");
     }
 
-    /** Stops the countdown. Safe to call when none is running. */
+    /** Stops the countdown; safe to call when none is running. */
     public void stopCountdown() {
-        if (countdownTimer != null) {
-            countdownTimer.stop();
-            countdownTimer = null;
+        if (countdown != null) {
+            countdown.interrupt();
+            countdown = null;
         }
     }
 
     // =====================================================================
-    //  Rows
+    //  Rows and small factories
     // =====================================================================
 
-    private JPanel buildPlayerRow(int index, String name, int delta, int total, String[] guess,
-                                  int correct, boolean bonus, boolean isQuestioner, String[] secret) {
-        JPanel row = new JPanel(new BorderLayout(10, 0));
-        row.setOpaque(true);
-        row.setBackground(ROW_BG);
-        row.setBorder(new CompoundBorder(
-            new LineBorder(ROW_BG, 1),
-            new EmptyBorder(10, 14, 10, 14)));
+    private JPanel buildPlayerRow(int index, String name, int delta, int total, String[] guess, int correct,
+                                  boolean bonus, boolean isQuestioner, String[] secret) {
+        var row = new JPanel(new BorderLayout(10, 0));
+        row.setBackground(AppDialog.ROW_BG);
+        row.setBorder(new CompoundBorder(new LineBorder(AppDialog.ROW_BG, 1), new EmptyBorder(10, 14, 10, 14)));
 
-        // --- who ---
-        JPanel who = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        who.setOpaque(false);
-        who.add(buildAvatar(initialOf(name), avatarColor(index), AVATAR_SIZE));
-
-        JLabel nameLabel = new JLabel(name);
-        nameLabel.setFont(FONT_BODY_BOLD);
-        nameLabel.setForeground(TEXT_DARK);
-        who.add(nameLabel);
-
+        var who = AppDialog.panel();
+        who.setLayout(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        who.add(AppDialog.avatar(AppDialog.initialOf(name), AppDialog.avatarColor(index), AVATAR_SIZE));
+        who.add(AppDialog.label(name, AppDialog.BODY_BOLD, AppDialog.TEXT_DARK));
         if (isQuestioner) {
-            who.add(buildBadge("Questioner", new Color(226, 232, 240), TEXT_DARK, CARD_BORDER, 2, 8));
+            who.add(AppDialog.badge("Questioner", AppDialog.CARD_BORDER, AppDialog.TEXT_DARK,
+                    AppDialog.CARD_BORDER, 2, 8));
         }
         row.add(who, BorderLayout.WEST);
 
-        // --- guessed shapes ---
-        JPanel guessed = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        guessed.setOpaque(false);
+        var guessed = AppDialog.panel();
+        guessed.setLayout(new FlowLayout(FlowLayout.LEFT, 8, 0));
         if (isQuestioner) {
             guessed.add(mutedLabel("picked the secret"));
         } else if (guess.length == 0) {
             guessed.add(mutedLabel("did not guess"));
         } else {
             for (String shapeName : guess) {
-                boolean hit = containsShape(secret, shapeName);
-                if (hit) {
-                    guessed.add(shapeIcon(shapeName, GUESS_ICON, SUCCESS_LINE, 2));
-                } else {
-                    guessed.add(shapeIcon(shapeName, GUESS_ICON, DANGER_LINE, 2));
-                }
+                guessed.add(shapeIcon(shapeName, GUESS_ICON,
+                        containsShape(secret, shapeName) ? SUCCESS_LINE : DANGER_LINE, 2));
             }
             guessed.add(mutedLabel(correct + " / " + guess.length + " correct"));
         }
         row.add(guessed, BorderLayout.CENTER);
 
-        // --- points this round + running total ---
-        JPanel score = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        score.setOpaque(false);
+        var score = AppDialog.panel();
+        score.setLayout(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         if (bonus) {
-            score.add(buildBadge("BONUS +2", GOLD_BG, GOLD_TEXT, GOLD_LINE, 3, 8));
+            score.add(AppDialog.badge("BONUS +2", AppDialog.GOLD_BG, AppDialog.GOLD_TEXT, AppDialog.GOLD_BORDER, 3, 8));
         }
-        score.add(buildDeltaBadge(delta));
-
-        JLabel totalLabel = new JLabel(String.valueOf(total));
-        totalLabel.setFont(new Font("Tahoma", Font.BOLD, 16));
-        totalLabel.setPreferredSize(new Dimension(46, 24));
-        totalLabel.setHorizontalAlignment(JLabel.RIGHT);
-        if (total > 0) {
-            totalLabel.setForeground(PRIMARY_BLUE);
+        if (delta > 0) {
+            score.add(AppDialog.badge("+" + delta, AppDialog.SUCCESS_BG, AppDialog.SUCCESS_TEXT, SUCCESS_LINE, 3, 10));
         } else {
-            totalLabel.setForeground(TEXT_MUTED);
+            score.add(AppDialog.badge("+0", AppDialog.BG_LIGHT, AppDialog.TEXT_MUTED, AppDialog.CARD_BORDER, 3, 10));
         }
+
+        var totalLabel = AppDialog.label(String.valueOf(total), AppDialog.STRONG,
+                total > 0 ? AppDialog.PRIMARY_BLUE : AppDialog.TEXT_MUTED, JLabel.RIGHT);
+        totalLabel.setPreferredSize(new Dimension(46, 24));
         score.add(totalLabel);
         row.add(score, BorderLayout.EAST);
-
         return row;
-    }
-
-    private JLabel buildDeltaBadge(int delta) {
-        String text = "+" + delta;
-        if (delta > 0) {
-            return buildBadge(text, SUCCESS_BG, SUCCESS_TEXT, SUCCESS_LINE, 3, 10);
-        }
-        return buildBadge("+0", BG_LIGHT, TEXT_MUTED, CARD_BORDER, 3, 10);
     }
 
     private static boolean containsShape(String[] shapes, String wanted) {
@@ -533,140 +376,25 @@ public class RoundResultScreen extends JPanel {
         return false;
     }
 
-    // =====================================================================
-    //  Small factories
-    // =====================================================================
-
-    private static JPanel buildCard() {
-        JPanel card = new JPanel();
-        card.setOpaque(true);
-        card.setBackground(CARD_BG);
-        card.setBorder(new CompoundBorder(
-            new LineBorder(CARD_BORDER, 1),
-            new EmptyBorder(18, 20, 18, 20)));
+    /** White card with a thin border and 18/20px padding, as used by both cards on this screen. */
+    private static JPanel roundCard() {
+        var card = new JPanel();
+        card.setBackground(AppDialog.CARD_BG);
+        card.setBorder(new CompoundBorder(new LineBorder(AppDialog.CARD_BORDER, 1), new EmptyBorder(18, 20, 18, 20)));
         return card;
     }
 
-    private static JLabel buildBadge(String text, Color bg, Color fg, Color border, int padV, int padH) {
-        JLabel badge = new JLabel(text, JLabel.CENTER);
-        badge.setFont(FONT_SMALL_BOLD);
-        badge.setForeground(fg);
-        badge.setBackground(bg);
-        badge.setOpaque(true);
-        badge.setBorder(new CompoundBorder(
-            new LineBorder(border, 1),
-            new EmptyBorder(padV, padH, padV, padH)));
-        return badge;
-    }
-
-    private static void setBadge(JLabel badge, String text, Color bg, Color fg, Color border) {
-        badge.setText(text);
-        badge.setForeground(fg);
-        badge.setBackground(bg);
-        badge.setOpaque(true);
-        badge.setBorder(new CompoundBorder(
-            new LineBorder(border, 1),
-            new EmptyBorder(8, 16, 8, 16)));
-        badge.repaint();
-    }
-
-    private static JLabel buildAvatar(String initial, Color color, int size) {
-        JLabel avatar = new JLabel(initial, JLabel.CENTER);
-        avatar.setFont(new Font("Tahoma", Font.BOLD, size / 2));
-        avatar.setForeground(Color.WHITE);
-        avatar.setBackground(color);
-        avatar.setOpaque(true);
-        avatar.setPreferredSize(new Dimension(size, size));
-        return avatar;
-    }
-
     private static JLabel mutedLabel(String text) {
-        JLabel label = new JLabel(text);
-        label.setFont(FONT_SMALL);
-        label.setForeground(TEXT_MUTED);
-        return label;
+        return AppDialog.label(text, AppDialog.SMALL, AppDialog.TEXT_MUTED);
     }
 
-    /** One shape picture with a coloured border; a grey named box when the PNG is missing. */
-    private static JLabel shapeIcon(String shapeName, int size, Color borderColor, int borderWidth) {
-        ImageIcon icon = ShapeImages.icon(shapeName, size);
-        JLabel label;
-        if (icon != null) {
-            label = new JLabel(icon);
-        } else {
-            label = new JLabel(shapeName, JLabel.CENTER);
-            label.setFont(FONT_SMALL_BOLD);
-            label.setForeground(TEXT_MUTED);
-            label.setOpaque(true);
-            label.setBackground(PLACEHOLDER_BG);
-            label.setPreferredSize(new Dimension(size, size));
+    /** One shape picture with a coloured border; a grey named box stands in when the file is missing. */
+    private static JPanel shapeIcon(String shapeName, int size, Color line, int width) {
+        var picture = ShapeImages.shape(shapeName, size);
+        picture.setToolTipText(shapeName);
+        if (line != null) {
+            picture.setBorder(new LineBorder(line, width));
         }
-        label.setToolTipText(shapeName);
-        if (borderColor != null) {
-            label.setBorder(new LineBorder(borderColor, borderWidth));
-        }
-        return label;
-    }
-
-    private static String initialOf(String name) {
-        if (name == null || name.isEmpty()) {
-            return "?";
-        }
-        return name.substring(0, 1).toUpperCase();
-    }
-
-    private static Color avatarColor(int index) {
-        return AVATAR_COLORS[Math.abs(index) % AVATAR_COLORS.length];
-    }
-
-    /**
-     * Transparent fixed-height filler for the BoxLayout rows (the same sizes the old vertical strut
-     * used): no height of its own to give away, and it never grows past the requested height.
-     */
-    private static JPanel strut(int height) {
-        JPanel filler = new JPanel();
-        filler.setOpaque(false);
-        Dimension fixed = new Dimension(0, height);
-        filler.setMinimumSize(fixed);
-        filler.setPreferredSize(fixed);
-        filler.setMaximumSize(new Dimension(Short.MAX_VALUE, height));
-        return filler;
-    }
-
-    // =====================================================================
-    //  Inner classes
-    // =====================================================================
-
-    /**
-     * The row container for the scroll pane: its width follows the viewport (so rows line up with
-     * the fixed column header) while its height stays its own preferred height, which lets the
-     * rows keep their natural size and makes the pane scroll instead of squashing them.
-     */
-    private static class ScrollableRowsPanel extends JPanel implements Scrollable {
-
-        @Override
-        public Dimension getPreferredScrollableViewportSize() {
-            return getPreferredSize();
-        }
-
-        @Override
-        public int getScrollableUnitIncrement(Rectangle visibleRect, int orientation, int direction) {
-            return 16;
-        }
-
-        @Override
-        public int getScrollableBlockIncrement(Rectangle visibleRect, int orientation, int direction) {
-            return 80;
-        }
-
-        @Override
-        public boolean getScrollableTracksViewportWidth() {
-            return true;
-        }
-
-        @Override
-        public boolean getScrollableTracksViewportHeight() {
-            return false;
-        }
+        return picture;
     }
 }

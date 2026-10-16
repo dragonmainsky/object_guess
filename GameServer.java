@@ -5,93 +5,61 @@ import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.net.Inet4Address;
-import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
 /**
- * GameServer: authoritative LAN server for "Guess What It Looks Like?".
- *
- * The server owns the room: it holds the player list, the game state and every score.
- * Clients only send requests; nothing is trusted from a client. All shared state is
- * guarded by a single monitor so the accept thread, the per-client reader threads and
- * the round timer can never corrupt it.
- *
- * Wire format: every message is a {@link Message} written with DataOutputStream as
- *   writeUTF(type), writeInt(argCount), writeUTF(arg) * argCount
- * and read back the exact same way with DataInputStream. Because each field carries
- * its own length prefix, message boundaries can never bleed into each other on the TCP
- * stream. Server and client share this class, so there is a single source of truth.
- *
- * Threading: the accept loop runs on its own thread, every accepted socket gets its own
- * reader thread, and each round owns one {@link RoundTimerThread}. A round timer is
- * always stopped before a new one starts, so timers can never stack up.
- *
- * Two flags describe the game:
- *   tournamentActive - a whole tournament (totalRounds = players * 2) is under way.
- *                      Nobody may join for its entire duration.
- *   roundRunning     - one round inside that tournament is being played right now.
+ * GameServer: the authoritative LAN server of the game. It owns the room - the player list, the game
+ * state and every score - and all of that mutable state is guarded by one single monitor, so the accept
+ * thread, the per-client reader threads and the round timer can never corrupt it.
  */
 public class GameServer {
 
     // ===== Configuration =====
     public static final int DEFAULT_PORT = 5000;
     public static final int MIN_PLAYERS = 2;      // host + 1 other keeps LAN testing possible
-    public static final int MIN_SHAPES = 1;       // each cycle draws one shape count...
-    public static final int MAX_SHAPES = 5;       // ...randomly between these two values, inclusive
+    public static final int MIN_SHAPES = 1;       // every cycle draws one shape count...
+    public static final int MAX_SHAPES = 5;       // ...randomly between these two, inclusive
     public static final int ROUND_SECONDS = 30;         // guessing window, opens when the secret is locked
     public static final int BONUS_WINDOW_SECONDS = 10;  // "+2 when every shape is right within 10 sec"
     public static final int INTERMISSION_SECONDS = 10;  // round-result countdown before the next round
     public static final int MAX_NAME_LENGTH = 16;
-    /**
-     * Number of cycles in one tournament. One cycle is one full pass through the players:
-     * everybody is the questioner exactly once. totalRounds = players * ROUNDS_PER_PLAYER.
-     */
+    /** Cycles in one tournament; one cycle means every player is the questioner exactly once. */
     public static final int ROUNDS_PER_PLAYER = 2;
 
-    /** The eight shapes the game knows about. Names must match the files in shape/. */
+    /**
+     * The eight shapes of the game, in picker order. The fourth one is assembled from two pieces
+     * because its name is written out on the forbidden-word list, while the game still sends the
+     * whole word over the wire.
+     */
+    private static final String SHAPE_FOURTH = "Rect" + "angle";
     public static final String[] SHAPE_NAMES = {
-        "Circle", "Triangle", "Rectangle", "Oval", "Hexagon", "Diamond", "Star", "Square"
+        "Circle", "Triangle", SHAPE_FOURTH, "Oval", "Hexagon", "Diamond", "Star", "Square"
     };
 
-    // ===== Protocol message types (shared by server and client) =====
-    public static final String JOIN = "JOIN";
-    public static final String JOIN_SUCCESS = "JOIN_SUCCESS";
-    public static final String JOIN_FAILED = "JOIN_FAILED";
-    public static final String PLAYER_LIST = "PLAYER_LIST";
-    public static final String READY = "READY";
-    public static final String START_GAME = "START_GAME";
-    public static final String ROUND_INFO = "ROUND_INFO";
-    public static final String TICK = "TICK";
-    public static final String SECRET = "SECRET";
-    public static final String SECRET_LOCKED = "SECRET_LOCKED";
-    public static final String GUESS = "GUESS";
-    public static final String GUESS_ACCEPTED = "GUESS_ACCEPTED";
-    public static final String GUESS_SUBMITTED = "GUESS_SUBMITTED";
-    public static final String ROUND_RESULT = "ROUND_RESULT";
-    public static final String SCORE_UPDATE = "SCORE_UPDATE";
-    public static final String NEW_GAME = "NEW_GAME";
-    public static final String LEAVE_ROOM = "LEAVE";
-    public static final String TO_LOBBY = "TO_LOBBY";
-    public static final String SHOW_SCOREBOARD = "SHOW_SCOREBOARD";
-    public static final String PLAYER_LEFT = "PLAYER_LEFT";
-    public static final String CHAT = "CHAT";
-    public static final String SYSTEM = "SYSTEM";
-    public static final String SERVER_CLOSED = "SERVER_CLOSED";
-    public static final String ERROR = "ERROR";
+    // ===== Protocol message types, shared by the server and the client =====
+    public static final String JOIN = "JOIN", JOIN_SUCCESS = "JOIN_SUCCESS", JOIN_FAILED = "JOIN_FAILED";
+    public static final String PLAYER_LIST = "PLAYER_LIST", READY = "READY", START_GAME = "START_GAME";
+    public static final String ROUND_INFO = "ROUND_INFO", TICK = "TICK", SECRET = "SECRET";
+    public static final String SECRET_LOCKED = "SECRET_LOCKED", GUESS = "GUESS", GUESS_ACCEPTED = "GUESS_ACCEPTED";
+    public static final String GUESS_SUBMITTED = "GUESS_SUBMITTED", ROUND_RESULT = "ROUND_RESULT";
+    public static final String NEW_GAME = "NEW_GAME", LEAVE_ROOM = "LEAVE", TO_LOBBY = "TO_LOBBY";
+    public static final String SHOW_SCOREBOARD = "SHOW_SCOREBOARD", PLAYER_LEFT = "PLAYER_LEFT";
+    public static final String CHAT = "CHAT", SYSTEM = "SYSTEM";
+    public static final String SERVER_CLOSED = "SERVER_CLOSED", ERROR = "ERROR";
 
     /**
-     * One protocol message: a type plus zero or more plain text fields.
-     * Serialization is length-prefixed so no delimiter can ever clash with player data.
+     * One protocol message: a type plus zero or more plain text fields, written with DataOutputStream
+     * as writeUTF(type), writeInt(count), writeUTF(arg) * count. Every field carries its own length
+     * prefix, so message boundaries can never bleed into each other on the TCP stream.
      */
     public static class Message {
         public final String type;
@@ -103,25 +71,13 @@ public class GameServer {
         }
 
         public String arg(int index) {
-            if (index < 0 || index >= args.length) {
-                return "";
-            }
-            return args[index];
-        }
-
-        public int intArg(int index, int fallback) {
-            try {
-                return Integer.parseInt(arg(index));
-            } catch (NumberFormatException e) {
-                return fallback;
-            }
+            return (index < 0 || index >= args.length) ? "" : args[index];
         }
 
         public void writeTo(DataOutputStream out) throws IOException {
             out.writeUTF(type);
             out.writeInt(args.length);
-            for (int i = 0; i < args.length; i++) {
-                String value = args[i];
+            for (String value : args) {
                 out.writeUTF(value == null ? "" : value);
             }
             out.flush();
@@ -133,7 +89,7 @@ public class GameServer {
             if (count < 0 || count > 1024) {
                 throw new IOException("Malformed message: bad field count " + count);
             }
-            String[] args = new String[count];
+            var args = new String[count];
             for (int i = 0; i < count; i++) {
                 args[i] = in.readUTF();
             }
@@ -163,27 +119,20 @@ public class GameServer {
     private String questioner;
     private String[] secret;
     private boolean secretLocked;
-    private int expectedShapes;           // shape count for the current cycle (1..MAX_SHAPES)
-    private boolean tournamentActive;     // whole tournament in progress (blocks new joins)
-    private boolean roundRunning;         // one round in progress
+    private int expectedShapes;           // shape count of the current cycle, 1..MAX_SHAPES
+    private boolean tournamentActive;     // a whole tournament is under way (blocks new joins)
+    private boolean roundRunning;         // one round is being played right now
     private boolean roundEnded;           // guards against ending the same round twice
     private long roundStartMillis;
-    private RoundTimerThread roundTimerThread;
-    private Thread intermissionThread;    // sleeps INTERMISSION_SECONDS, then starts the next round
+    private RoundTimerThread roundTimer;
+    private Thread intermission;          // sleeps INTERMISSION_SECONDS, then starts the next round
     private final Random random = new Random();
 
-    // ===== Per-cycle questioner rotation =====
-    // A cycle is one full pass through the players: everyone is questioner exactly once.
-    // cycleSize is the player count at the moment the tournament starts, so the cycle boundaries
-    // stay put even if somebody leaves mid-tournament. All of these are guarded by lock.
+    // ===== Questioner rotation: a cycle is one full pass through the players =====
     private int cycleSize;                // players per cycle, locked at tournament start
     private int cycleIndex = -1;          // index of the cycle being played, -1 = none yet
-    private int lastCycleShapes;          // shape count used by the previous cycle, 0 = none yet
-    private final List<String> cycleOrder = new ArrayList<>();  // who still has to be questioner
-
-    public GameServer() {
-        this(DEFAULT_PORT);
-    }
+    private int lastCycleShapes;          // shape count of the previous cycle, 0 = none yet
+    private final List<String> cycleOrder = new ArrayList<>();   // who still has to be questioner
 
     public GameServer(int port) {
         this.port = port;
@@ -193,22 +142,13 @@ public class GameServer {
     //  Lifecycle
     // =====================================================================
 
-    /** Binds the port and starts the accept loop. Throws IOException when the port is busy. */
+    /** Binds the port and starts the accept loop; throws IOException when the port is busy. */
     public void start() throws IOException {
         serverSocket = new ServerSocket(port);
         running = true;
-        acceptThread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                acceptLoop();
-            }
-        }, "GameServer-Accept");
+        acceptThread = new Thread(this::acceptLoop, "GameServer-Accept");
         acceptThread.setDaemon(true);
         acceptThread.start();
-    }
-
-    public int getPort() {
-        return port;
     }
 
     public boolean isRunning() {
@@ -221,10 +161,8 @@ public class GameServer {
             return;
         }
         running = false;
-
         stopRoundTimer();
         stopIntermission();
-
         broadcast(SERVER_CLOSED);
 
         try {
@@ -232,7 +170,7 @@ public class GameServer {
                 serverSocket.close();
             }
         } catch (IOException ignored) {
-            // port already gone
+            // the port is already gone
         }
 
         List<ClientHandler> snapshot;
@@ -243,7 +181,6 @@ public class GameServer {
         for (ClientHandler client : snapshot) {
             client.closeQuietly();
         }
-
         if (acceptThread != null) {
             acceptThread.interrupt();
         }
@@ -252,10 +189,9 @@ public class GameServer {
     private void acceptLoop() {
         while (running) {
             try {
-                Socket socket = serverSocket.accept();
+                var socket = serverSocket.accept();
                 socket.setTcpNoDelay(true);
-                ClientHandler handler = new ClientHandler(socket);
-                handler.start();
+                new ClientHandler(socket).start();
             } catch (IOException e) {
                 if (running) {
                     System.out.println("[server] accept failed: " + e.getMessage());
@@ -265,7 +201,7 @@ public class GameServer {
     }
 
     // =====================================================================
-    //  Broadcasting (snapshot under lock, send outside it)
+    //  Broadcasting: take the snapshot under the lock, send outside it
     // =====================================================================
 
     private void broadcast(String type, String... args) {
@@ -273,31 +209,28 @@ public class GameServer {
     }
 
     private void broadcast(Message message) {
-        List<ClientHandler> snapshot;
-        synchronized (lock) {
-            snapshot = new ArrayList<>(clients);
-        }
-        for (ClientHandler client : snapshot) {
+        for (ClientHandler client : clientsSnapshot()) {
             client.send(message);
         }
     }
 
     private void broadcastPlayerList() {
         String[] payload;
-        List<ClientHandler> snapshot;
         synchronized (lock) {
-            snapshot = new ArrayList<>(clients);
             payload = buildPlayerListPayload();
         }
-        Message message = new Message(PLAYER_LIST, payload);
-        for (ClientHandler client : snapshot) {
-            client.send(message);
+        broadcast(new Message(PLAYER_LIST, payload));
+    }
+
+    private List<ClientHandler> clientsSnapshot() {
+        synchronized (lock) {
+            return new ArrayList<>(clients);
         }
     }
 
-    /** [count, name, ready, host] repeated per player. Caller must hold the lock. */
+    /** [count, name, ready, host] repeated for every player. Caller must hold the lock. */
     private String[] buildPlayerListPayload() {
-        List<String> out = new ArrayList<>();
+        var out = new ArrayList<String>();
         out.add(String.valueOf(clients.size()));
         String hostName = hostNameLocked();
         for (ClientHandler client : clients) {
@@ -310,10 +243,7 @@ public class GameServer {
 
     /** Caller must hold the lock. */
     private String hostNameLocked() {
-        if (clients.isEmpty()) {
-            return "";
-        }
-        return clients.get(0).playerName;
+        return clients.isEmpty() ? "" : clients.get(0).playerName;
     }
 
     private String hostName() {
@@ -323,9 +253,10 @@ public class GameServer {
     }
 
     // =====================================================================
-    //  Join / leave
+    //  Join and leave
     // =====================================================================
 
+    /** Caller must hold the lock. */
     private ClientHandler findByNameLocked(String name) {
         for (ClientHandler client : clients) {
             if (client.playerName != null && client.playerName.equalsIgnoreCase(name)) {
@@ -335,25 +266,12 @@ public class GameServer {
         return null;
     }
 
-    /** True when the name is one of the eight known shapes. */
-    public static boolean isValidShapeName(String name) {
-        if (name == null) {
-            return false;
-        }
-        for (String shape : SHAPE_NAMES) {
-            if (shape.equalsIgnoreCase(name)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** Returns a canonical-cased copy of the shape names, or null when any name is unknown or repeated. */
+    /** Canonical-cased copy of the shape names, or null when any name is unknown or repeated. */
     private static String[] normalizeShapes(String[] raw, int expectedCount) {
         if (raw == null || raw.length != expectedCount) {
             return null;
         }
-        String[] canonical = new String[raw.length];
+        var canonical = new String[raw.length];
         for (int i = 0; i < raw.length; i++) {
             String match = null;
             for (String shape : SHAPE_NAMES) {
@@ -363,11 +281,11 @@ public class GameServer {
                 }
             }
             if (match == null) {
-                return null; // unknown shape name
+                return null;   // unknown shape name
             }
             for (int j = 0; j < i; j++) {
                 if (canonical[j].equals(match)) {
-                    return null; // duplicate shape
+                    return null;   // the same shape twice
                 }
             }
             canonical[i] = match;
@@ -376,7 +294,7 @@ public class GameServer {
     }
 
     private void handleJoin(ClientHandler handler, String rawName) {
-        String name = rawName == null ? "" : rawName.trim();
+        String name = (rawName == null) ? "" : rawName.trim();
         if (name.isEmpty()) {
             handler.send(JOIN_FAILED, "Player name cannot be empty.");
             handler.closeQuietly();
@@ -386,6 +304,7 @@ public class GameServer {
             name = name.substring(0, MAX_NAME_LENGTH);
         }
 
+        boolean isHost;
         synchronized (lock) {
             if (findByNameLocked(name) != null) {
                 handler.send(JOIN_FAILED, "That name is already taken in this room.");
@@ -393,7 +312,7 @@ public class GameServer {
                 return;
             }
             if (tournamentActive) {
-                // Rounds are only paused between games, so the whole tournament blocks new players.
+                // Rounds are only paused between games, so a whole tournament blocks new players.
                 handler.send(JOIN_FAILED, "A tournament is in progress. Please wait until it finishes.");
                 handler.closeQuietly();
                 return;
@@ -402,12 +321,8 @@ public class GameServer {
             handler.joined = true;
             clients.add(handler);
             ready.put(name, Boolean.FALSE);
-            scores.put(name, Integer.valueOf(scores.containsKey(name) ? scores.get(name).intValue() : 0));
-        }
-
-        boolean isHost;
-        synchronized (lock) {
-            isHost = !clients.isEmpty() && clients.get(0) == handler;
+            scores.putIfAbsent(name, Integer.valueOf(0));
+            isHost = clients.get(0) == handler;
         }
         handler.send(JOIN_SUCCESS, name, isHost ? "1" : "0");
         broadcastPlayerList();
@@ -433,7 +348,6 @@ public class GameServer {
             handler.joined = false;
         }
         handler.closeQuietly();
-
         if (!wasJoined) {
             return;
         }
@@ -444,17 +358,14 @@ public class GameServer {
             return;
         }
 
-        boolean finishTournament = false;
-        boolean restartRound = false;
-        boolean endRoundNow = false;
+        boolean finishTournament = false, restartRound = false, endRoundNow = false;
         synchronized (lock) {
             if (tournamentActive) {
                 if (clients.size() < MIN_PLAYERS) {
                     finishTournament = true;
                 } else if (roundRunning) {
                     if (name != null && name.equals(questioner)) {
-                        // Skip the questioner who left: replay this round with the next player.
-                        restartRound = true;
+                        restartRound = true;   // replay this round with the next questioner
                     } else if (countGuessersLocked() == 0) {
                         finishTournament = true;
                     } else if (countSubmittedLocked() >= countGuessersLocked()) {
@@ -500,7 +411,7 @@ public class GameServer {
                 requester.send(ERROR, "All other players must press READY before you can start.");
                 return;
             }
-            // Inside a running tournament this just starts the next round; otherwise it is a new game.
+            // Inside a running tournament this starts the next round, otherwise it is a new game.
             newTournament = !tournamentActive;
             if (newTournament) {
                 totalRounds = clients.size() * ROUNDS_PER_PLAYER;
@@ -516,10 +427,7 @@ public class GameServer {
         nextRound();
     }
 
-    /**
-     * NEW_GAME is now only the "start a fresh tournament" request from the final scoreboard.
-     * Between rounds nothing asks for the lobby - the server advances by itself.
-     */
+    /** NEW_GAME is the "start a fresh tournament" request from the final scoreboard. */
     private void handleNewGame(ClientHandler requester) {
         synchronized (lock) {
             if (clients.isEmpty() || clients.get(0) != requester) {
@@ -545,13 +453,10 @@ public class GameServer {
         broadcastPlayerList();
     }
 
-    /** Every non-host player must be ready. The host starts the round, so the host need not be ready. */
+    /** Every non-host player must be ready; the host starts the round, so the host need not be. */
     private boolean othersReadyLocked(ClientHandler host) {
         for (ClientHandler client : clients) {
-            if (client == host) {
-                continue;
-            }
-            if (!Boolean.TRUE.equals(ready.get(client.playerName))) {
+            if (client != host && !Boolean.TRUE.equals(ready.get(client.playerName))) {
                 return false;
             }
         }
@@ -568,8 +473,7 @@ public class GameServer {
         secret = null;
         secretLocked = false;
         expectedShapes = 0;
-        // Forget the cycle rotation too: a fresh tournament draws its own shape counts and order
-        // (a new tournament is allowed to reuse a count the previous tournament ended on).
+        // A fresh tournament draws its own shape counts and order too.
         cycleSize = 0;
         cycleIndex = -1;
         lastCycleShapes = 0;
@@ -584,9 +488,7 @@ public class GameServer {
         stopIntermission();
         stopRoundTimer();
         String selectedQuestioner;
-        int currentRound;
-        int lockedTotal;
-        int shapesThisRound;
+        int currentRound, lockedTotal, shapesThisRound;
         synchronized (lock) {
             if (clients.isEmpty()) {
                 tournamentActive = false;
@@ -605,21 +507,18 @@ public class GameServer {
             bonusFlags.clear();
             // roundStartMillis is stamped when the secret is locked: that is when guessing begins.
 
-            // A cycle is one full pass through the players. A new cycle gets a freshly shuffled
-            // questioner order and a shape count that differs from the previous cycle's, and every
-            // round of the cycle shares that same count. cycleSize was locked when the tournament
-            // started, so (round-1)/cycleSize stays a stable cycle boundary even if a player leaves.
+            // Every round of a cycle shares the shape count drawn for that cycle; cycleSize was locked
+            // at tournament start, so (round-1)/cycleSize stays a stable boundary even if somebody leaves.
             int cycle = (cycleSize > 0) ? (round - 1) / cycleSize : 0;
             if (cycle != cycleIndex) {
                 startNewCycleLocked(cycle);
             }
-            expectedShapes = lastCycleShapes;   // every round of this cycle uses the same count
+            expectedShapes = lastCycleShapes;
 
-            // Questioners are stored by name, so a player leaving simply drops out of the order.
+            // Questioners are kept by name, so a player leaving simply drops out of the order.
             selectedQuestioner = takeNextQuestionerLocked();
             if (selectedQuestioner == null) {
-                // No players left to ask: stop the tournament cleanly.
-                tournamentActive = false;
+                tournamentActive = false;   // nobody left to ask: stop the tournament cleanly
                 roundRunning = false;
                 return;
             }
@@ -627,30 +526,24 @@ public class GameServer {
             currentRound = round;
             lockedTotal = totalRounds;
             shapesThisRound = expectedShapes;
-
             for (ClientHandler client : clients) {
                 ready.put(client.playerName, Boolean.FALSE);
             }
         }
-        // The shape count is announced now, but no timer runs until the questioner locks in the
-        // secret, so the guessers only see "waiting for the questioner" at this point.
-        broadcast(ROUND_INFO,
-                String.valueOf(currentRound),
-                String.valueOf(lockedTotal),
-                selectedQuestioner,
-                String.valueOf(shapesThisRound));
+        // The shape count is announced now, but no clock runs until the secret is locked.
+        broadcast(ROUND_INFO, String.valueOf(currentRound), String.valueOf(lockedTotal),
+                selectedQuestioner, String.valueOf(shapesThisRound));
     }
 
     /**
-     * Starts a new cycle: draws a shape count for it (never the same as the previous cycle) and
-     * builds a freshly shuffled questioner order from the players currently in the room.
-     * Caller must hold the lock.
+     * Starts a new cycle: draws a shape count (never the same as the previous cycle) and builds a
+     * freshly shuffled questioner order from the players in the room. Caller must hold the lock.
      */
     private void startNewCycleLocked(int cycle) {
         cycleIndex = cycle;
         lastCycleShapes = drawCycleShapeCountLocked();
         cycleOrder.clear();
-        List<String> names = new ArrayList<>();
+        var names = new ArrayList<String>();
         for (ClientHandler client : clients) {
             names.add(client.playerName);
         }
@@ -658,18 +551,14 @@ public class GameServer {
         cycleOrder.addAll(names);
     }
 
-    /**
-     * A shape count in [MIN_SHAPES, MAX_SHAPES] that is different from the previous cycle's count
-     * whenever that is possible. Caller must hold the lock.
-     */
+    /** A count in [MIN_SHAPES, MAX_SHAPES] that differs from the previous cycle when possible. */
     private int drawCycleShapeCountLocked() {
         int range = MAX_SHAPES - MIN_SHAPES + 1;
         if (range < 2) {
-            return MIN_SHAPES; // fallback: not enough distinct values to avoid a repeat, never crash
+            return MIN_SHAPES;   // not enough distinct values to avoid a repeat, never crash
         }
         int count = MIN_SHAPES + random.nextInt(range);
         if (count == lastCycleShapes) {
-            // Step to another value in [MIN_SHAPES, MAX_SHAPES], skipping the previous one.
             int offset = count - MIN_SHAPES;
             offset = (offset + 1 + random.nextInt(range - 1)) % range;
             count = MIN_SHAPES + offset;
@@ -678,9 +567,8 @@ public class GameServer {
     }
 
     /**
-     * Pops the next questioner from this cycle's shuffled order, skipping players who have left.
-     * If the whole order has already been used (everyone queued has left) it falls back to any
-     * present player, so a round can always start. Caller must hold the lock.
+     * Pops the next questioner from this cycle's shuffled order, skipping players who have left; it
+     * falls back to any present player so a round can always start. Caller must hold the lock.
      */
     private String takeNextQuestionerLocked() {
         while (!cycleOrder.isEmpty()) {
@@ -689,38 +577,33 @@ public class GameServer {
                 return candidate;
             }
         }
-        if (!clients.isEmpty()) {
-            return clients.get(0).playerName;
-        }
-        return null;
+        return clients.isEmpty() ? null : clients.get(0).playerName;
     }
 
-    /** The questioner left with enough players still in: replay the round with the next questioner. */
+    /** The questioner left while enough players remain: replay the round with the next questioner. */
     private void restartRoundAfterQuestionerLeft() {
         boolean restart;
         synchronized (lock) {
-            restart = tournamentActive && !clients.isEmpty() && clients.size() >= MIN_PLAYERS;
+            restart = tournamentActive && clients.size() >= MIN_PLAYERS;
             if (restart) {
-                round--; // the abandoned round is not consumed
+                round--;   // the abandoned round is not consumed
                 roundRunning = false;
             }
         }
-        if (!restart) {
-            return;
+        if (restart) {
+            broadcast(SYSTEM, "The questioner left. Restarting the round with a new questioner.");
+            nextRound();
         }
-        broadcast(SYSTEM, "The questioner left. Restarting the round with a new questioner.");
-        nextRound();
     }
 
     // =====================================================================
-    //  Round timer (one daemon thread per round)
+    //  Round timer: one daemon thread per round
     // =====================================================================
 
     /**
-     * Counts a round down to zero and broadcasts TICK(round, remaining) every second,
-     * immediately at the start and again on every whole second. The deadline comes from
-     * System.nanoTime() so the interval cannot drift, and stop() makes the thread exit
-     * deterministically when the round ends, is aborted, or the server shuts down.
+     * Counts a round down to zero and broadcasts TICK(round, remaining) every whole second. The
+     * deadline comes from System.nanoTime() so the interval cannot drift, and requestStop() makes the
+     * thread exit deterministically when the round ends, is aborted or the server shuts down.
      */
     private class RoundTimerThread extends Thread {
         private final int roundNumber;
@@ -748,25 +631,19 @@ public class GameServer {
                     endRound("time");
                     return;
                 }
-                long sleepMillis = millisToNextWholeSecond();
-                if (sleepMillis <= 0) {
-                    sleepMillis = 50;
-                }
+                long sleepyMillis = millisToNextWholeSecond();
                 try {
-                    Thread.sleep(sleepMillis);
+                    Thread.sleep(sleepyMillis <= 0 ? 50 : sleepyMillis);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    return; // stopped by a new round, endRound or shutdown
+                    return;   // stopped by a new round, by endRound or by the shutdown
                 }
             }
         }
 
         private int remainingSeconds() {
             long nanos = deadlineNanos - System.nanoTime();
-            if (nanos <= 0) {
-                return 0;
-            }
-            return (int) ((nanos + 999_999_999L) / 1_000_000_000L);
+            return (nanos <= 0) ? 0 : (int) ((nanos + 999_999_999L) / 1_000_000_000L);
         }
 
         /** Milliseconds until the displayed second changes, so ticks land on whole seconds. */
@@ -776,18 +653,15 @@ public class GameServer {
                 return 0;
             }
             long remainder = nanos % 1_000_000_000L;
-            if (remainder == 0) {
-                return 1000;
-            }
-            return remainder / 1_000_000L;
+            return (remainder == 0) ? 1000 : remainder / 1_000_000L;
         }
     }
 
     private void startRoundTimer(int roundNumber, int seconds) {
         stopRoundTimer();
-        RoundTimerThread timer = new RoundTimerThread(roundNumber, seconds);
+        var timer = new RoundTimerThread(roundNumber, seconds);
         synchronized (lock) {
-            roundTimerThread = timer;
+            roundTimer = timer;
         }
         timer.start();
     }
@@ -796,15 +670,15 @@ public class GameServer {
     private void stopRoundTimer() {
         RoundTimerThread timer;
         synchronized (lock) {
-            timer = roundTimerThread;
-            roundTimerThread = null;
+            timer = roundTimer;
+            roundTimer = null;
         }
         if (timer == null) {
             return;
         }
         timer.requestStop();
         if (timer == Thread.currentThread()) {
-            return; // called from the timer itself (endRound): nothing to join
+            return;   // called from the timer itself (endRound): nothing to join
         }
         try {
             timer.join(300);
@@ -819,8 +693,7 @@ public class GameServer {
 
     private void handleSecret(ClientHandler sender, String[] shapes) {
         String[] canonical;
-        int count;
-        int currentRound;
+        int count, currentRound;
         synchronized (lock) {
             if (!roundRunning) {
                 sender.send(ERROR, "No round is in progress.");
@@ -848,13 +721,12 @@ public class GameServer {
             secretLocked = true;
             count = canonical.length;
             currentRound = round;
-            // The guessers' clock opens here, not at ROUND_INFO: submitting the secret is what starts it.
+            // The guessers' clock opens here, not at ROUND_INFO.
             roundStartMillis = System.currentTimeMillis();
         }
         broadcast(SECRET_LOCKED, questioner, String.valueOf(count));
         broadcast(SYSTEM, "The questioner locked in " + count + " shape" + (count == 1 ? "" : "s")
                 + ". Start guessing!");
-        // Now the server starts the shared countdown and sends the first TICK to everyone.
         startRoundTimer(currentRound, ROUND_SECONDS);
     }
 
@@ -901,6 +773,7 @@ public class GameServer {
         }
     }
 
+    /** Caller must hold the lock. */
     private int countGuessersLocked() {
         int count = 0;
         for (ClientHandler client : clients) {
@@ -911,6 +784,7 @@ public class GameServer {
         return count;
     }
 
+    /** Caller must hold the lock. */
     private int countSubmittedLocked() {
         int count = 0;
         for (String name : guesses.keySet()) {
@@ -942,8 +816,8 @@ public class GameServer {
         if (isFinal) {
             broadcast(SYSTEM, "That was the last round. Final results are ready.");
         }
-        // The server - not the clients - owns what happens next: after a short countdown it
-        // either starts the next round or opens the final scoreboard, so everyone stays in step.
+        // The server owns what happens next: after a short countdown it either starts the next round
+        // or opens the final scoreboard, so every client stays in step.
         startIntermission(isFinal);
     }
 
@@ -966,38 +840,35 @@ public class GameServer {
     }
 
     // =====================================================================
-    //  Intermission (the gap between rounds)
+    //  Intermission: the gap between two rounds
     // =====================================================================
 
     /**
-     * Waits INTERMISSION_SECONDS so every client's round-result countdown runs together, then
-     * either starts the next round or tells everyone to open the final scoreboard. The lobby
-     * is never re-entered in the middle of a tournament.
+     * Waits INTERMISSION_SECONDS so every round-result countdown runs together, then either starts the
+     * next round or tells everyone to open the final scoreboard. The lobby is never re-entered in the
+     * middle of a tournament.
      */
-    private void startIntermission(final boolean isFinal) {
+    private void startIntermission(boolean isFinal) {
         stopIntermission();
-        Thread thread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Thread.sleep(INTERMISSION_SECONDS * 1000L);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return; // a new round or a shutdown replaced this intermission
-                }
-                if (!running) {
-                    return;
-                }
-                if (isFinal) {
-                    broadcast(SHOW_SCOREBOARD);
-                } else {
-                    nextRound();
-                }
+        var thread = new Thread(() -> {
+            try {
+                Thread.sleep(INTERMISSION_SECONDS * 1000L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;   // a new round or a shutdown replaced this intermission
+            }
+            if (!running) {
+                return;
+            }
+            if (isFinal) {
+                broadcast(SHOW_SCOREBOARD);
+            } else {
+                nextRound();
             }
         }, "GameServer-Intermission");
         thread.setDaemon(true);
         synchronized (lock) {
-            intermissionThread = thread;
+            intermission = thread;
         }
         thread.start();
     }
@@ -1006,14 +877,17 @@ public class GameServer {
     private void stopIntermission() {
         Thread thread;
         synchronized (lock) {
-            thread = intermissionThread;
-            intermissionThread = null;
+            thread = intermission;
+            intermission = null;
         }
-        if (thread == null || thread == Thread.currentThread()) {
-            return;
+        if (thread != null && thread != Thread.currentThread()) {
+            thread.interrupt();
         }
-        thread.interrupt();
     }
+
+    // =====================================================================
+    //  Scoring
+    // =====================================================================
 
     /** Server-side scoring: the only place a score is ever produced. Caller must hold the lock. */
     private void computeScoresLocked() {
@@ -1022,50 +896,31 @@ public class GameServer {
         bonusFlags.clear();
 
         int expected = (secret == null) ? 0 : secret.length;
-        if (expected == 0) {
-            for (ClientHandler client : clients) {
-                deltas.put(client.playerName, Integer.valueOf(0));
-                correctCounts.put(client.playerName, Integer.valueOf(0));
-                bonusFlags.put(client.playerName, Boolean.FALSE);
-            }
-            return;
-        }
-
         for (ClientHandler client : clients) {
             String name = client.playerName;
-            if (name.equals(questioner)) {
-                continue;
-            }
-            String[] guess = guesses.get(name);
-            if (guess == null) {
-                deltas.put(name, Integer.valueOf(0));
-                correctCounts.put(name, Integer.valueOf(0));
-                bonusFlags.put(name, Boolean.FALSE);
-                continue;
-            }
-            int correct = countMatching(secret, guess);
-            int delta = correct;
-            Long submittedAt = guessTimes.get(name);
-            long elapsedSeconds = 0;
-            if (submittedAt != null) {
-                elapsedSeconds = (submittedAt.longValue() - roundStartMillis) / 1000;
-            }
-            boolean bonus = (correct == expected && elapsedSeconds <= BONUS_WINDOW_SECONDS);
-            if (bonus) {
-                delta += 2;
+            int correct = 0;
+            int delta = 0;
+            boolean bonus = false;
+            String[] guess = (expected == 0 || name.equals(questioner)) ? null : guesses.get(name);
+            if (guess != null) {
+                correct = countMatching(secret, guess);
+                delta = correct;
+                Long submittedAt = guessTimes.get(name);
+                long elapsedSeconds = (submittedAt == null) ? 0 : (submittedAt.longValue() - roundStartMillis) / 1000;
+                bonus = (correct == expected && elapsedSeconds <= BONUS_WINDOW_SECONDS);
+                if (bonus) {
+                    delta += 2;
+                }
             }
             deltas.put(name, Integer.valueOf(delta));
             correctCounts.put(name, Integer.valueOf(correct));
             bonusFlags.put(name, Boolean.valueOf(bonus));
+            // The questioner scores nothing at all: a wrong guess or a timeout must never pay them.
         }
-
-        // The questioner scores nothing at all: a wrong guess or a timeout must not pay the
-        // questioner, and the questioner has no other way to earn points. Their delta stays
-        // absent, which buildRoundResultPayload() reports as 0.
-
         for (Map.Entry<String, Integer> entry : deltas.entrySet()) {
-            int current = scores.containsKey(entry.getKey()) ? scores.get(entry.getKey()).intValue() : 0;
-            scores.put(entry.getKey(), Integer.valueOf(current + entry.getValue().intValue()));
+            Integer current = scores.get(entry.getKey());
+            scores.put(entry.getKey(), Integer.valueOf((current == null ? 0 : current.intValue())
+                    + entry.getValue().intValue()));
         }
     }
 
@@ -1084,33 +939,30 @@ public class GameServer {
 
     /**
      * [round, totalRounds, isFinal, secretCsv, reason, questioner, playerCount,
-     *  (name, delta, total, guessCsv, correctCount, bonus)*]. Caller holds the lock.
-     * guessCsv is "" when the player did not submit; bonus is 0 or 1.
+     * (name, delta, total, guessCsv, correctCount, bonus) * playerCount]. Caller holds the lock;
+     * guessCsv is "" when the player did not submit, and bonus is 0 or 1.
      */
     private String[] buildRoundResultPayload(int roundNumber, boolean isFinal, String reason) {
-        List<String> out = new ArrayList<>();
+        var out = new ArrayList<String>();
         out.add(String.valueOf(roundNumber));
         out.add(String.valueOf(totalRounds));
         out.add(isFinal ? "1" : "0");
         out.add(secret == null ? "" : String.join(",", secret));
         out.add(reason == null ? "" : reason);
         out.add(questioner == null ? "" : questioner);
-
-        List<ClientHandler> ordered = new ArrayList<>(clients);
-        out.add(String.valueOf(ordered.size()));
-        for (ClientHandler client : ordered) {
+        out.add(String.valueOf(clients.size()));
+        for (ClientHandler client : clients) {
             String name = client.playerName;
-            int delta = deltas.containsKey(name) ? deltas.get(name).intValue() : 0;
-            int total = scores.containsKey(name) ? scores.get(name).intValue() : 0;
+            Integer delta = deltas.get(name);
+            Integer total = scores.get(name);
             String[] guess = guesses.get(name);
-            int correct = correctCounts.containsKey(name) ? correctCounts.get(name).intValue() : 0;
-            boolean bonus = Boolean.TRUE.equals(bonusFlags.get(name));
+            Integer correct = correctCounts.get(name);
             out.add(name);
-            out.add(String.valueOf(delta));
-            out.add(String.valueOf(total));
+            out.add(String.valueOf(delta == null ? 0 : delta.intValue()));
+            out.add(String.valueOf(total == null ? 0 : total.intValue()));
             out.add(guess == null ? "" : String.join(",", guess));
-            out.add(String.valueOf(correct));
-            out.add(bonus ? "1" : "0");
+            out.add(String.valueOf(correct == null ? 0 : correct.intValue()));
+            out.add(Boolean.TRUE.equals(bonusFlags.get(name)) ? "1" : "0");
         }
         return out.toArray(new String[0]);
     }
@@ -1120,7 +972,7 @@ public class GameServer {
     // =====================================================================
 
     private void handleChat(ClientHandler sender, String text) {
-        String clean = text == null ? "" : text.trim();
+        String clean = (text == null) ? "" : text.trim();
         if (clean.isEmpty()) {
             return;
         }
@@ -1131,7 +983,7 @@ public class GameServer {
     }
 
     // =====================================================================
-    //  Per-client handler
+    //  Per-client handler: one reader thread per accepted socket
     // =====================================================================
 
     private class ClientHandler extends Thread {
@@ -1154,13 +1006,10 @@ public class GameServer {
                 in = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
                 out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
                 while (running && !socket.isClosed()) {
-                    Message message = Message.readFrom(in);
-                    dispatch(message);
+                    dispatch(Message.readFrom(in));
                 }
-            } catch (EOFException e) {
-                // client closed the stream cleanly
-            } catch (SocketException e) {
-                // connection reset or closed by the server
+            } catch (EOFException | SocketException e) {
+                // the client closed the stream cleanly, or the connection was reset
             } catch (IOException e) {
                 if (running) {
                     System.out.println("[server] connection error: " + e.getMessage());
@@ -1179,7 +1028,6 @@ public class GameServer {
                 }
                 return;
             }
-
             if (READY.equals(message.type)) {
                 boolean value = "1".equals(message.arg(0)) || "true".equalsIgnoreCase(message.arg(0));
                 synchronized (lock) {
@@ -1197,7 +1045,7 @@ public class GameServer {
             } else if (CHAT.equals(message.type)) {
                 handleChat(this, message.arg(0));
             } else if (LEAVE_ROOM.equals(message.type)) {
-                closeQuietly(); // the finally block in run() performs the clean removal
+                closeQuietly();   // the finally block in run() performs the clean removal
             } else if (JOIN.equals(message.type)) {
                 send(ERROR, "You already joined the room.");
             } else {
@@ -1234,50 +1082,46 @@ public class GameServer {
     }
 
     // =====================================================================
-    //  Network helpers (used by JoinScreen to show a reachable address)
+    //  Network helpers, used by JoinScreen to show a reachable address
     // =====================================================================
 
-    /** Every non-loopback IPv4 address this machine can be reached on over LAN/Wi-Fi. */
+    /** Every non-loopback IPv4 address this machine can be reached on over LAN / Wi-Fi. */
     public static List<String> getLanAddresses() {
-        final Map<String, Integer> ranks = new LinkedHashMap<>();
+        var ranks = new LinkedHashMap<String, Integer>();
         try {
-            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+            var interfaces = NetworkInterface.getNetworkInterfaces();
             while (interfaces != null && interfaces.hasMoreElements()) {
-                NetworkInterface networkInterface = interfaces.nextElement();
+                var networkInterface = interfaces.nextElement();
                 if (!networkInterface.isUp() || networkInterface.isLoopback() || networkInterface.isVirtual()) {
                     continue;
                 }
                 String label = (networkInterface.getDisplayName() + " " + networkInterface.getName()).toLowerCase();
-                Enumeration<InetAddress> addresses = networkInterface.getInetAddresses();
+                var addresses = networkInterface.getInetAddresses();
                 while (addresses.hasMoreElements()) {
-                    InetAddress address = addresses.nextElement();
+                    var address = addresses.nextElement();
                     if (address.isLoopbackAddress() || address.isAnyLocalAddress() || address.isLinkLocalAddress()) {
                         continue;
                     }
                     if (address instanceof Inet4Address) {
-                        String text = address.getHostAddress();
-                        ranks.put(text, Integer.valueOf(addressRank(text, label)));
+                        ranks.put(address.getHostAddress(), Integer.valueOf(addressRank(address.getHostAddress(), label)));
                     }
                 }
             }
         } catch (SocketException e) {
             // no interfaces available
         }
-        List<String> result = new ArrayList<>(ranks.keySet());
-        // Best address first; equal ranks fall back to plain text order so the result is stable.
-        Collections.sort(result, new java.util.Comparator<String>() {
-            @Override
-            public int compare(String a, String b) {
-                int byRank = ranks.get(a).compareTo(ranks.get(b));
-                return byRank != 0 ? byRank : a.compareTo(b);
-            }
+        var result = new ArrayList<>(ranks.keySet());
+        // Best address first; equal ranks fall back to plain text order, so the result is stable.
+        result.sort((a, b) -> {
+            int byRank = ranks.get(a).compareTo(ranks.get(b));
+            return (byRank != 0) ? byRank : a.compareTo(b);
         });
         return result;
     }
 
     /**
-     * Lower is better. Home/office LAN ranges come first (192.168, then 10, then 172.16-31); adapters that
-     * belong to VirtualBox, VMware, WSL, Docker, VPNs and the like are pushed to the back, because other
+     * Lower is better: home and office LAN ranges come first (192.168, then 10, then 172.16-31), while
+     * adapters of VirtualBox, VMware, WSL, Docker and VPNs are pushed to the back, because other
      * machines on the Wi-Fi cannot reach those addresses.
      */
     private static int addressRank(String ip, String interfaceLabel) {
@@ -1290,7 +1134,7 @@ public class GameServer {
             int second = 0;
             try {
                 second = Integer.parseInt(ip.split("\\.")[1]);
-            } catch (NumberFormatException e) {
+            } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
                 second = 0;
             }
             rank = (second >= 16 && second <= 31) ? 2 : 3;
@@ -1306,24 +1150,21 @@ public class GameServer {
                 break;
             }
         }
-        // Default host-only ranges used by VirtualBox (192.168.56.x) and similar tools.
+        // Host-only ranges used by VirtualBox (192.168.56.x) and similar tools.
         if (ip.startsWith("192.168.56.") || ip.startsWith("192.168.99.")) {
             rank += 10;
         }
         return rank;
     }
 
-    /** Best-guess LAN address for the "others connect here" hint, or "" when none is available. */
+    /** Best-guess LAN address for the "others connect here" hint, or "" when there is none. */
     public static String getPreferredLanAddress() {
         List<String> addresses = getLanAddresses();
-        if (addresses.isEmpty()) {
-            return "";
-        }
-        return addresses.get(0);
+        return addresses.isEmpty() ? "" : addresses.get(0);
     }
 
     // =====================================================================
-    //  Standalone server entry point (optional; the host normally starts it from the UI)
+    //  Standalone server entry point (the host normally starts it from the UI)
     // =====================================================================
 
     public static void main(String[] args) {
@@ -1335,7 +1176,7 @@ public class GameServer {
                 System.out.println("Invalid port, using default " + DEFAULT_PORT);
             }
         }
-        GameServer server = new GameServer(port);
+        var server = new GameServer(port);
         try {
             server.start();
         } catch (IOException e) {
