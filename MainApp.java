@@ -721,11 +721,11 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     }
 
     private void showError(String title, String message) {
-        JOptionPane.showMessageDialog(this, message, title, JOptionPane.ERROR_MESSAGE);
+        AppDialog.showError(this, title, message);
     }
 
     private void showInfo(String message, String title) {
-        JOptionPane.showMessageDialog(this, message, title, JOptionPane.INFORMATION_MESSAGE);
+        AppDialog.showInfo(this, title, message);
     }
 
     /** Reader-thread callbacks: hand everything to the EDT and never touch Swing here. */

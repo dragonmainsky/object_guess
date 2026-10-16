@@ -63,13 +63,17 @@ public class RoundResultScreen extends JPanel {
     private static final Color PLACEHOLDER_BG = new Color(220, 230, 242);
 
     // ===== Fonts =====
-    private static final Font FONT_TITLE_LARGE = new Font("Tahoma", Font.BOLD, 24);
+    private static final Font FONT_TITLE_LARGE = new Font("Tahoma", Font.BOLD, 26);
     private static final Font FONT_TITLE       = new Font("Tahoma", Font.BOLD, 18);
     private static final Font FONT_SUBTITLE    = new Font("Tahoma", Font.BOLD, 14);
     private static final Font FONT_BODY        = new Font("Tahoma", Font.PLAIN, 13);
     private static final Font FONT_BODY_BOLD   = new Font("Tahoma", Font.BOLD, 13);
     private static final Font FONT_SMALL       = new Font("Tahoma", Font.PLAIN, 11);
     private static final Font FONT_SMALL_BOLD  = new Font("Tahoma", Font.BOLD, 11);
+
+    // ===== Header strip fonts (the enlarged sizes shared by all four game screens) =====
+    private static final Font FONT_SCREEN_EYEBROW = new Font("Tahoma", Font.BOLD, 14);
+    private static final Font FONT_SCREEN_SUB     = new Font("Tahoma", Font.PLAIN, 15);
 
     // ===== Sizes =====
     private static final int SECRET_ICON = 110;
@@ -78,8 +82,8 @@ public class RoundResultScreen extends JPanel {
     private static final int AVATAR_SIZE = 34;
     private static final int ROW_GAP     = 6;
 
-    /** Card title; the thumbs-down is written as escapes so the source stays plain ASCII. */
-    private static final String SECRET_TITLE = "Secret shapes \uD83D\uDC4E";
+    /** Card title; reused in setText() as "Secret shapes (n)" when the count is shown. */
+    private static final String SECRET_TITLE = "Secret shapes";
 
     /** Avatar colors cycled by row order, matching the lobby palette. */
     private static final Color[] AVATAR_COLORS = {
@@ -138,7 +142,7 @@ public class RoundResultScreen extends JPanel {
         titles.setOpaque(false);
 
         tagLabel = new JLabel("ROUND SUMMARY");
-        tagLabel.setFont(FONT_SMALL_BOLD);
+        tagLabel.setFont(FONT_SCREEN_EYEBROW);
         tagLabel.setForeground(PRIMARY_BLUE);
 
         titleLabel = new JLabel("Round 1");
@@ -146,7 +150,7 @@ public class RoundResultScreen extends JPanel {
         titleLabel.setForeground(TEXT_DARK);
 
         questionerLabel = new JLabel("Questioner: -");
-        questionerLabel.setFont(FONT_BODY);
+        questionerLabel.setFont(FONT_SCREEN_SUB);
         questionerLabel.setForeground(TEXT_MUTED);
 
         titles.add(tagLabel);
@@ -154,7 +158,8 @@ public class RoundResultScreen extends JPanel {
         titles.add(questionerLabel);
         header.add(titles, BorderLayout.WEST);
 
-        reasonBadge = buildBadge("Round complete", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_LINE, 6, 14);
+        reasonBadge = buildBadge("Round complete", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_LINE, 8, 16);
+        reasonBadge.setFont(FONT_SCREEN_EYEBROW);
         JPanel badgeHolder = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 6));
         badgeHolder.setOpaque(false);
         badgeHolder.add(reasonBadge);
@@ -561,7 +566,7 @@ public class RoundResultScreen extends JPanel {
         badge.setOpaque(true);
         badge.setBorder(new CompoundBorder(
             new LineBorder(border, 1),
-            new EmptyBorder(6, 14, 6, 14)));
+            new EmptyBorder(8, 16, 8, 16)));
         badge.repaint();
     }
 

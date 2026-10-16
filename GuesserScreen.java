@@ -46,6 +46,12 @@ public class GuesserScreen extends JPanel {
     private static final Font FONT_SMALL = new Font("Tahoma", Font.PLAIN, 11), FONT_SMALL_BOLD = new Font("Tahoma", Font.BOLD, 11);
     private static final Font FONT_KEYCAP = new Font("Tahoma", Font.BOLD, 9);
 
+    // ===== Header strip fonts (the enlarged sizes shared by all four game screens) =====
+    private static final Font FONT_SCREEN_TITLE = new Font("Tahoma", Font.BOLD, 26);
+    private static final Font FONT_SCREEN_SUB = new Font("Tahoma", Font.PLAIN, 15);
+    private static final Font FONT_TOP_BADGE = new Font("Tahoma", Font.BOLD, 14);
+    private static final Font FONT_TOP_BADGE_STRONG = new Font("Tahoma", Font.BOLD, 16);
+
     // ==================== State ====================
     private final List<String> guessedShapes = new ArrayList<>();   // empty at the start of every round
     private final List<PickerItem> pickers = new ArrayList<>();
@@ -77,8 +83,8 @@ public class GuesserScreen extends JPanel {
         setBackground(BG_LIGHT);
 
         JPanel mainContent = panel();
-        mainContent.setLayout(new BorderLayout(14, 14));
-        mainContent.setBorder(new EmptyBorder(14, 24, 14, 24));
+        mainContent.setLayout(new BorderLayout(12, 12));
+        mainContent.setBorder(new EmptyBorder(18, 24, 14, 24));
         mainContent.add(createSubHeader(), BorderLayout.NORTH);
         mainContent.add(createColumns(), BorderLayout.CENTER);
         add(mainContent, BorderLayout.CENTER);
@@ -98,24 +104,26 @@ public class GuesserScreen extends JPanel {
     private JPanel createSubHeader() {
         JPanel titles = panel();
         titles.setLayout(new GridLayout(2, 1, 0, 2));
-        titles.add(label("Guess what the Questioner selected!", FONT_TITLE, TEXT_DARK));
-        titles.add(label("Choose the same shapes before time runs out.", FONT_BODY, TEXT_MUTED));
+        titles.add(label("Guess what the Questioner selected!", FONT_SCREEN_TITLE, TEXT_DARK));
+        titles.add(label("Choose the same shapes before time runs out.", FONT_SCREEN_SUB, TEXT_MUTED));
 
         JPanel badges = panel();
-        badges.setLayout(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        targetBadge = createBadge("Target: ?", BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER);
+        badges.setLayout(new FlowLayout(FlowLayout.RIGHT, 12, 0));
+        targetBadge = createTopBadge("Target: ?", BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER);
         badges.add(targetBadge);
-        timeBadge = createBadge("Time: --:--", WARNING_BG, WARNING_TEXT, WARNING_BORDER);
+        timeBadge = createTopBadgeStrong("Time: --:--", WARNING_BG, WARNING_TEXT, WARNING_BORDER);
         badges.add(timeBadge);
-        scoreBadge = createBadge("Score: 0", BG_LIGHT, TEXT_DARK, CARD_BORDER);
+        scoreBadge = createTopBadge("Score: 0", BG_LIGHT, TEXT_DARK, CARD_BORDER);
         badges.add(scoreBadge);
-        submittedBadge = createBadge("Not submitted", WARNING_BG, WARNING_TEXT, WARNING_BORDER);
+        submittedBadge = createTopBadge("Not submitted", WARNING_BG, WARNING_TEXT, WARNING_BORDER);
         badges.add(submittedBadge);
 
         JPanel subHeader = panel();
         subHeader.setLayout(new BorderLayout());
+        subHeader.setBorder(new EmptyBorder(4, 0, 6, 0));
         subHeader.add(titles, BorderLayout.WEST);
-        subHeader.add(badges, BorderLayout.EAST);
+        // CENTER lets the badge row wrap onto a second line instead of being clipped in a narrow window.
+        subHeader.add(badges, BorderLayout.CENTER);
         return subHeader;
     }
 
@@ -521,7 +529,7 @@ public class GuesserScreen extends JPanel {
     private void setBadgeColors(JLabel badge, Color bg, Color fg, Color border) {
         badge.setBackground(bg);
         badge.setForeground(fg);
-        badge.setBorder(box(border, 1, 4, 10));
+        badge.setBorder(box(border, 1, 10, 20));
         badge.repaint();
     }
 
@@ -568,27 +576,23 @@ public class GuesserScreen extends JPanel {
 
     private void submitGuess() {
         if (submitted) {
-            JOptionPane.showMessageDialog(this, "You already submitted a guess this round.",
-                "Already submitted", JOptionPane.INFORMATION_MESSAGE);
+            AppDialog.showInfo(this, "Already submitted", "You already submitted a guess this round.");
             return;
         }
         if (!secretLocked) {
-            JOptionPane.showMessageDialog(this,
-                "Wait for the questioner to lock in the secret shapes first.",
-                "Not yet", JOptionPane.WARNING_MESSAGE);
+            AppDialog.showWarning(this, "Not yet",
+                "Wait for the questioner to lock in the secret shapes first.");
             return;
         }
         if (requiredPicks == 0) {
-            JOptionPane.showMessageDialog(this,
-                "Wait for the questioner to lock in the shapes first.",
-                "Not yet", JOptionPane.WARNING_MESSAGE);
+            AppDialog.showWarning(this, "Not yet",
+                "Wait for the questioner to lock in the shapes first.");
             return;
         }
         if (guessedShapes.size() != requiredPicks) {
-            JOptionPane.showMessageDialog(this,
+            AppDialog.showWarning(this, "Not ready yet",
                 "Pick exactly " + requiredPicks + " shape" + (requiredPicks == 1 ? "" : "s")
-                    + " before submitting.",
-                "Not ready yet", JOptionPane.WARNING_MESSAGE);
+                    + " before submitting.");
             return;
         }
         if (onSubmitAction == null) {
@@ -620,7 +624,7 @@ public class GuesserScreen extends JPanel {
         submittedBadge.setText(text);
         submittedBadge.setBackground(bg);
         submittedBadge.setForeground(fg);
-        submittedBadge.setBorder(box(border, 1, 4, 10));
+        submittedBadge.setBorder(box(border, 1, 8, 16));
         submittedBadge.repaint();
     }
 
@@ -919,6 +923,24 @@ public class GuesserScreen extends JPanel {
         badge.setBackground(bg);
         badge.setOpaque(true);
         badge.setBorder(box(border, 1, 4, 10));
+        return badge;
+    }
+
+    /** Header badge (Target / Score / Submitted): a larger font and padding than the in-card badges. */
+    private static JLabel createTopBadge(String text, Color bg, Color fg, Color border) {
+        JLabel badge = label(text, FONT_TOP_BADGE, fg, JLabel.CENTER);
+        badge.setBackground(bg);
+        badge.setOpaque(true);
+        badge.setBorder(box(border, 1, 8, 16));
+        return badge;
+    }
+
+    /** The countdown badge: the most prominent header badge, so it gets a bigger font and more padding. */
+    private static JLabel createTopBadgeStrong(String text, Color bg, Color fg, Color border) {
+        JLabel badge = label(text, FONT_TOP_BADGE_STRONG, fg, JLabel.CENTER);
+        badge.setBackground(bg);
+        badge.setOpaque(true);
+        badge.setBorder(box(border, 1, 10, 20));
         return badge;
     }
 

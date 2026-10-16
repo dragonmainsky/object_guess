@@ -281,12 +281,13 @@ public class JoinScreen extends JPanel {
         exitBtn.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                int res = JOptionPane.showConfirmDialog(
+                boolean confirmed = AppDialog.showConfirm(
                         JoinScreen.this,
-                        "Are you sure you want to exit?",
                         "Exit Game",
-                        JOptionPane.YES_NO_OPTION);
-                if (res == JOptionPane.YES_OPTION) {
+                        "Are you sure you want to exit?",
+                        "Yes",
+                        "No");
+                if (confirmed) {
                     System.exit(0);
                 }
             }
@@ -314,8 +315,7 @@ public class JoinScreen extends JPanel {
         String name = getPlayerName();
         if (name.isEmpty()) {
             showStatus("Enter your player name first.", true);
-            JOptionPane.showMessageDialog(this, "Please enter your player name.", "Name required",
-                    JOptionPane.WARNING_MESSAGE);
+            AppDialog.showWarning(this, "Name required", "Please enter your player name.");
             return;
         }
         if (name.length() > GameServer.MAX_NAME_LENGTH) {
@@ -378,7 +378,7 @@ public class JoinScreen extends JPanel {
 
     private void fail(String status, String dialogTitle) {
         showStatus(status, true);
-        JOptionPane.showMessageDialog(this, status, dialogTitle, JOptionPane.WARNING_MESSAGE);
+        AppDialog.showWarning(this, dialogTitle, status);
     }
 
     /** Accepts a dotted IPv4 literal or a plain host name (so "localhost" also works for local tests). */

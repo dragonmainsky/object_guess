@@ -35,6 +35,12 @@ public class QuestionerScreen extends JPanel {
     private static final Font FONT_BODY = new Font("Tahoma", Font.PLAIN, 13), FONT_BODY_BOLD = new Font("Tahoma", Font.BOLD, 13);
     private static final Font FONT_SMALL = new Font("Tahoma", Font.PLAIN, 11), FONT_SMALL_BOLD = new Font("Tahoma", Font.BOLD, 11);
 
+    // ===== Header strip fonts (the enlarged sizes shared by all four game screens) =====
+    private static final Font FONT_SCREEN_EYEBROW = new Font("Tahoma", Font.BOLD, 14);
+    private static final Font FONT_SCREEN_TITLE = new Font("Tahoma", Font.BOLD, 26);
+    private static final Font FONT_TOP_BADGE = new Font("Tahoma", Font.BOLD, 14);
+    private static final Font FONT_TOP_BADGE_STRONG = new Font("Tahoma", Font.BOLD, 16);
+
     // ===== Sizes =====
     private static final int SMALL_ICON = 36;   // picture inside a picker card
     private static final int BIG_ICON = 100;    // picture on the secret canvas (and under the mouse while dragging)
@@ -94,8 +100,8 @@ public class QuestionerScreen extends JPanel {
         columns.add(rightColumn, BorderLayout.EAST);
 
         JPanel mainContent = panel();
-        mainContent.setLayout(new BorderLayout(16, 16));
-        mainContent.setBorder(new EmptyBorder(14, 24, 16, 24));
+        mainContent.setLayout(new BorderLayout(12, 12));
+        mainContent.setBorder(new EmptyBorder(18, 24, 16, 24));
         mainContent.add(createSubHeader(), BorderLayout.NORTH);
         mainContent.add(columns, BorderLayout.CENTER);
         add(mainContent, BorderLayout.CENTER);
@@ -110,21 +116,23 @@ public class QuestionerScreen extends JPanel {
     private JPanel createSubHeader() {
         JPanel titles = panel();
         titles.setLayout(new GridLayout(2, 1, 0, 2));
-        titles.add(label("YOUR TURN TO CHOOSE", FONT_BODY_BOLD, PRIMARY_BLUE));
-        titles.add(label("Select the shapes the others must guess.", FONT_TITLE, TEXT_DARK));
+        titles.add(label("YOUR TURN TO CHOOSE", FONT_SCREEN_EYEBROW, PRIMARY_BLUE));
+        titles.add(label("Select the shapes the others must guess.", FONT_SCREEN_TITLE, TEXT_DARK));
 
         // Badges on right: Target & Time, sized exactly like the GuesserScreen sub header
         JPanel badgeGroup = panel();
-        badgeGroup.setLayout(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        badgeGroup.setLayout(new FlowLayout(FlowLayout.RIGHT, 12, 0));
         targetBadge = makeTopBadge(targetText(), BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER);
         badgeGroup.add(targetBadge);
-        timeBadge = makeTopBadge(waitingTimeText(), WARNING_BG, WARNING_TEXT, WARNING_BORDER);
+        timeBadge = makeTopBadgeStrong(waitingTimeText(), WARNING_BG, WARNING_TEXT, WARNING_BORDER);
         badgeGroup.add(timeBadge);
 
         JPanel subHeader = panel();
         subHeader.setLayout(new BorderLayout());
+        subHeader.setBorder(new EmptyBorder(4, 0, 6, 0));
         subHeader.add(titles, BorderLayout.WEST);
-        subHeader.add(badgeGroup, BorderLayout.EAST);
+        // CENTER lets the badge row wrap onto a second line instead of being clipped in a narrow window.
+        subHeader.add(badgeGroup, BorderLayout.CENTER);
         return subHeader;
     }
 
@@ -312,17 +320,17 @@ public class QuestionerScreen extends JPanel {
     }
 
     /**
-     * Highlights one of the three round steps (1-3). Steps before it turn green with a check mark,
-     * the active step is blue and bold, and steps after it stay grey. Pass 0 for "no round yet",
-     * which leaves every step grey and inactive.
+     * Highlights one of the three round steps (1-3). Steps before it turn green - the number stays
+     * visible, only the colour marks them as finished - the active step is blue and bold, and steps
+     * after it stay grey. Pass 0 for "no round yet", which leaves every step grey and inactive.
      */
     private void setStep(int activeStep) {
         for (int i = 0; i < stepRows.size(); i++) {
             StepRow step = stepRows.get(i);
             int number = i + 1;
             if (number < activeStep) {
-                // done: a green circle with a check mark instead of the number
-                step.circle.setText("\u2713");
+                // done: the green circle keeps the step number; the colour alone marks it as finished
+                step.circle.setText(String.valueOf(number));
                 step.circle.setBackground(SUCCESS_TEXT);
                 step.text.setFont(FONT_BODY);
                 step.text.setForeground(TEXT_MUTED);
@@ -512,10 +520,9 @@ public class QuestionerScreen extends JPanel {
         }
         int count = selectedShapes.size();
         if (count != requiredShapes) {
-            JOptionPane.showMessageDialog(this,
+            AppDialog.showWarning(this, "Not ready yet",
                 "Please select exactly " + requiredShapes + " shape"
-                    + (requiredShapes == 1 ? "" : "s") + " before confirming.",
-                "Not ready yet", JOptionPane.WARNING_MESSAGE);
+                    + (requiredShapes == 1 ? "" : "s") + " before confirming.");
             return;
         }
         if (onConfirmAction != null) {
@@ -840,9 +847,19 @@ public class QuestionerScreen extends JPanel {
         return badge;
     }
 
-    /** Sub header badge (Target / Time): the small font and the tight padding GuesserScreen uses up top. */
+    /** Sub header badge (Target): the enlarged font and padding shared with the GuesserScreen header. */
     private static JLabel makeTopBadge(String text, Color bg, Color fg, Color border) {
-        JLabel badge = label(text, FONT_SMALL_BOLD, fg, JLabel.CENTER);
+        JLabel badge = label(text, FONT_TOP_BADGE, fg, JLabel.CENTER);
+        badge.setOpaque(true);
+        badge.setBackground(bg);
+        badge.setForeground(fg);
+        badge.setBorder(box(border, 1, 8, 16));
+        return badge;
+    }
+
+    /** The countdown badge: the most prominent header badge, so it gets a bigger font and more padding. */
+    private static JLabel makeTopBadgeStrong(String text, Color bg, Color fg, Color border) {
+        JLabel badge = label(text, FONT_TOP_BADGE_STRONG, fg, JLabel.CENTER);
         badge.setOpaque(true);
         applyTopBadgeColors(badge, bg, fg, border);
         return badge;
@@ -854,11 +871,11 @@ public class QuestionerScreen extends JPanel {
         badge.setBorder(box(border, 1, 6, 14));
     }
 
-    /** Re-colors a sub header badge; padding stays at 4/10 so the badge never changes size. */
+    /** Re-colors the countdown badge; padding stays at the countdown's larger size so it never changes size. */
     private static void applyTopBadgeColors(JLabel badge, Color bg, Color fg, Color border) {
         badge.setBackground(bg);
         badge.setForeground(fg);
-        badge.setBorder(box(border, 1, 4, 10));
+        badge.setBorder(box(border, 1, 10, 20));
     }
 
     /** Square colored label with a letter or number, locked to size x size. */

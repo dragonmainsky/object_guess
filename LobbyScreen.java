@@ -59,13 +59,18 @@ public class LobbyScreen extends JPanel {
     private static final Color DISABLED_BG       = new Color(226, 232, 240);
 
     // ===== Fonts =====
-    private static final Font FONT_TITLE_LARGE = new Font("Tahoma", Font.BOLD, 24);
+    private static final Font FONT_TITLE_LARGE = new Font("Tahoma", Font.BOLD, 26);
     private static final Font FONT_TITLE       = new Font("Tahoma", Font.BOLD, 18);
     private static final Font FONT_SUBTITLE    = new Font("Tahoma", Font.BOLD, 14);
     private static final Font FONT_BODY        = new Font("Tahoma", Font.PLAIN, 13);
     private static final Font FONT_BODY_BOLD   = new Font("Tahoma", Font.BOLD, 13);
     private static final Font FONT_SMALL       = new Font("Tahoma", Font.PLAIN, 11);
     private static final Font FONT_SMALL_BOLD  = new Font("Tahoma", Font.BOLD, 11);
+
+    // ===== Header strip fonts (the enlarged sizes shared by all four game screens) =====
+    private static final Font FONT_SCREEN_EYEBROW = new Font("Tahoma", Font.BOLD, 14);
+    private static final Font FONT_SCREEN_SUB     = new Font("Tahoma", Font.PLAIN, 15);
+    private static final Font FONT_TOP_BADGE      = new Font("Tahoma", Font.BOLD, 14);
 
     // ===== Sizes =====
     private static final int SIDE_WIDTH = 320;
@@ -123,9 +128,9 @@ public class LobbyScreen extends JPanel {
         setLayout(new BorderLayout());
         setBackground(BG_LIGHT);
 
-        JPanel mainContent = new JPanel(new BorderLayout(16, 16));
+        JPanel mainContent = new JPanel(new BorderLayout(14, 14));
         mainContent.setOpaque(false);
-        mainContent.setBorder(new EmptyBorder(16, 24, 16, 24));
+        mainContent.setBorder(new EmptyBorder(18, 24, 16, 24));
         mainContent.add(createSubHeader(), BorderLayout.NORTH);
 
         // 3 columns: fixed-width left, flexible center, fixed-width right
@@ -156,9 +161,9 @@ public class LobbyScreen extends JPanel {
 
         JPanel subTitles = new JPanel(new GridLayout(3, 1, 0, 2));
         subTitles.setOpaque(false);
-        subTitles.add(makeLabel("GAME LOBBY", FONT_SMALL_BOLD, PRIMARY_BLUE));
+        subTitles.add(makeLabel("GAME LOBBY", FONT_SCREEN_EYEBROW, PRIMARY_BLUE));
         subTitles.add(makeLabel("Room", FONT_TITLE_LARGE, TEXT_DARK));
-        subHeaderStatusLabel = makeLabel("Waiting for players to join...", FONT_BODY, TEXT_MUTED);
+        subHeaderStatusLabel = makeLabel("Waiting for players to join...", FONT_SCREEN_SUB, TEXT_MUTED);
         subTitles.add(subHeaderStatusLabel);
         subHeader.add(subTitles, BorderLayout.WEST);
 
@@ -168,9 +173,9 @@ public class LobbyScreen extends JPanel {
         roomCodeBadge.setBackground(BLUE_LIGHT_BG);
         roomCodeBadge.setBorder(new CompoundBorder(
             new LineBorder(BLUE_BORDER, 1),
-            new EmptyBorder(6, 16, 6, 16)));
-        roomCodeBadge.add(makeCenteredLabel("PORT", FONT_SMALL_BOLD, PRIMARY_BLUE));
-        roomCodeValueLabel = makeCenteredLabel("----", FONT_BODY_BOLD, PRIMARY_BLUE);
+            new EmptyBorder(8, 16, 8, 16)));
+        roomCodeBadge.add(makeCenteredLabel("PORT", FONT_TOP_BADGE, PRIMARY_BLUE));
+        roomCodeValueLabel = makeCenteredLabel("----", FONT_TOP_BADGE, PRIMARY_BLUE);
         roomCodeBadge.add(roomCodeValueLabel);
 
         // FlowLayout lets the badge keep its own size at the right edge
