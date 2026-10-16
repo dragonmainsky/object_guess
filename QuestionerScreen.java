@@ -110,15 +110,15 @@ public class QuestionerScreen extends JPanel {
     private JPanel createSubHeader() {
         JPanel titles = panel();
         titles.setLayout(new GridLayout(2, 1, 0, 2));
-        titles.add(label("YOUR TURN TO CHOOSE", FONT_SMALL_BOLD, PRIMARY_BLUE));
-        titles.add(label("Select the shapes the others must guess.", FONT_SUBTITLE, TEXT_DARK));
+        titles.add(label("YOUR TURN TO CHOOSE", FONT_BODY_BOLD, PRIMARY_BLUE));
+        titles.add(label("Select the shapes the others must guess.", FONT_TITLE, TEXT_DARK));
 
-        // Badges on right: Target & Time
+        // Badges on right: Target & Time, sized exactly like the GuesserScreen sub header
         JPanel badgeGroup = panel();
-        badgeGroup.setLayout(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        targetBadge = makeBadge(targetText(), BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER, FONT_BODY_BOLD);
+        badgeGroup.setLayout(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        targetBadge = makeTopBadge(targetText(), BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER);
         badgeGroup.add(targetBadge);
-        timeBadge = makeBadge(waitingTimeText(), WARNING_BG, WARNING_TEXT, WARNING_BORDER, FONT_BODY_BOLD);
+        timeBadge = makeTopBadge(waitingTimeText(), WARNING_BG, WARNING_TEXT, WARNING_BORDER);
         badgeGroup.add(timeBadge);
 
         JPanel subHeader = panel();
@@ -459,9 +459,9 @@ public class QuestionerScreen extends JPanel {
         }
         timeBadge.setText(secondsText(seconds));
         if (seconds <= GameServer.BONUS_WINDOW_SECONDS) {
-            applyBadgeColors(timeBadge, DANGER_BG, DANGER_TEXT, DANGER_BORDER);
+            applyTopBadgeColors(timeBadge, DANGER_BG, DANGER_TEXT, DANGER_BORDER);
         } else {
-            applyBadgeColors(timeBadge, WARNING_BG, WARNING_TEXT, WARNING_BORDER);
+            applyTopBadgeColors(timeBadge, WARNING_BG, WARNING_TEXT, WARNING_BORDER);
         }
     }
 
@@ -480,7 +480,7 @@ public class QuestionerScreen extends JPanel {
     private void showWaitingTime() {
         if (timeBadge != null) {
             timeBadge.setText(waitingTimeText());
-            applyBadgeColors(timeBadge, WARNING_BG, WARNING_TEXT, WARNING_BORDER);
+            applyTopBadgeColors(timeBadge, WARNING_BG, WARNING_TEXT, WARNING_BORDER);
         }
     }
 
@@ -840,10 +840,25 @@ public class QuestionerScreen extends JPanel {
         return badge;
     }
 
+    /** Sub header badge (Target / Time): the small font and the tight padding GuesserScreen uses up top. */
+    private static JLabel makeTopBadge(String text, Color bg, Color fg, Color border) {
+        JLabel badge = label(text, FONT_SMALL_BOLD, fg, JLabel.CENTER);
+        badge.setOpaque(true);
+        applyTopBadgeColors(badge, bg, fg, border);
+        return badge;
+    }
+
     private static void applyBadgeColors(JLabel badge, Color bg, Color fg, Color border) {
         badge.setBackground(bg);
         badge.setForeground(fg);
         badge.setBorder(box(border, 1, 6, 14));
+    }
+
+    /** Re-colors a sub header badge; padding stays at 4/10 so the badge never changes size. */
+    private static void applyTopBadgeColors(JLabel badge, Color bg, Color fg, Color border) {
+        badge.setBackground(bg);
+        badge.setForeground(fg);
+        badge.setBorder(box(border, 1, 4, 10));
     }
 
     /** Square colored label with a letter or number, locked to size x size. */
