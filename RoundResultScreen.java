@@ -113,10 +113,6 @@ public class RoundResultScreen extends JPanel {
     private javax.swing.Timer countdownTimer;
     private int secondsLeft;
 
-    public RoundResultScreen() {
-        this(null);
-    }
-
     public RoundResultScreen(ActionListener onCountdownFinished) {
         this.onCountdownFinished = onCountdownFinished;
 

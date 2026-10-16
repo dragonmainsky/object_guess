@@ -69,10 +69,6 @@ public class GuesserScreen extends JPanel {
     private String myName = "";
     private String questionerName = "";
 
-    public GuesserScreen() {
-        this(null);
-    }
-
     public GuesserScreen(ActionListener onSubmitAction) {
         this.onSubmitAction = onSubmitAction;
         setLayout(new BorderLayout());
@@ -926,14 +922,5 @@ public class GuesserScreen extends JPanel {
             header.add(label(sub, subFont, TEXT_MUTED), BorderLayout.CENTER);
         }
         return header;
-    }
-
-    public static void main(String[] args) {
-        JFrame frame = new JFrame("Guess What It Looks Like? - Guesser Mode");
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(1280, 750);
-        frame.setLocationRelativeTo(null);
-        frame.setContentPane(new GuesserScreen());
-        frame.setVisible(true);
     }
 }

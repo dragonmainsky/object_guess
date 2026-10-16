@@ -2,7 +2,6 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Dimension;
-import java.awt.EventQueue;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridLayout;
@@ -14,9 +13,7 @@ import java.io.File;
 import javax.swing.ButtonModel;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
-import javax.swing.JFrame;
 import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
@@ -91,10 +88,6 @@ public class ScoreboardScreen extends JPanel {
 
     private final ActionListener onNewGameAction;
     private final ActionListener onQuitAction;
-
-    public ScoreboardScreen() {
-        this(null, null);
-    }
 
     public ScoreboardScreen(ActionListener onNewGameAction, ActionListener onQuitAction) {
         this.onNewGameAction = onNewGameAction;
@@ -349,9 +342,6 @@ public class ScoreboardScreen extends JPanel {
         if (onQuitAction != null) {
             // มี action จากภายนอก ให้ผูกเข้าปุ่ม
             quitBtn.addActionListener(onQuitAction);
-        } else {
-            // ไม่มี action จากภายนอก ใช้ตัวถามยืนยันแล้วออกโปรแกรม
-            quitBtn.addActionListener(new QuitAction(this));
         }
 
         btnRow.add(nextBtn);
@@ -655,42 +645,5 @@ public class ScoreboardScreen extends JPanel {
                 button.setBackground(normal);
             }
         }
-    }
-
-    /** ใช้เมื่อไม่มี onQuitAction จากภายนอก: ถามยืนยันก่อนปิดโปรแกรม */
-    private static class QuitAction implements ActionListener {
-        private final JPanel parent;
-
-        QuitAction(JPanel parent) {
-            this.parent = parent;
-        }
-
-        @Override
-        public void actionPerformed(ActionEvent event) {
-            int res = JOptionPane.showConfirmDialog(parent, "Exit the game?", "Quit",
-                JOptionPane.YES_NO_OPTION);
-            if (res == JOptionPane.YES_OPTION) {
-                System.exit(0);
-            } else {
-                // ผู้เล่นเลือกไม่ออก กลับไปที่หน้าสรุปผลตามเดิม
-            }
-        }
-    }
-
-    /** สร้างหน้าต่างทดสอบหน้าเดียว (แทน lambda ใน invokeLater) */
-    private static class ShowFrameTask implements Runnable {
-        @Override
-        public void run() {
-            JFrame frame = new JFrame("Guess What It Looks Like? - Scoreboard");
-            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            frame.setSize(1280, 750);
-            frame.setLocationRelativeTo(null);
-            frame.setContentPane(new ScoreboardScreen());
-            frame.setVisible(true);
-        }
-    }
-
-    public static void main(String[] args) {
-        EventQueue.invokeLater(new ShowFrameTask());
     }
 }

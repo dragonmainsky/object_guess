@@ -74,10 +74,6 @@ public class QuestionerScreen extends JPanel {
     private final List<StepRow> stepRows = new ArrayList<>();   // the 3 "Choose / Confirm / Watch" rows
     private String myName = "";
 
-    public QuestionerScreen() {
-        this(null);
-    }
-
     public QuestionerScreen(ActionListener onConfirmAction) {
         this.onConfirmAction = onConfirmAction;
 
@@ -951,16 +947,5 @@ public class QuestionerScreen extends JPanel {
             nameLabel.setForeground(selected ? PRIMARY_BLUE : TEXT_DARK);
             repaint();
         }
-    }
-
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            JFrame frame = new JFrame("Guess What It Looks Like? - Questioner Mode");
-            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            frame.setSize(1280, 750);
-            frame.setLocationRelativeTo(null);
-            frame.setContentPane(new QuestionerScreen());
-            frame.setVisible(true);
-        });
     }
 }

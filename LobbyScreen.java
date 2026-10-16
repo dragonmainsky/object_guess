@@ -115,10 +115,6 @@ public class LobbyScreen extends JPanel {
     private JButton startBtn;
     private JButton leaveBtn;
 
-    public LobbyScreen() {
-        this(null, null);
-    }
-
     public LobbyScreen(ActionListener onStartGameAction, ActionListener onLeaveAction) {
         this.onStartGameAction = onStartGameAction;
         this.onLeaveAction = onLeaveAction;
@@ -414,17 +410,9 @@ public class LobbyScreen extends JPanel {
         this.myName = (name == null) ? "" : name;
     }
 
-    public String getMyName() {
-        return myName;
-    }
-
     public void setHost(boolean host) {
         this.isHost = host;
         refreshPlayers();
-    }
-
-    public boolean isHost() {
-        return isHost;
     }
 
     public void setReadyAction(ActionListener action) {
@@ -883,21 +871,5 @@ public class LobbyScreen extends JPanel {
                 button.setBackground(normal);
             }
         }
-    }
-
-    // =====================================================================
-
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                JFrame frame = new JFrame("Guess What It Looks Like? - Game Lobby");
-                frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-                frame.setSize(1280, 750);
-                frame.setLocationRelativeTo(null);
-                frame.setContentPane(new LobbyScreen());
-                frame.setVisible(true);
-            }
-        });
     }
 }

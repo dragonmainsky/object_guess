@@ -29,15 +29,6 @@ public final class ShapeImages {
         // static helper only
     }
 
-    /** The eight shape names in display order. */
-    public static String[] shapeNames() {
-        String[] names = new String[AVAILABLE_SHAPES.length];
-        for (int i = 0; i < AVAILABLE_SHAPES.length; i++) {
-            names[i] = AVAILABLE_SHAPES[i][0];
-        }
-        return names;
-    }
-
     /** File name for a shape, falling back to Circle.png when the name is unknown. */
     public static String fileNameFor(String shapeName) {
         if (shapeName != null) {

@@ -14,7 +14,6 @@ import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
-import java.net.InetAddress;
 import java.util.List;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -108,10 +107,6 @@ public class JoinScreen extends JPanel {
             int circleSize = (int) (h * 1.6);
             g.fillOval(w - circleSize / 2, -circleSize / 4, circleSize, circleSize);
         }
-    }
-
-    public JoinScreen() {
-        this(null);
     }
 
     public JoinScreen(JoinListener listener) {
@@ -331,10 +326,6 @@ public class JoinScreen extends JPanel {
         if (port < 0) {
             return;
         }
-        if (listener == null) {
-            showPreviewOnly();
-            return;
-        }
         listener.onCreateGame(name, port);
     }
 
@@ -362,17 +353,7 @@ public class JoinScreen extends JPanel {
         if (port < 0) {
             return;
         }
-        if (listener == null) {
-            showPreviewOnly();
-            return;
-        }
         listener.onJoinGame(name, ip, port);
-    }
-
-    /** Shown when this screen was launched on its own (no MainApp), so there is no network layer behind the buttons. */
-    private void showPreviewOnly() {
-        fail("Preview mode: this screen was started on its own. Run MainApp to host or join a game.",
-                "Preview mode");
     }
 
     private int parsePort() {
@@ -470,14 +451,6 @@ public class JoinScreen extends JPanel {
 
     public String getServerPortText() {
         return portField.getText().trim();
-    }
-
-    public int getServerPort() {
-        try {
-            return Integer.parseInt(getServerPortText());
-        } catch (NumberFormatException e) {
-            return -1;
-        }
     }
 
     /** Disables the action buttons while a connect attempt is running. */
@@ -661,29 +634,5 @@ public class JoinScreen extends JPanel {
         if (b.isEnabled()) {
             b.setBackground(inside ? hover : normal);
         }
-    }
-
-    /** Kept for callers that still want the old helper; returns the best LAN address or "127.0.0.1". */
-    public static String getLocalIp() {
-        String address = GameServer.getPreferredLanAddress();
-        if (address == null || address.isEmpty()) {
-            try {
-                String found = InetAddress.getLocalHost().getHostAddress();
-                return (found != null && !found.isEmpty()) ? found : "127.0.0.1";
-            } catch (Exception e) {
-                return "127.0.0.1";
-            }
-        }
-        return address;
-    }
-
-    public static void main(String[] args) {
-        JFrame frame = new JFrame("Guess What It Looks Like? - Join Server");
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(1280, 720);
-        frame.setMinimumSize(new Dimension(1100, 650));
-        frame.setLocationRelativeTo(null);
-        frame.setContentPane(new JoinScreen());
-        frame.setVisible(true);
     }
 }
