@@ -1,5 +1,7 @@
 import java.awt.*;
-import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.dnd.*;
 import java.awt.event.*;
 import java.util.*;
@@ -74,7 +76,8 @@ public class GuesserScreen extends JPanel {
         setLayout(new BorderLayout());
         setBackground(BG_LIGHT);
 
-        JPanel mainContent = panel(new BorderLayout(14, 14));
+        JPanel mainContent = panel();
+        mainContent.setLayout(new BorderLayout(14, 14));
         mainContent.setBorder(new EmptyBorder(14, 24, 14, 24));
         mainContent.add(createSubHeader(), BorderLayout.NORTH);
         mainContent.add(createColumns(), BorderLayout.CENTER);
@@ -93,11 +96,13 @@ public class GuesserScreen extends JPanel {
     // ==================== Sub header + columns ====================
 
     private JPanel createSubHeader() {
-        JPanel titles = panel(new GridLayout(2, 1, 0, 2));
+        JPanel titles = panel();
+        titles.setLayout(new GridLayout(2, 1, 0, 2));
         titles.add(label("Guess what the Questioner selected!", FONT_TITLE, TEXT_DARK));
         titles.add(label("Choose the same shapes before time runs out.", FONT_BODY, TEXT_MUTED));
 
-        JPanel badges = panel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        JPanel badges = panel();
+        badges.setLayout(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         targetBadge = createBadge("Target: ?", BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER);
         badges.add(targetBadge);
         timeBadge = createBadge("Time: --:--", WARNING_BG, WARNING_TEXT, WARNING_BORDER);
@@ -107,7 +112,8 @@ public class GuesserScreen extends JPanel {
         submittedBadge = createBadge("Not submitted", WARNING_BG, WARNING_TEXT, WARNING_BORDER);
         badges.add(submittedBadge);
 
-        JPanel subHeader = panel(new BorderLayout());
+        JPanel subHeader = panel();
+        subHeader.setLayout(new BorderLayout());
         subHeader.add(titles, BorderLayout.WEST);
         subHeader.add(badges, BorderLayout.EAST);
         return subHeader;
@@ -118,7 +124,8 @@ public class GuesserScreen extends JPanel {
         left.setPreferredSize(new Dimension(240, 0));
         right.setPreferredSize(new Dimension(300, 0));
 
-        JPanel columns = panel(new BorderLayout(14, 0));
+        JPanel columns = panel();
+        columns.setLayout(new BorderLayout(14, 0));
         columns.add(left, BorderLayout.WEST);
         columns.add(createCenterPanel(), BorderLayout.CENTER);
         columns.add(right, BorderLayout.EAST);
@@ -128,43 +135,51 @@ public class GuesserScreen extends JPanel {
     // ==================== Left column ====================
 
     private JPanel createLeftPanel() {
-        scoreRowsPanel = panel(new GridLayout(0, 1, 0, 8));
+        scoreRowsPanel = panel();
+        scoreRowsPanel.setLayout(new GridLayout(0, 1, 0, 8));
         roundLabel = label("Waiting to start", FONT_SMALL, TEXT_MUTED);
-        JPanel scoreHeader = panel(new BorderLayout());
+        JPanel scoreHeader = panel();
+        scoreHeader.setLayout(new BorderLayout());
         scoreHeader.add(label("Scoreboard", FONT_SUBTITLE, TEXT_DARK), BorderLayout.WEST);
         scoreHeader.add(roundLabel, BorderLayout.EAST);
 
-        JPanel scoreCard = card(new BorderLayout(0, 12));
+        JPanel scoreCard = card();
+        scoreCard.setLayout(new BorderLayout(0, 12));
         scoreCard.add(scoreHeader, BorderLayout.NORTH);
         scoreCard.add(scoreRowsPanel, BorderLayout.CENTER);
 
-        JPanel ruleRows = panel(new GridLayout(0, 1, 0, 8));
+        JPanel ruleRows = panel();
+        ruleRows.setLayout(new GridLayout(0, 1, 0, 8));
         ruleRows.add(createRuleRow("+1", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER, "for each correct shape"));
         ruleRows.add(createRuleRow("+2", GOLD_BG, GOLD_TEXT, GOLD_BORDER, "all correct under 10 sec"));
         ruleRows.add(createRuleRow("0", DANGER_BG, DANGER_TEXT, DANGER_BORDER, "for an incorrect shape"));
-        JPanel guideCard = card(new BorderLayout(0, 12));
+        JPanel guideCard = card();
+        guideCard.setLayout(new BorderLayout(0, 12));
         guideCard.add(createHeader("Scoring", FONT_SUBTITLE, null, null, null), BorderLayout.NORTH);
         guideCard.add(ruleRows, BorderLayout.CENTER);
 
         // Both cards keep their natural height; leftover space stays empty at the bottom
-        JPanel left = panel(new BorderLayout(0, 12));
+        JPanel left = panel();
+        left.setLayout(new BorderLayout(0, 12));
         left.add(scoreCard, BorderLayout.NORTH);
         left.add(pin(guideCard, BorderLayout.NORTH), BorderLayout.CENTER);
         return left;
     }
 
     private JPanel createScoreRow(String initial, Color avatarColor, String name, int score, boolean highlight) {
-        JPanel row = panel(new BorderLayout());
+        JPanel row = panel();
+        row.setLayout(new BorderLayout());
         row.setOpaque(highlight);
         row.setBackground(BLUE_LIGHT_BG);
         row.setBorder(highlight ? box(BLUE_BORDER, 1, 4, 8) : new EmptyBorder(5, 9, 5, 9));
 
-        JPanel who = panel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        JPanel who = panel();
+        who.setLayout(new FlowLayout(FlowLayout.LEFT, 8, 0));
         who.add(createAvatar(initial, avatarColor, 24));
         who.add(label(name, FONT_BODY_BOLD, TEXT_DARK));
 
         row.add(who, BorderLayout.WEST);
-        row.add(label(String.valueOf(score), FONT_BODY_BOLD, TEXT_DARK, SwingConstants.RIGHT), BorderLayout.EAST);
+        row.add(label(String.valueOf(score), FONT_BODY_BOLD, TEXT_DARK, JLabel.RIGHT), BorderLayout.EAST);
         return row;
     }
 
@@ -173,7 +188,8 @@ public class GuesserScreen extends JPanel {
         badge.setBorder(box(border, 1, 2, 6));
         badge.setPreferredSize(new Dimension(34, 22));
 
-        JPanel row = panel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        JPanel row = panel();
+        row.setLayout(new FlowLayout(FlowLayout.LEFT, 8, 0));
         row.add(badge);
         row.add(label(ruleText, FONT_SMALL, TEXT_DARK));
         return row;
@@ -183,17 +199,20 @@ public class GuesserScreen extends JPanel {
 
     private JPanel createCenterPanel() {
         selectedBadge = createBadge(picksText(), BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER);
-        JPanel centerCard = card(new BorderLayout(0, 12));
+        JPanel centerCard = card();
+        centerCard.setLayout(new BorderLayout(0, 12));
         centerCard.add(createHeader("Your guess", FONT_TITLE, "Drag shapes here from Objects", FONT_BODY, selectedBadge), BorderLayout.NORTH);
         centerCard.add(createStagePanel(), BorderLayout.CENTER);
 
         // Helper hint sits outside the card, under its left edge; it doubles as the status line
-        JPanel hintRow = panel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        JPanel hintRow = panel();
+        hintRow.setLayout(new FlowLayout(FlowLayout.LEFT, 6, 0));
         hintRow.add(label("TIP", FONT_SMALL_BOLD, WARNING_TEXT));
         statusLabel = label("Waiting for the questioner to lock in the secret shapes...", FONT_SMALL, TEXT_MUTED);
         hintRow.add(statusLabel);
 
-        JPanel center = panel(new BorderLayout(0, 10));
+        JPanel center = panel();
+        center.setLayout(new BorderLayout(0, 10));
         center.add(centerCard, BorderLayout.CENTER);
         center.add(hintRow, BorderLayout.SOUTH);
         return center;
@@ -201,9 +220,11 @@ public class GuesserScreen extends JPanel {
 
     /** Tinted stage in 3 equal rows: correct banner (top-right), guess slots (middle), incorrect banner (bottom-left). */
     private JPanel createStagePanel() {
-        guessSlotsPanel = panel(new GridLayout(1, 1, 14, 0));
+        guessSlotsPanel = panel();
+        guessSlotsPanel.setLayout(new GridLayout(1, 1, 14, 0));
         updateGuessSlots();
-        JPanel middleRow = panel(new BorderLayout());
+        JPanel middleRow = panel();
+        middleRow.setLayout(new BorderLayout());
         middleRow.setBorder(new EmptyBorder(6, 24, 6, 24));
         middleRow.add(guessSlotsPanel, BorderLayout.CENTER);
 
@@ -226,7 +247,8 @@ public class GuesserScreen extends JPanel {
         banner.add(label(title, FONT_BODY_BOLD, fg));
         banner.add(label(desc, FONT_SMALL, fg));
 
-        JPanel slot = panel(new FlowLayout(align, 0, 0));
+        JPanel slot = panel();
+        slot.setLayout(new FlowLayout(align, 0, 0));
         slot.add(banner);
         return slot;
     }
@@ -238,7 +260,7 @@ public class GuesserScreen extends JPanel {
         guessSlotsPanel.setLayout(new GridLayout(1, slots, 14, 0));
         if (requiredPicks == 0) {
             guessSlotsPanel.add(label("Waiting for the questioner to lock in the shapes...",
-                FONT_BODY, TEXT_MUTED, SwingConstants.CENTER));
+                FONT_BODY, TEXT_MUTED, JLabel.CENTER));
         } else {
             for (int i = 0; i < requiredPicks; i++) {
                 guessSlotsPanel.add(createSlot(i));
@@ -267,12 +289,12 @@ public class GuesserScreen extends JPanel {
             slot.setBorder(box(PRIMARY_BLUE, 2, requiredPicks > 3 ? 8 : 14, 6));
             slot.add(new Pic(image(name, icon), icon, name), BorderLayout.CENTER);
             slot.add(label(name, requiredPicks > 3 ? FONT_SMALL_BOLD : FONT_BODY_BOLD,
-                TEXT_DARK, SwingConstants.CENTER), BorderLayout.SOUTH);
+                TEXT_DARK, JLabel.CENTER), BorderLayout.SOUTH);
             makeDraggable(slot, true, name); // drag it back to Objects to remove
         } else {
             slot.setBackground(EMPTY_SLOT_BG);
             slot.setBorder(new LineBorder(EMPTY_SLOT_BORDER, 2));
-            slot.add(label("Empty", FONT_SMALL, TEXT_MUTED, SwingConstants.CENTER), BorderLayout.CENTER);
+            slot.add(label("Empty", FONT_SMALL, TEXT_MUTED, JLabel.CENTER), BorderLayout.CENTER);
         }
         makeDropZone(slot, () -> true, on -> {
             slot.setBackground(on ? BLUE_LIGHT_BG : (filled ? Color.WHITE : EMPTY_SLOT_BG));
@@ -288,11 +310,13 @@ public class GuesserScreen extends JPanel {
 
     private JPanel createRightPanel() {
         pickCounterLabel = label(picksCountText(), FONT_BODY_BOLD, PRIMARY_BLUE);
-        JPanel objectsCard = card(new BorderLayout(0, 12));
+        JPanel objectsCard = card();
+        objectsCard.setLayout(new BorderLayout(0, 12));
         objectsCard.add(createHeader("Objects", FONT_SUBTITLE, "Drag your shapes into the guess", FONT_BODY, pickCounterLabel), BorderLayout.NORTH);
 
         // Fixed height so the card keeps its original size
-        JPanel grid = panel(new GridLayout(4, 2, 8, 8));
+        JPanel grid = panel();
+        grid.setLayout(new GridLayout(4, 2, 8, 8));
         grid.setPreferredSize(new Dimension(0, 316));
         for (String[] shape : AVAILABLE_SHAPES) {
             PickerItem item = new PickerItem(shape[0]);
@@ -303,7 +327,7 @@ public class GuesserScreen extends JPanel {
 
         submitBtn = createPrimaryButton("SUBMIT GUESS");
         submitBtn.setPreferredSize(new Dimension(0, 44));
-        submitBtn.addActionListener(new AbstractAction() {
+        submitBtn.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 submitGuess();
@@ -317,11 +341,13 @@ public class GuesserScreen extends JPanel {
             objectsCard.setBorder(box(on ? DANGER_BORDER : CARD_BORDER, 1, 16, 16));
         }, this::removeShape);
 
-        JPanel hintRow = panel(new FlowLayout(FlowLayout.CENTER, 8, 0));
+        JPanel hintRow = panel();
+        hintRow.setLayout(new FlowLayout(FlowLayout.CENTER, 8, 0));
         hintRow.add(createKeyCap("ENTER"));
         hintRow.add(label("to submit your guess", FONT_SMALL, TEXT_MUTED));
 
-        JPanel right = panel(new BorderLayout(0, 12));
+        JPanel right = panel();
+        right.setLayout(new BorderLayout(0, 12));
         right.add(objectsCard, BorderLayout.NORTH);
         right.add(pin(hintRow, BorderLayout.NORTH), BorderLayout.CENTER);
         return right;
@@ -335,7 +361,7 @@ public class GuesserScreen extends JPanel {
         PickerItem(String shapeName) {
             super(new BorderLayout());
             this.shapeName = shapeName;
-            nameLabel = label(shapeName, FONT_SMALL_BOLD, TEXT_DARK, SwingConstants.CENTER);
+            nameLabel = label(shapeName, FONT_SMALL_BOLD, TEXT_DARK, JLabel.CENTER);
             add(new Pic(image(shapeName, 34), 34, shapeName), BorderLayout.CENTER);
             add(nameLabel, BorderLayout.SOUTH);
             makeDraggable(this, false, shapeName);
@@ -630,8 +656,8 @@ public class GuesserScreen extends JPanel {
     //  Drag and drop (java.awt.dnd)
     // =====================================================================
 
-    /** Lets the user drag this component; the drag carries shapeName. */
-    private void makeDraggable(JComponent source, boolean fromBoard, String shapeName) {
+    /** Lets the user drag this panel; the drag carries shapeName. */
+    private void makeDraggable(JPanel source, boolean fromBoard, String shapeName) {
         source.setCursor(new Cursor(Cursor.MOVE_CURSOR));
         DragSource.getDefaultDragSource().createDefaultDragGestureRecognizer(source, DnDConstants.ACTION_MOVE, e -> {
             if (submitted) {
@@ -641,11 +667,38 @@ public class GuesserScreen extends JPanel {
             dragShape = shapeName;
             DragGhost ghost = new DragGhost(e.getComponent(), shapeName);
             try {
-                e.startDrag(null, new StringSelection(shapeName), ghost);
+                e.startDrag(null, shapePayload(shapeName), ghost);
             } catch (InvalidDnDOperationException ex) {
                 ghost.finish();
             }
         });
+    }
+
+    /**
+     * The drag data for one shape: plain text, with the same flavour and the same text the old
+     * text-selection payload carried. Nothing on the drop side reads it (the drop uses dragShape),
+     * but keeping it complete means an outside drop target still sees the shape name.
+     */
+    private static Transferable shapePayload(final String shapeName) {
+        return new Transferable() {
+            @Override
+            public DataFlavor[] getTransferDataFlavors() {
+                return new DataFlavor[] { DataFlavor.stringFlavor };
+            }
+
+            @Override
+            public boolean isDataFlavorSupported(DataFlavor flavor) {
+                return DataFlavor.stringFlavor.equals(flavor);
+            }
+
+            @Override
+            public Object getTransferData(DataFlavor flavor) throws UnsupportedFlavorException {
+                if (!DataFlavor.stringFlavor.equals(flavor)) {
+                    throw new UnsupportedFlavorException(flavor);
+                }
+                return shapeName;
+            }
+        };
     }
 
     /**
@@ -716,7 +769,7 @@ public class GuesserScreen extends JPanel {
      * onDrop = what to do with the dropped shape (runs after the drop event, because the UI gets rebuilt).
      * Children without their own drop target hand the drop to their parent, so this covers everything inside.
      */
-    private void makeDropZone(JComponent target, BooleanSupplier accepts, Consumer<Boolean> highlight, Consumer<String> onDrop) {
+    private void makeDropZone(JPanel target, BooleanSupplier accepts, Consumer<Boolean> highlight, Consumer<String> onDrop) {
         new DropTarget(target, DnDConstants.ACTION_MOVE, new DropTargetAdapter() {
             private boolean canDrop() {
                 return dragShape != null && accepts.getAsBoolean();
@@ -773,21 +826,20 @@ public class GuesserScreen extends JPanel {
                     file = s[1];
                 }
             }
-            Image scaled = Toolkit.getDefaultToolkit().createImage(SHAPE_DIR + file).getScaledInstance(size, size, Image.SCALE_SMOOTH);
-            MediaTracker tracker = new MediaTracker(this);
-            tracker.addImage(scaled, 0);
-            try {
-                tracker.waitForID(0);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+            // Building the icon waits for the picture to finish loading; status 8 means it completed,
+            // while a missing or broken file reports 4 (errored) or 2 (aborted) and is cached as null.
+            ImageIcon loaded = new ImageIcon(Toolkit.getDefaultToolkit().createImage(SHAPE_DIR + file));
+            Image scaled = null;
+            if (loaded.getImageLoadStatus() == 8) {
+                scaled = new ImageIcon(loaded.getImage().getScaledInstance(size, size, Image.SCALE_SMOOTH)).getImage();
             }
-            images.put(key, tracker.isErrorID(0) ? null : scaled);
+            images.put(key, scaled);
         }
         return images.get(key);
     }
 
     /** Draws a picture centered in its area (a gray box with the name when the file is missing). */
-    private static class Pic extends JComponent {
+    private static class Pic extends JPanel {
         private final Image img;
         private final int size;
         private final String name;
@@ -796,6 +848,8 @@ public class GuesserScreen extends JPanel {
             this.img = img;
             this.size = size;
             this.name = name;
+            setLayout(null); // no children to lay out; keeps the minimum size the old plain component had
+            setOpaque(false); // the panel paints nothing of its own, only the picture below
             setPreferredSize(new Dimension(size, size));
         }
 
@@ -811,9 +865,11 @@ public class GuesserScreen extends JPanel {
             g.setColor(new Color(70, 90, 120));
             g.drawRect(x, y, size - 1, size - 1);
             g.setFont(new Font("Tahoma", Font.BOLD, Math.max(10, size / 6)));
-            FontMetrics fm = g.getFontMetrics();
             String text = name.length() > 6 ? name.substring(0, 6) : name;
-            g.drawString(text, x + (size - fm.stringWidth(text)) / 2, y + (size - fm.getHeight()) / 2 + fm.getAscent());
+            int textWidth = g.getFontMetrics().stringWidth(text);
+            int textHeight = g.getFontMetrics().getHeight();
+            int ascent = g.getFontMetrics().getAscent();
+            g.drawString(text, x + (size - textWidth) / 2, y + (size - textHeight) / 2 + ascent);
         }
     }
 
@@ -823,23 +879,24 @@ public class GuesserScreen extends JPanel {
         return new CompoundBorder(new LineBorder(line, thickness), new EmptyBorder(vPad, hPad, vPad, hPad));
     }
 
-    /** Transparent panel with the given layout. */
-    private static JPanel panel(LayoutManager layout) {
-        JPanel p = new JPanel(layout);
+    /** Transparent panel; the caller sets the layout it needs straight afterwards. */
+    private static JPanel panel() {
+        JPanel p = new JPanel();
         p.setOpaque(false);
         return p;
     }
 
     /** Transparent panel that keeps c at its natural size at the given edge (NORTH or SOUTH). */
-    private static JPanel pin(JComponent c, String edge) {
-        JPanel p = panel(new BorderLayout());
+    private static JPanel pin(JPanel c, String edge) {
+        JPanel p = panel();
+        p.setLayout(new BorderLayout());
         p.add(c, edge);
         return p;
     }
 
-    /** White card with a thin border and padding. */
-    private static JPanel card(LayoutManager layout) {
-        JPanel card = new JPanel(layout);
+    /** White card with a thin border and padding; the caller sets the layout straight afterwards. */
+    private static JPanel card() {
+        JPanel card = new JPanel();
         card.setBackground(CARD_BG);
         card.setBorder(box(CARD_BORDER, 1, 16, 16));
         return card;
@@ -853,12 +910,12 @@ public class GuesserScreen extends JPanel {
     }
 
     private static JLabel label(String text, Font font, Color color) {
-        return label(text, font, color, SwingConstants.LEADING);
+        return label(text, font, color, JLabel.LEADING);
     }
 
     /** Small label with fill + border. Use setText() to update it later. */
     private static JLabel createBadge(String text, Color bg, Color fg, Color border) {
-        JLabel badge = label(text, FONT_SMALL_BOLD, fg, SwingConstants.CENTER);
+        JLabel badge = label(text, FONT_SMALL_BOLD, fg, JLabel.CENTER);
         badge.setBackground(bg);
         badge.setOpaque(true);
         badge.setBorder(box(border, 1, 4, 10));
@@ -867,7 +924,7 @@ public class GuesserScreen extends JPanel {
 
     /** Square avatar tile with the player's initial. */
     private static JLabel createAvatar(String letter, Color bg, int size) {
-        JLabel avatar = label(letter, new Font("Tahoma", Font.BOLD, size / 2), Color.WHITE, SwingConstants.CENTER);
+        JLabel avatar = label(letter, new Font("Tahoma", Font.BOLD, size / 2), Color.WHITE, JLabel.CENTER);
         avatar.setBackground(bg);
         avatar.setOpaque(true);
         avatar.setPreferredSize(new Dimension(size, size));
@@ -875,7 +932,7 @@ public class GuesserScreen extends JPanel {
     }
 
     private static JLabel createKeyCap(String text) {
-        JLabel key = label(text, FONT_KEYCAP, KEYCAP_TEXT, SwingConstants.CENTER);
+        JLabel key = label(text, FONT_KEYCAP, KEYCAP_TEXT, JLabel.CENTER);
         key.setBackground(Color.WHITE);
         key.setOpaque(true);
         key.setBorder(box(EMPTY_SLOT_BORDER, 1, 3, 6));
@@ -908,15 +965,18 @@ public class GuesserScreen extends JPanel {
     }
 
     /** Two-line card header: bold title, optional muted sub line under it, optional widget pinned right of the title. */
-    private static JPanel createHeader(String title, Font titleFont, String sub, Font subFont, JComponent right) {
-        JPanel titleRow = panel(new BorderLayout());
+    private static JPanel createHeader(String title, Font titleFont, String sub, Font subFont, JLabel right) {
+        JPanel titleRow = panel();
+        titleRow.setLayout(new BorderLayout());
         titleRow.add(label(title, titleFont, TEXT_DARK), BorderLayout.WEST);
         if (right != null) {
-            JPanel rightWrap = panel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+            JPanel rightWrap = panel();
+            rightWrap.setLayout(new FlowLayout(FlowLayout.RIGHT, 0, 0));
             rightWrap.add(right);
             titleRow.add(rightWrap, BorderLayout.EAST);
         }
-        JPanel header = panel(new BorderLayout(0, 2));
+        JPanel header = panel();
+        header.setLayout(new BorderLayout(0, 2));
         header.add(titleRow, BorderLayout.NORTH);
         if (sub != null) {
             header.add(label(sub, subFont, TEXT_MUTED), BorderLayout.CENTER);

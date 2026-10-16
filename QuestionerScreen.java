@@ -1,5 +1,7 @@
 import java.awt.*;
-import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.dnd.*;
 import java.awt.event.*;
 import java.util.*;
@@ -85,12 +87,14 @@ public class QuestionerScreen extends JPanel {
         leftColumn.setPreferredSize(new Dimension(LEFT_WIDTH, leftColumn.getPreferredSize().height));
         rightColumn.setPreferredSize(new Dimension(RIGHT_WIDTH, rightColumn.getPreferredSize().height));
 
-        JPanel columns = panel(new BorderLayout(12, 0));
+        JPanel columns = panel();
+        columns.setLayout(new BorderLayout(12, 0));
         columns.add(leftColumn, BorderLayout.WEST);
         columns.add(createCenterPanel(), BorderLayout.CENTER);
         columns.add(rightColumn, BorderLayout.EAST);
 
-        JPanel mainContent = panel(new BorderLayout(16, 16));
+        JPanel mainContent = panel();
+        mainContent.setLayout(new BorderLayout(16, 16));
         mainContent.setBorder(new EmptyBorder(14, 24, 16, 24));
         mainContent.add(createSubHeader(), BorderLayout.NORTH);
         mainContent.add(columns, BorderLayout.CENTER);
@@ -104,18 +108,21 @@ public class QuestionerScreen extends JPanel {
     // =====================================================================
 
     private JPanel createSubHeader() {
-        JPanel titles = panel(new GridLayout(2, 1, 0, 2));
+        JPanel titles = panel();
+        titles.setLayout(new GridLayout(2, 1, 0, 2));
         titles.add(label("YOUR TURN TO CHOOSE", FONT_SMALL_BOLD, PRIMARY_BLUE));
         titles.add(label("Select the shapes the others must guess.", FONT_SUBTITLE, TEXT_DARK));
 
         // Badges on right: Target & Time
-        JPanel badgeGroup = panel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        JPanel badgeGroup = panel();
+        badgeGroup.setLayout(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         targetBadge = makeBadge(targetText(), BLUE_LIGHT_BG, PRIMARY_BLUE, BLUE_BORDER, FONT_BODY_BOLD);
         badgeGroup.add(targetBadge);
         timeBadge = makeBadge(waitingTimeText(), WARNING_BG, WARNING_TEXT, WARNING_BORDER, FONT_BODY_BOLD);
         badgeGroup.add(timeBadge);
 
-        JPanel subHeader = panel(new BorderLayout());
+        JPanel subHeader = panel();
+        subHeader.setLayout(new BorderLayout());
         subHeader.add(titles, BorderLayout.WEST);
         subHeader.add(badgeGroup, BorderLayout.EAST);
         return subHeader;
@@ -123,16 +130,17 @@ public class QuestionerScreen extends JPanel {
 
     private JPanel createLeftPanel() {
         // Card 1: Players live round score
-        JPanel playersCard = stack(card(null));
+        JPanel playersCard = stack(card());
         playersCard.add(alignLeft(label("Players", FONT_SUBTITLE, TEXT_DARK)));
         playersCard.add(alignLeft(label("Live round score", FONT_SMALL, TEXT_MUTED)));
-        playersCard.add(Box.createVerticalStrut(12));
-        scoreRowsPanel = stack(panel(null));
+        playersCard.add(strut(12));
+        scoreRowsPanel = stack(panel());
         playersCard.add(alignLeft(scoreRowsPanel));
-        playersCard.add(Box.createVerticalStrut(14));
+        playersCard.add(strut(14));
 
         // The divider is just the top border of the tip box
-        JPanel tipLines = panel(new GridLayout(2, 1));
+        JPanel tipLines = panel();
+        tipLines.setLayout(new GridLayout(2, 1));
         tipLines.add(label("Info: Guessers score +1 per correct shape,", FONT_SMALL, TEXT_MUTED));
         tipLines.add(label("and a wrong guess scores nothing for anyone.", FONT_SMALL, TEXT_MUTED));
         JPanel tipBox = pin(tipLines, BorderLayout.NORTH);
@@ -140,30 +148,32 @@ public class QuestionerScreen extends JPanel {
         playersCard.add(alignLeft(tipBox));
 
         // Card 2: Round 1 of 4 steps
-        JPanel roundCard = stack(card(null));
+        JPanel roundCard = stack(card());
         roundLabel = label("Waiting to start", FONT_SUBTITLE, TEXT_DARK);
         roundCard.add(alignLeft(roundLabel));
-        roundCard.add(Box.createVerticalStrut(12));
+        roundCard.add(strut(12));
         roundCard.add(createStepRow(1, "Choose your shapes").row);
-        roundCard.add(Box.createVerticalStrut(10));
+        roundCard.add(strut(10));
         roundCard.add(createStepRow(2, "Confirm selection").row);
-        roundCard.add(Box.createVerticalStrut(10));
+        roundCard.add(strut(10));
         roundCard.add(createStepRow(3, "Watch guesses").row);
 
-        JPanel column = stack(panel(null));
+        JPanel column = stack(panel());
         column.add(alignLeft(playersCard, 290));
-        column.add(Box.createVerticalStrut(12));
+        column.add(strut(12));
         column.add(alignLeft(roundCard, 200));
-        column.add(Box.createVerticalGlue());
+        column.add(glue());
         return column;
     }
 
     private JPanel createCenterPanel() {
-        JPanel titleGroup = panel(new GridLayout(2, 1, 0, 2));
+        JPanel titleGroup = panel();
+        titleGroup.setLayout(new GridLayout(2, 1, 0, 2));
         titleGroup.add(label("Your secret set", FONT_TITLE, TEXT_DARK));
         titleGroup.add(label("Drag your shapes onto the canvas", FONT_BODY, TEXT_MUTED));
         readyBadge = makeBadge("READY TO CONFIRM", SUCCESS_BG, SUCCESS_TEXT, SUCCESS_BORDER, FONT_SMALL_BOLD);
-        JPanel cardHeader = panel(new BorderLayout());
+        JPanel cardHeader = panel();
+        cardHeader.setLayout(new BorderLayout());
         cardHeader.add(titleGroup, BorderLayout.WEST);
         cardHeader.add(centerVertically(readyBadge), BorderLayout.EAST);
 
@@ -188,9 +198,10 @@ public class QuestionerScreen extends JPanel {
                 refreshUI();
             });
 
-        hintLabel = label(DEFAULT_HINT, FONT_SMALL, TEXT_MUTED, SwingConstants.CENTER);
+        hintLabel = label(DEFAULT_HINT, FONT_SMALL, TEXT_MUTED, JLabel.CENTER);
 
-        JPanel centerCard = card(new BorderLayout(0, 12));
+        JPanel centerCard = card();
+        centerCard.setLayout(new BorderLayout(0, 12));
         centerCard.add(cardHeader, BorderLayout.NORTH);
         centerCard.add(secretSetCanvas, BorderLayout.CENTER);
         centerCard.add(hintLabel, BorderLayout.SOUTH);
@@ -200,11 +211,13 @@ public class QuestionerScreen extends JPanel {
     private JPanel createRightPanel() {
         // ----- Objects picker card -----
         selectedCounterLabel = label("Selected: " + selectedShapes.size() + " / " + requiredShapes, FONT_SMALL_BOLD, PRIMARY_BLUE);
-        JPanel objectsHeader = panel(new BorderLayout());
+        JPanel objectsHeader = panel();
+        objectsHeader.setLayout(new BorderLayout());
         objectsHeader.add(label("Objects", FONT_SUBTITLE, TEXT_DARK), BorderLayout.WEST);
         objectsHeader.add(selectedCounterLabel, BorderLayout.EAST);
 
-        JPanel grid = panel(new GridLayout(4, 2, 8, 8));
+        JPanel grid = panel();
+        grid.setLayout(new GridLayout(4, 2, 8, 8));
         for (String[] shape : AVAILABLE_SHAPES) {
             ShapeCard tile = new ShapeCard(shape[0]);
             shapeCards.add(tile);
@@ -222,22 +235,23 @@ public class QuestionerScreen extends JPanel {
             refreshUI();
         });
         confirmButton = makeButton("CONFIRM", true, 10, 18);
-        confirmButton.addActionListener(new AbstractAction() {
+        confirmButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 confirmSelection();
             }
         });
-        JPanel buttonRow = panel(new GridLayout(1, 2, 8, 0));
+        JPanel buttonRow = panel();
+        buttonRow.setLayout(new GridLayout(1, 2, 8, 0));
         buttonRow.add(clearBtn);
         buttonRow.add(confirmButton);
 
-        JPanel objectsCard = stack(card(null));
+        JPanel objectsCard = stack(card());
         objectsCard.add(alignLeft(objectsHeader, 24));
         objectsCard.add(alignLeft(label("Drag your shapes to the canvas", FONT_SMALL, TEXT_MUTED)));
-        objectsCard.add(Box.createVerticalStrut(10));
+        objectsCard.add(strut(10));
         objectsCard.add(alignLeft(grid));
-        objectsCard.add(Box.createVerticalStrut(14));
+        objectsCard.add(strut(14));
         objectsCard.add(alignLeft(buttonRow, 46));
 
         // The whole card is a "drop here to remove" zone for shapes dragged off the canvas
@@ -252,9 +266,9 @@ public class QuestionerScreen extends JPanel {
 
         // The right column holds the Objects card only. The glue at the end soaks up the extra
         // height BorderLayout gives this column, so the card keeps its natural size (no stretching).
-        JPanel column = stack(panel(null));
+        JPanel column = stack(panel());
         column.add(alignLeft(objectsCard, objectsCard.getPreferredSize().height));
-        column.add(Box.createVerticalGlue());
+        column.add(glue());
         return column;
     }
 
@@ -263,15 +277,18 @@ public class QuestionerScreen extends JPanel {
     // =====================================================================
 
     private static JPanel createScoreRow(String initial, Color avatarColor, String name, int score, boolean highlight) {
-        JPanel who = panel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        JPanel who = panel();
+        who.setLayout(new FlowLayout(FlowLayout.LEFT, 8, 0));
         who.add(makeAvatar(initial, avatarColor, 24));
         who.add(label(name, FONT_BODY_BOLD, TEXT_DARK));
 
-        JLabel scoreLabel = label(String.valueOf(score), FONT_BODY_BOLD, TEXT_DARK, SwingConstants.RIGHT);
+        JLabel scoreLabel = label(String.valueOf(score), FONT_BODY_BOLD, TEXT_DARK, JLabel.RIGHT);
         scoreLabel.setPreferredSize(new Dimension(24, 24));
 
         // Max height is locked so BoxLayout can't stretch name and score apart
-        JPanel row = alignLeft(panel(new BorderLayout()), 36);
+        JPanel row = panel();
+        row.setLayout(new BorderLayout());
+        row = alignLeft(row, 36);
         row.setOpaque(highlight);
         row.setBackground(BLUE_LIGHT_BG);
         row.setBorder(highlight ? box(BLUE_BORDER, 1, 4, 8) : new EmptyBorder(4, 8, 4, 8));
@@ -282,7 +299,9 @@ public class QuestionerScreen extends JPanel {
 
     /** Builds one "Choose / Confirm / Watch" step row and remembers its circle and text. */
     private StepRow createStepRow(int number, String text) {
-        JPanel row = alignLeft(panel(new FlowLayout(FlowLayout.LEFT, 8, 0)), 28); // max height locked so the card can't pull rows apart
+        JPanel row = panel();
+        row.setLayout(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        row = alignLeft(row, 28); // max height locked so the card can't pull rows apart
         JLabel circle = makeAvatar(String.valueOf(number), STEP_INACTIVE, 20);
         JLabel textLabel = label(text, FONT_BODY, TEXT_MUTED);
         row.add(circle);
@@ -477,7 +496,7 @@ public class QuestionerScreen extends JPanel {
         scoreRowsPanel.removeAll();
         for (int i = 0; i < names.length; i++) {
             if (i > 0) {
-                scoreRowsPanel.add(Box.createVerticalStrut(8));
+                scoreRowsPanel.add(strut(8));
             }
             int score = (i < scores.length) ? scores[i] : 0;
             boolean me = names[i].equals(myName);
@@ -526,8 +545,8 @@ public class QuestionerScreen extends JPanel {
     //  Drag and drop (java.awt.dnd)
     // =====================================================================
 
-    /** Lets the user drag this component; the drag carries shapeName. */
-    private void makeDraggable(JComponent source, boolean fromBoard, String shapeName) {
+    /** Lets the user drag this panel; the drag carries shapeName. */
+    private void makeDraggable(JPanel source, boolean fromBoard, String shapeName) {
         source.setCursor(new Cursor(Cursor.MOVE_CURSOR));
         DragSource.getDefaultDragSource().createDefaultDragGestureRecognizer(source, DnDConstants.ACTION_MOVE, e -> {
             if (selectionLocked) {
@@ -537,11 +556,38 @@ public class QuestionerScreen extends JPanel {
             dragShape = shapeName;
             DragGhost ghost = new DragGhost(e.getComponent(), shapeName);
             try {
-                e.startDrag(null, new StringSelection(shapeName), ghost);
+                e.startDrag(null, shapePayload(shapeName), ghost);
             } catch (InvalidDnDOperationException ex) {
                 ghost.finish();
             }
         });
+    }
+
+    /**
+     * The drag data for one shape: plain text, with the same flavour and the same text the old
+     * text-selection payload carried. Nothing on the drop side reads it (the drop uses dragShape),
+     * but keeping it complete means an outside drop target still sees the shape name.
+     */
+    private static Transferable shapePayload(final String shapeName) {
+        return new Transferable() {
+            @Override
+            public DataFlavor[] getTransferDataFlavors() {
+                return new DataFlavor[] { DataFlavor.stringFlavor };
+            }
+
+            @Override
+            public boolean isDataFlavorSupported(DataFlavor flavor) {
+                return DataFlavor.stringFlavor.equals(flavor);
+            }
+
+            @Override
+            public Object getTransferData(DataFlavor flavor) throws UnsupportedFlavorException {
+                if (!DataFlavor.stringFlavor.equals(flavor)) {
+                    throw new UnsupportedFlavorException(flavor);
+                }
+                return shapeName;
+            }
+        };
     }
 
     /**
@@ -613,7 +659,7 @@ public class QuestionerScreen extends JPanel {
      * the drop event, because the canvas gets rebuilt). Children without their own drop target hand the drop to
      * their parent, so this covers everything inside.
      */
-    private void makeDropZone(JComponent target, BooleanSupplier accepts, Consumer<Boolean> highlight, BiConsumer<String, Point> onDrop) {
+    private void makeDropZone(JPanel target, BooleanSupplier accepts, Consumer<Boolean> highlight, BiConsumer<String, Point> onDrop) {
         new DropTarget(target, DnDConstants.ACTION_MOVE, new DropTargetAdapter() {
             private boolean canDrop() {
                 return dragShape != null && accepts.getAsBoolean();
@@ -671,15 +717,14 @@ public class QuestionerScreen extends JPanel {
                     file = s[1];
                 }
             }
-            Image scaled = Toolkit.getDefaultToolkit().createImage(SHAPE_DIR + file).getScaledInstance(size, size, Image.SCALE_SMOOTH);
-            MediaTracker tracker = new MediaTracker(this);
-            tracker.addImage(scaled, 0);
-            try {
-                tracker.waitForID(0);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+            // Building the icon waits for the picture to finish loading; status 8 means it completed,
+            // while a missing or broken file reports 4 (errored) or 2 (aborted) and is cached as null.
+            ImageIcon loaded = new ImageIcon(Toolkit.getDefaultToolkit().createImage(SHAPE_DIR + file));
+            Image scaled = null;
+            if (loaded.getImageLoadStatus() == 8) {
+                scaled = new ImageIcon(loaded.getImage().getScaledInstance(size, size, Image.SCALE_SMOOTH)).getImage();
             }
-            images.put(key, tracker.isErrorID(0) ? null : scaled);
+            images.put(key, scaled);
         }
         return images.get(key);
     }
@@ -692,19 +737,41 @@ public class QuestionerScreen extends JPanel {
         return new CompoundBorder(new LineBorder(line, thickness), new EmptyBorder(vPad, hPad, vPad, hPad));
     }
 
-    /** Transparent panel with the given layout. */
-    private static JPanel panel(LayoutManager layout) {
-        JPanel p = new JPanel(layout);
+    /** Transparent panel; the caller sets the layout it needs straight afterwards. */
+    private static JPanel panel() {
+        JPanel p = new JPanel();
         p.setOpaque(false);
         return p;
     }
 
-    /** White card with a thin border and padding. */
-    private static JPanel card(LayoutManager layout) {
-        JPanel card = new JPanel(layout);
+    /** White card with a thin border and padding; the caller sets the layout straight afterwards. */
+    private static JPanel card() {
+        JPanel card = new JPanel();
         card.setBackground(CARD_BG);
         card.setBorder(box(CARD_BORDER, 1, 16, 16));
         return card;
+    }
+
+    /** Fixed-height transparent filler for BoxLayout, with the same sizes the old vertical strut had. */
+    private static JPanel strut(int height) {
+        JPanel filler = new JPanel();
+        filler.setOpaque(false);
+        Dimension fixed = new Dimension(0, height);
+        filler.setMinimumSize(fixed);
+        filler.setPreferredSize(fixed);
+        filler.setMaximumSize(new Dimension(Short.MAX_VALUE, height));
+        return filler;
+    }
+
+    /** Transparent filler that soaks up the leftover BoxLayout space, like the old vertical glue. */
+    private static JPanel glue() {
+        JPanel filler = new JPanel();
+        filler.setOpaque(false);
+        Dimension none = new Dimension(0, 0);
+        filler.setMinimumSize(none);
+        filler.setPreferredSize(none);
+        filler.setMaximumSize(new Dimension(Short.MAX_VALUE, Short.MAX_VALUE));
+        return filler;
     }
 
     /** Gives a panel a BoxLayout that stacks its children top to bottom (or left to right for X_AXIS). */
@@ -718,28 +785,39 @@ public class QuestionerScreen extends JPanel {
     }
 
     /** Transparent panel that keeps c at its natural size at the given edge (NORTH or SOUTH). */
-    private static JPanel pin(JComponent c, String edge) {
-        JPanel p = panel(new BorderLayout());
+    private static JPanel pin(JPanel c, String edge) {
+        JPanel p = panel();
+        p.setLayout(new BorderLayout());
         p.add(c, edge);
         return p;
     }
 
-    /** Wraps a component so it stays at its own height and sits in the vertical middle. */
-    private static JPanel centerVertically(JComponent c) {
-        JPanel wrapper = stack(panel(null));
-        wrapper.add(Box.createVerticalGlue());
+    /** Wraps a label so it stays at its own height and sits in the vertical middle. */
+    private static JPanel centerVertically(JLabel c) {
+        JPanel wrapper = stack(panel());
+        wrapper.add(glue());
         wrapper.add(c);
-        wrapper.add(Box.createVerticalGlue());
+        wrapper.add(glue());
         return wrapper;
     }
 
-    private static <T extends JComponent> T alignLeft(T c) {
-        c.setAlignmentX(Component.LEFT_ALIGNMENT);
+    private static JPanel alignLeft(JPanel c) {
+        c.setAlignmentX(JPanel.LEFT_ALIGNMENT);
+        return c;
+    }
+
+    private static JLabel alignLeft(JLabel c) {
+        c.setAlignmentX(JLabel.LEFT_ALIGNMENT);
         return c;
     }
 
     /** Left aligned, and never taller than maxHeight inside a BoxLayout. */
-    private static <T extends JComponent> T alignLeft(T c, int maxHeight) {
+    private static JPanel alignLeft(JPanel c, int maxHeight) {
+        c.setMaximumSize(new Dimension(Integer.MAX_VALUE, maxHeight));
+        return alignLeft(c);
+    }
+
+    private static JLabel alignLeft(JLabel c, int maxHeight) {
         c.setMaximumSize(new Dimension(Integer.MAX_VALUE, maxHeight));
         return alignLeft(c);
     }
@@ -752,11 +830,11 @@ public class QuestionerScreen extends JPanel {
     }
 
     private static JLabel label(String text, Font font, Color color) {
-        return label(text, font, color, SwingConstants.LEADING);
+        return label(text, font, color, JLabel.LEADING);
     }
 
     private static JLabel makeBadge(String text, Color bg, Color fg, Color border, Font font) {
-        JLabel badge = label(text, font, fg, SwingConstants.CENTER);
+        JLabel badge = label(text, font, fg, JLabel.CENTER);
         badge.setOpaque(true);
         applyBadgeColors(badge, bg, fg, border);
         return badge;
@@ -770,7 +848,7 @@ public class QuestionerScreen extends JPanel {
 
     /** Square colored label with a letter or number, locked to size x size. */
     private static JLabel makeAvatar(String text, Color bg, int size) {
-        JLabel avatar = label(text, new Font("Tahoma", Font.BOLD, size / 2), Color.WHITE, SwingConstants.CENTER);
+        JLabel avatar = label(text, new Font("Tahoma", Font.BOLD, size / 2), Color.WHITE, JLabel.CENTER);
         avatar.setOpaque(true);
         avatar.setBackground(bg);
         Dimension d = new Dimension(size, size);
@@ -780,7 +858,7 @@ public class QuestionerScreen extends JPanel {
         return avatar;
     }
 
-    /** Plain JButton with a flat fill and thin border. The fill follows hover / press through the button model. */
+    /** Plain JButton with a flat fill and thin border. The fill follows hover / press through mouse events. */
     private static JButton makeButton(String text, boolean primary, int padV, int padH) {
         Color normal = primary ? PRIMARY_BLUE : Color.WHITE;
         Color hover = primary ? PRIMARY_HOVER : BG_LIGHT;
@@ -795,15 +873,69 @@ public class QuestionerScreen extends JPanel {
         button.setBorder(box(primary ? PRIMARY_BLUE : CARD_BORDER, 1, padV, padH));
         button.setFocusPainted(false);
         button.setRolloverEnabled(true);
-        ButtonModel model = button.getModel();
-        model.addChangeListener(e ->
-            button.setBackground(model.isPressed() || model.isArmed() ? pressed : model.isRollover() ? hover : normal));
+        button.addMouseListener(new ButtonHoverListener(button, normal, hover, pressed));
         return button;
     }
 
     // =====================================================================
     //  Inner classes
     // =====================================================================
+
+    /**
+     * Colors a button from mouse events: normal, hover (mouse inside) and pressed. A disabled button
+     * is left alone, so one that is disabled while the pointer is still over it keeps the colour it
+     * had (the old button-model listener repainted it normal). A press made from the keyboard is not
+     * highlighted either, because it raises no mouse event at all.
+     */
+    private static class ButtonHoverListener extends MouseAdapter {
+        private final JButton button;
+        private final Color normal;
+        private final Color hover;
+        private final Color pressed;
+        private boolean inside = false;
+
+        ButtonHoverListener(JButton button, Color normal, Color hover, Color pressed) {
+            this.button = button;
+            this.normal = normal;
+            this.hover = hover;
+            this.pressed = pressed;
+        }
+
+        @Override
+        public void mouseEntered(MouseEvent e) {
+            inside = true;
+            if (button.isEnabled()) {
+                button.setBackground(hover);
+            }
+        }
+
+        @Override
+        public void mouseExited(MouseEvent e) {
+            inside = false;
+            if (button.isEnabled()) {
+                button.setBackground(normal);
+            }
+        }
+
+        @Override
+        public void mousePressed(MouseEvent e) {
+            if (button.isEnabled()) {
+                button.setBackground(pressed);
+            }
+        }
+
+        @Override
+        public void mouseReleased(MouseEvent e) {
+            if (!button.isEnabled()) {
+                return;
+            }
+            if (inside) {
+                button.setBackground(hover);
+            } else {
+                button.setBackground(normal);
+            }
+        }
+    }
 
     /** The mutable parts of one step row, so setStep() can restyle the circle and the text. */
     private static class StepRow {
@@ -819,7 +951,7 @@ public class QuestionerScreen extends JPanel {
     }
 
     /** Draws one picture centered in its area (or a placeholder box when missing). */
-    private static class ShapeImage extends JComponent {
+    private static class ShapeImage extends JPanel {
         private final Image image;
         private final int size;
         private final String label;
@@ -828,6 +960,7 @@ public class QuestionerScreen extends JPanel {
             this.image = image;
             this.size = size;
             this.label = label;
+            setOpaque(false); // the panel paints nothing of its own, only the picture below
             Dimension d = new Dimension(size, size);
             setPreferredSize(d);
             setMinimumSize(d);
@@ -847,9 +980,11 @@ public class QuestionerScreen extends JPanel {
             g.setColor(new Color(70, 90, 120));
             g.drawRect(x, y, size - 1, size - 1);
             g.setFont(new Font("Tahoma", Font.BOLD, Math.max(10, size / 6)));
-            FontMetrics fm = g.getFontMetrics();
             String text = label.length() > 6 ? label.substring(0, 6) : label;
-            g.drawString(text, x + (size - fm.stringWidth(text)) / 2, y + (size - fm.getHeight()) / 2 + fm.getAscent());
+            int textWidth = g.getFontMetrics().stringWidth(text);
+            int textHeight = g.getFontMetrics().getHeight();
+            int ascent = g.getFontMetrics().getAscent();
+            g.drawString(text, x + (size - textWidth) / 2, y + (size - textHeight) / 2 + ascent);
         }
     }
 
@@ -865,7 +1000,8 @@ public class QuestionerScreen extends JPanel {
         /** Puts each shape's center on its spot, nudged inward so it never leaves the canvas. */
         @Override
         public void doLayout() {
-            for (Component shape : getComponents()) {
+            for (int i = 0; i < getComponentCount(); i++) {
+                Container shape = (Container) getComponent(i);
                 double[] spot = shapeSpots.get(shape.getName());
                 if (spot == null) {
                     continue;
@@ -918,7 +1054,7 @@ public class QuestionerScreen extends JPanel {
         ShapeCard(String name) {
             super(new BorderLayout());
             this.name = name;
-            nameLabel = label(name, FONT_SMALL_BOLD, TEXT_DARK, SwingConstants.CENTER);
+            nameLabel = label(name, FONT_SMALL_BOLD, TEXT_DARK, JLabel.CENTER);
             add(new ShapeImage(image(name, SMALL_ICON), SMALL_ICON, name), BorderLayout.CENTER);
             add(nameLabel, BorderLayout.SOUTH);
             makeDraggable(this, false, name);

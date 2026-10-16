@@ -79,9 +79,11 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         setTitle("Guess What It Looks Like? - Multiplayer Party Game (LAN)");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         // Fit the window to the usable screen so the bottom buttons are never pushed off a small display.
-        Rectangle usable = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
-        int width = Math.min(1360, usable.width);
-        int height = Math.min(800, usable.height);
+        Toolkit toolkit = Toolkit.getDefaultToolkit();
+        Insets usableInsets = toolkit.getScreenInsets(getGraphicsConfiguration());
+        Dimension screen = toolkit.getScreenSize();
+        int width = Math.min(1360, screen.width - usableInsets.left - usableInsets.right);
+        int height = Math.min(800, screen.height - usableInsets.top - usableInsets.bottom);
         setSize(width, height);
         setMinimumSize(new Dimension(Math.min(1100, width), Math.min(680, height)));
         setLocationRelativeTo(null);

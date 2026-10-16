@@ -1,6 +1,6 @@
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Component;
+import java.awt.Container;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -525,7 +525,7 @@ public class JoinScreen extends JPanel {
      * Wraps content in a filled box with a 1px line border and inner padding.
      * Uses two nested panels (LineBorder outside, EmptyBorder inside) so no compound border is needed.
      */
-    private static JPanel framed(Component content, Color fill, Color line,
+    private static JPanel framed(Container content, Color fill, Color line,
                                  int top, int left, int bottom, int right) {
         JPanel inner = new JPanel(new BorderLayout());
         inner.setOpaque(false);
@@ -540,7 +540,7 @@ public class JoinScreen extends JPanel {
     }
 
     /** Keeps a component at its preferred size, aligned left, inside a GridLayout cell. */
-    private static JPanel leftAligned(Component c) {
+    private static JPanel leftAligned(Container c) {
         JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         p.setOpaque(false);
         p.add(c);

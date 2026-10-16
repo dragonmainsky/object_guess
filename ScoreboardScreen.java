@@ -9,8 +9,9 @@ import java.awt.Image;
 import java.awt.Toolkit;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
-import javax.swing.ButtonModel;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -18,8 +19,6 @@ import javax.swing.JPanel;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
 
 /**
  * ScoreboardScreen: หน้าจอที่ 5 - สรุปผลคะแนนหลังจบเกม (Remake)
@@ -551,7 +550,7 @@ public class ScoreboardScreen extends JPanel {
         btn.setFocusable(false);
         btn.setRolloverEnabled(true);
         btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        btn.getModel().addChangeListener(new ButtonStateListener(btn, normal, hover, pressed));
+        btn.addMouseListener(new ButtonStateListener(btn, normal, hover, pressed));
         return btn;
     }
 
@@ -620,12 +619,13 @@ public class ScoreboardScreen extends JPanel {
     //  Inner classes (แทน lambda)
     // =====================================================================
 
-    /** เปลี่ยนสีพื้นปุ่มตามสถานะ: กดอยู่ -> เมาส์อยู่บนปุ่ม -> ปกติ */
-    private static class ButtonStateListener implements ChangeListener {
+    /** เปลี่ยนสีพื้นปุ่มจากเหตุการณ์เมาส์: กดอยู่ -> เมาส์อยู่บนปุ่ม -> ปกติ (ปุ่มที่ปิดใช้งานอยู่ไม่แตะ) */
+    private static class ButtonStateListener extends MouseAdapter {
         private final JButton button;
         private final Color normal;
         private final Color hover;
         private final Color pressed;
+        private boolean inside = false;
 
         ButtonStateListener(JButton button, Color normal, Color hover, Color pressed) {
             this.button = button;
@@ -635,11 +635,34 @@ public class ScoreboardScreen extends JPanel {
         }
 
         @Override
-        public void stateChanged(ChangeEvent event) {
-            ButtonModel model = button.getModel();
-            if (model.isPressed() || model.isArmed()) {
+        public void mouseEntered(MouseEvent event) {
+            inside = true;
+            if (button.isEnabled()) {
+                button.setBackground(hover);
+            }
+        }
+
+        @Override
+        public void mouseExited(MouseEvent event) {
+            inside = false;
+            if (button.isEnabled()) {
+                button.setBackground(normal);
+            }
+        }
+
+        @Override
+        public void mousePressed(MouseEvent event) {
+            if (button.isEnabled()) {
                 button.setBackground(pressed);
-            } else if (model.isRollover()) {
+            }
+        }
+
+        @Override
+        public void mouseReleased(MouseEvent event) {
+            if (!button.isEnabled()) {
+                return;
+            }
+            if (inside) {
                 button.setBackground(hover);
             } else {
                 button.setBackground(normal);

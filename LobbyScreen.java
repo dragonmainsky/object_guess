@@ -691,16 +691,11 @@ public class LobbyScreen extends JPanel {
         }
     }
 
+    /** True once the picture has finished loading; false when the file is missing or the picture is broken. */
     private boolean waitForImage(Image image) {
-        MediaTracker tracker = new MediaTracker(this);
-        tracker.addImage(image, 0);
-        try {
-            tracker.waitForID(0);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return false;
-        }
-        return !tracker.isErrorID(0);
+        // Constructing the icon waits for the picture; status 8 means it completed, and a missing
+        // file reports 4 (errored) or 2 (aborted) instead.
+        return new ImageIcon(image).getImageLoadStatus() == 8;
     }
 
     // =====================================================================

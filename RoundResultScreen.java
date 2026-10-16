@@ -1,6 +1,5 @@
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -8,7 +7,6 @@ import java.awt.GridLayout;
 import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
 import javax.swing.JLabel;
@@ -372,11 +370,11 @@ public class RoundResultScreen extends JPanel {
             JPanel row = buildPlayerRow(i, name, delta, total, guess, correct, bonus, isQuestioner, secret);
             // BoxLayout only stretches up to the max size, so locking the height to the row's own
             // preferred height keeps rows natural instead of filling the whole viewport.
-            row.setAlignmentX(Component.LEFT_ALIGNMENT);
+            row.setAlignmentX(JPanel.LEFT_ALIGNMENT);
             row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
             rowsPanel.add(row);
             if (i < names.length - 1) {
-                rowsPanel.add(Box.createVerticalStrut(ROW_GAP));
+                rowsPanel.add(strut(ROW_GAP));
             }
         }
         rowsPanel.revalidate();
@@ -614,6 +612,20 @@ public class RoundResultScreen extends JPanel {
 
     private static Color avatarColor(int index) {
         return AVATAR_COLORS[Math.abs(index) % AVATAR_COLORS.length];
+    }
+
+    /**
+     * Transparent fixed-height filler for the BoxLayout rows (the same sizes the old vertical strut
+     * used): no height of its own to give away, and it never grows past the requested height.
+     */
+    private static JPanel strut(int height) {
+        JPanel filler = new JPanel();
+        filler.setOpaque(false);
+        Dimension fixed = new Dimension(0, height);
+        filler.setMinimumSize(fixed);
+        filler.setPreferredSize(fixed);
+        filler.setMaximumSize(new Dimension(Short.MAX_VALUE, height));
+        return filler;
     }
 
     // =====================================================================
