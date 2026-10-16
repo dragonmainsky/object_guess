@@ -1141,15 +1141,7 @@ public class GameServer {
         } else {
             rank = 3;
         }
-
-        String[] virtualMarkers = {"virtualbox", "vmware", "vmnet", "vbox", "hyper-v", "vethernet", "wsl",
-            "docker", "tap-", "tun", "vpn", "tailscale", "zerotier", "loopback pseudo", "bluetooth"};
-        for (String marker : virtualMarkers) {
-            if (interfaceLabel.contains(marker)) {
-                rank += 10;
-                break;
-            }
-        }
+        
         // Host-only ranges used by VirtualBox (192.168.56.x) and similar tools.
         if (ip.startsWith("192.168.56.") || ip.startsWith("192.168.99.")) {
             rank += 10;
