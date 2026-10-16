@@ -19,45 +19,49 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 
 /**
- * LobbyScreen: the waiting room. Every value on it (players, ready flags, address, chat) is pushed in
- * by MainApp from the server, so every machine in the room shows exactly the same thing.
+ * LobbyScreen: หน้าจอห้องพักคอย (หน้าจอที่ 2)
+ * แสดงรายชื่อผู้เล่นที่อยู่ในห้อง สถานะความพร้อม (Ready) ข้อมูลการเชื่อมต่อ ระบบแชต และปุ่มเริ่มเกม
+ * ข้อมูลทั้งหมดบนหน้าจอนี้จะถูกส่งมาจาก MainApp ตามข้อมูลที่ได้รับจาก GameServer
  */
 public class LobbyScreen extends JPanel {
 
-    private static final int SIDE_WIDTH = 320;
-    private static final int PREVIEW_ICON = 80;
+    private static final int SIDE_WIDTH = 320;   // ความกว้างของคอลัมน์ซ้ายและขวา
+    private static final int PREVIEW_ICON = 80;  // ขนาดรูปทรงในแถบพรีวิวตรงกลาง
 
-    /** The three shapes shown in the preview strip (the third one is the rectangle). */
+    // รูปทรงตัวอย่าง 3 รูปที่แสดงบนการ์ดพรีวิวตรงกลาง (รูปที่ 3 คือสี่เหลี่ยมผืนผ้า)
     private static final String[] PREVIEW_NAMES = {"Triangle", "Circle", ShapeImages.NAMES[2]};
 
-    private final ActionListener onStartGameAction;
-    private final ActionListener onLeaveAction;
+    private final ActionListener onStartGameAction; // ตัวจัดการเมื่อกดปุ่มเริ่มเกม
+    private final ActionListener onLeaveAction;     // ตัวจัดการเมื่อกดปุ่มออกจากห้อง
 
-    // ===== Live room state (pushed in from MainApp) =====
-    private final List<String> playerNames = new ArrayList<>();
-    private final Map<String, Boolean> readyStates = new LinkedHashMap<>();
-    private String myName = "";
-    private String hostName = "";
-    private boolean isHost;
-    private ActionListener readyAction;
-    private Consumer<String> chatAction;
+    // ===== ข้อมูลสถานะของห้องแบบเรียลไทม์ (อัปเดตมาจาก MainApp) =====
+    private final List<String> playerNames = new ArrayList<>();         // รายชื่อผู้เล่นทั้งหมดในห้อง
+    private final Map<String, Boolean> readyStates = new LinkedHashMap<>(); // สถานะความพร้อมของผู้เล่นแต่ละคน
+    private String myName = "";                     // ชื่อของผู้เล่นเครื่องนี้
+    private String hostName = "";                   // ชื่อของหัวหน้าห้อง (โฮสต์)
+    private boolean isHost;                         // เครื่องนี้เป็นโฮสต์หรือไม่
+    private ActionListener readyAction;             // การทำงานเมื่อกดปุ่มสลับสถานะพร้อม
+    private Consumer<String> chatAction;            // การทำงานเมื่อส่งข้อความแชต
 
-    // ===== Widgets that are rebuilt from the room state =====
-    private JPanel playerRowsPanel;
-    private JLabel playersCountLabel;
-    private JLabel addressValueLabel;
-    private JLabel hostValueLabel;
-    private JLabel playersValueLabel;
-    private JLabel minPlayersBadge;
-    private JLabel readyCountLabel;
-    private JPanel trackPanel;
-    private JLabel roomCodeValueLabel;
-    private JLabel subHeaderStatusLabel;
-    private JPanel chatListPanel;
-    private JTextField chatField;
-    private JButton readyBtn;
-    private JButton startBtn;
+    // ===== คอมโพเนนต์ UI ที่ถูกอัปเดตตามสถานะห้อง =====
+    private JPanel playerRowsPanel;                 // พาเนลแสดงรายการผู้เล่น
+    private JLabel playersCountLabel;               // ป้ายแสดงจำนวนผู้เล่นในห้อง
+    private JLabel addressValueLabel;               // ป้ายแสดง IP ที่อยู่ของห้อง
+    private JLabel hostValueLabel;                  // ป้ายแสดงชื่อโฮสต์
+    private JLabel playersValueLabel;               // ป้ายแสดงตัวเลขจำนวนผู้เล่น
+    private JLabel minPlayersBadge;                 // ป้ายสถานะจำนวนผู้เล่นขั้นต่ำ
+    private JLabel readyCountLabel;                 // ป้ายแสดงจำนวนคนที่พร้อม (เช่น "2 of 3")
+    private JPanel trackPanel;                      // แถบหลอดความพร้อมของผู้เล่น
+    private JLabel roomCodeValueLabel;              // ป้ายแสดงพอร์ตของห้อง
+    private JLabel subHeaderStatusLabel;            // ป้ายข้อความสถานะย่อย
+    private JPanel chatListPanel;                   // พาเนลแสดงรายการข้อความแชต
+    private JTextField chatField;                   // ช่องพิมพ์ข้อความแชต
+    private JButton readyBtn;                       // ปุ่มกดพร้อม (READY)
+    private JButton startBtn;                       // ปุ่มเริ่มเกม (START GAME)
 
+    /**
+     * คอนสตรักเตอร์สร้างหน้าจอล็อบบี้ จัดวางแบบ 3 คอลัมน์ (ซ้าย, กลาง, ขวา)
+     */
     public LobbyScreen(ActionListener onStartGameAction, ActionListener onLeaveAction) {
         this.onStartGameAction = onStartGameAction;
         this.onLeaveAction = onLeaveAction;
@@ -69,7 +73,7 @@ public class LobbyScreen extends JPanel {
         mainContent.setBorder(new EmptyBorder(18, 24, 16, 24));
         mainContent.add(createSubHeader(), BorderLayout.NORTH);
 
-        // Three columns: fixed-width left, flexible center, fixed-width right.
+        // แบ่งออกเป็น 3 คอลัมน์: ซ้ายความกว้างคงที่, กลางยืดหยุ่น, ขวาความกว้างคงที่
         var left = createLeftPanel();
         left.setPreferredSize(new Dimension(SIDE_WIDTH, 0));
         var right = createRightPanel();
@@ -87,9 +91,12 @@ public class LobbyScreen extends JPanel {
     }
 
     // =====================================================================
-    //  Sections
+    //  การสร้างแต่ละส่วนของหน้าจอ (Sections)
     // =====================================================================
 
+    /**
+     * สร้างส่วนหัวด้านบน: แสดงชื่อล็อบบี้ คำอธิบายสถานะ และป้ายพอร์ตของห้อง
+     */
     private JPanel createSubHeader() {
         var subHeader = AppDialog.panel();
         subHeader.setLayout(new BorderLayout());
@@ -102,7 +109,7 @@ public class LobbyScreen extends JPanel {
         titles.add(subHeaderStatusLabel);
         subHeader.add(titles, BorderLayout.WEST);
 
-        // Room code badge: two plain labels stacked in one bordered box.
+        // ป้ายแสดงพอร์ตของห้อง (กรอบสี่เหลี่ยมสีฟ้า)
         var roomCode = new JPanel(new GridLayout(2, 1, 0, 0));
         roomCode.setBackground(AppDialog.BLUE_LIGHT_BG);
         roomCode.setBorder(new CompoundBorder(new LineBorder(AppDialog.BLUE_BORDER, 1), new EmptyBorder(8, 16, 8, 16)));
@@ -117,7 +124,9 @@ public class LobbyScreen extends JPanel {
         return subHeader;
     }
 
-    /** Left column: the players list and the server information. */
+    /**
+     * คอลัมน์ฝั่งซ้าย: แสดงรายชื่อผู้เล่นและข้อมูลเกี่ยวกับเซิร์ฟเวอร์
+     */
     private JPanel createLeftPanel() {
         var playersCard = AppDialog.card();
         playersCard.setLayout(new BorderLayout(0, 12));
@@ -153,7 +162,7 @@ public class LobbyScreen extends JPanel {
         serverBody.add(minPlayersBadge, BorderLayout.SOUTH);
         serverCard.add(serverBody, BorderLayout.CENTER);
 
-        // Both cards keep their natural height; the leftover space stays empty at the bottom.
+        // รวมการ์ดผู้เล่นและการ์ดข้อมูลเซิร์ฟเวอร์เข้าด้วยกัน
         var left = AppDialog.panel();
         left.setLayout(new BorderLayout(0, 12));
         left.add(playersCard, BorderLayout.NORTH);
@@ -161,7 +170,9 @@ public class LobbyScreen extends JPanel {
         return left;
     }
 
-    /** Center column: the shape preview, the ready progress and the action buttons. */
+    /**
+     * คอลัมน์ตรงกลาง: แสดงรูปภาพพรีวิวตัวอย่าง หลอดแสดงความพร้อม และปุ่ม READY / START GAME
+     */
     private JPanel createCenterPanel() {
         var center = AppDialog.panel();
         center.setLayout(new BorderLayout(0, 14));
@@ -183,7 +194,7 @@ public class LobbyScreen extends JPanel {
         headings.add(AppDialog.label("Every player must press READY", AppDialog.BODY, AppDialog.TEXT_MUTED, JLabel.CENTER));
         headings.add(AppDialog.label("before the host can start the game.", AppDialog.BODY, AppDialog.TEXT_MUTED, JLabel.CENTER));
 
-        // Progress: a label row plus one segment per player (filled segments are ready players).
+        // หลอดแสดงความพร้อม: แถวข้อความด้านบนและแท่งแสดงสถานะผู้เล่น
         var progressHeader = AppDialog.panel();
         progressHeader.setLayout(new BorderLayout());
         progressHeader.add(AppDialog.label("Players ready", AppDialog.SMALL_BOLD, AppDialog.TEXT_DARK), BorderLayout.WEST);
@@ -213,6 +224,7 @@ public class LobbyScreen extends JPanel {
         previewCard.add(infoSlot, BorderLayout.CENTER);
         center.add(previewCard, BorderLayout.CENTER);
 
+        // ปุ่ม READY สำหรับสลับสถานะพร้อม
         readyBtn = AppDialog.button("READY", AppDialog.PRIMARY_BLUE, AppDialog.PRIMARY_HOVER, AppDialog.PRIMARY_PRESS,
                 Color.WHITE, AppDialog.PRIMARY_BLUE, 12, 18);
         readyBtn.setPreferredSize(new Dimension(160, 44));
@@ -222,6 +234,7 @@ public class LobbyScreen extends JPanel {
             }
         });
 
+        // ปุ่ม START GAME สำหรับโฮสต์เริ่มเกม
         startBtn = AppDialog.button("START GAME", Color.WHITE, AppDialog.BG_LIGHT, AppDialog.CARD_BORDER,
                 AppDialog.TEXT_DARK, AppDialog.CARD_BORDER, 12, 18);
         startBtn.setPreferredSize(new Dimension(160, 44));
@@ -238,7 +251,9 @@ public class LobbyScreen extends JPanel {
         return center;
     }
 
-    /** Right column: chat, round settings and the leave button. */
+    /**
+     * คอลัมน์ฝั่งขวา: ระบบแชต ข้อมูลกติกาของรอบ และปุ่มออกจากห้อง
+     */
     private JPanel createRightPanel() {
         var right = AppDialog.panel();
         right.setLayout(new BorderLayout(0, 12));
@@ -281,7 +296,7 @@ public class LobbyScreen extends JPanel {
         inputRow.add(sendBtn, BorderLayout.EAST);
         chatCard.add(inputRow, BorderLayout.SOUTH);
 
-        // Round settings, straight from the server's own constants.
+        // การตั้งค่าของแต่ละรอบ อ่านมาจากค่าคงที่ของ GameServer
         var settingsCard = AppDialog.card();
         settingsCard.setLayout(new BorderLayout(0, 10));
         settingsCard.add(AppDialog.label("Round settings", AppDialog.SUBTITLE, AppDialog.TEXT_DARK), BorderLayout.NORTH);
@@ -309,45 +324,53 @@ public class LobbyScreen extends JPanel {
     }
 
     // =====================================================================
-    //  Live room data
+    //  การอัปเดตข้อมูลห้องสด (Live room data)
     // =====================================================================
 
+    // ตั้งค่าชื่อผู้เล่นเครื่องนี้
     public void setMyName(String name) {
         myName = (name == null) ? "" : name;
     }
 
+    // กำหนดสถานะว่าเป็นโฮสต์หรือไม่
     public void setHost(boolean host) {
         isHost = host;
         refreshPlayers();
     }
 
+    // กำหนดตัวจัดการเมื่อกดปุ่ม Ready
     public void setReadyAction(ActionListener action) {
         readyAction = action;
     }
 
+    // กำหนดตัวจัดการเมื่อส่งข้อความแชต
     public void setChatAction(Consumer<String> action) {
         chatAction = action;
     }
 
+    // ตรวจสอบว่าผู้เล่นเครื่องนี้พร้อมแล้วหรือไม่
     public boolean isReady() {
         return Boolean.TRUE.equals(readyStates.get(myName));
     }
 
-    /** Shows the host address players typed in (IP:port). */
+    /** แสดงที่อยู่ IP และพอร์ตของโฮสต์ */
     public void setAddress(String address) {
         addressValueLabel.setText((address == null || address.isEmpty()) ? "-" : address);
     }
 
-    /** Fills the port badge with the port actually in use. */
+    /** แสดงหมายเลขพอร์ตบนป้ายส่วนหัว */
     public void setPort(int port) {
         roomCodeValueLabel.setText(port > 0 ? String.valueOf(port) : "----");
     }
 
+    // อัปเดตข้อความสถานะย่อย
     public void setStatusText(String text) {
         subHeaderStatusLabel.setText(text);
     }
 
-    /** Replaces the whole player list and ready state with the server's latest snapshot. */
+    /**
+     * อัปเดตรายชื่อผู้เล่น สถานะความพร้อม และชื่อโฮสต์จากข้อมูลล่าสุดของเซิร์ฟเวอร์
+     */
     public void setPlayers(List<String> names, Map<String, Boolean> ready, String host) {
         playerNames.clear();
         readyStates.clear();
@@ -364,10 +387,13 @@ public class LobbyScreen extends JPanel {
         refreshPlayers();
     }
 
-    /** Rebuilds every widget that depends on the room: rows, counters, track and buttons. */
+    /**
+     * รีเฟรชและสร้างคอมโพเนนต์แสดงผลใหม่ตามรายชื่อผู้เล่นล่าสุด
+     */
     private void refreshPlayers() {
         int total = playerNames.size();
 
+        // สร้างแถวรายชื่อผู้เล่นแต่ละคน
         playerRowsPanel.removeAll();
         for (int i = 0; i < total; i++) {
             String name = playerNames.get(i);
@@ -411,6 +437,7 @@ public class LobbyScreen extends JPanel {
         playersValueLabel.setText(String.valueOf(total));
         hostValueLabel.setText(hostName.isEmpty() ? "-" : hostName);
 
+        // นับจำนวนผู้เล่นที่กดพร้อม
         int readyCount = 0;
         for (String name : playerNames) {
             if (Boolean.TRUE.equals(readyStates.get(name))) {
@@ -419,7 +446,7 @@ public class LobbyScreen extends JPanel {
         }
         readyCountLabel.setText(readyCount + " of " + total);
 
-        // One track segment per player, filled while that player is ready.
+        // สร้างช่องในหลอดความพร้อมตามจำนวนผู้เล่น
         trackPanel.removeAll();
         trackPanel.setLayout(new GridLayout(1, Math.max(1, total), 0, 0));
         for (int i = 0; i < Math.max(1, total); i++) {
@@ -430,6 +457,7 @@ public class LobbyScreen extends JPanel {
         trackPanel.revalidate();
         trackPanel.repaint();
 
+        // ตรวจสอบจำนวนผู้เล่นขั้นต่ำ
         if (total < GameServer.MIN_PLAYERS) {
             AppDialog.paintBadge(minPlayersBadge, "Minimum " + GameServer.MIN_PLAYERS + " players needed",
                     AppDialog.WARNING_BG, AppDialog.WARNING_TEXT, AppDialog.WARNING_BORDER, 4, 10);
@@ -438,6 +466,7 @@ public class LobbyScreen extends JPanel {
                     AppDialog.SUCCESS_BG, AppDialog.SUCCESS_TEXT, AppDialog.SUCCESS_BORDER, 4, 10);
         }
 
+        // ตรวจสอบว่าผู้เล่นคนอื่นทุกคนพร้อมแล้วหรือไม่
         boolean allOthersReady = total >= GameServer.MIN_PLAYERS;
         for (String name : playerNames) {
             if (!name.equals(myName) && !Boolean.TRUE.equals(readyStates.get(name))) {
@@ -446,6 +475,7 @@ public class LobbyScreen extends JPanel {
         }
         boolean canStart = isHost && allOthersReady;
 
+        // ปรับแต่งปุ่มเริ่มเกมตามสิทธิ์และสถานะ
         startBtn.setEnabled(canStart);
         startBtn.setText(isHost ? "START GAME" : "HOST STARTS");
         startBtn.setBackground(canStart ? Color.WHITE : AppDialog.CARD_BORDER);
@@ -458,7 +488,7 @@ public class LobbyScreen extends JPanel {
             startBtn.setToolTipText("All players are ready - start the round.");
         }
 
-        // The ready button keeps its primary blue look; only its label changes with the state.
+        // สลับข้อความบนปุ่ม Ready
         readyBtn.setText(isReady() ? "CANCEL READY" : "READY");
 
         setStatusText(total < GameServer.MIN_PLAYERS
@@ -467,17 +497,17 @@ public class LobbyScreen extends JPanel {
     }
 
     // =====================================================================
-    //  Chat
+    //  ระบบข้อความแชต (Chat)
     // =====================================================================
 
-    /** Removes every chat line (a fresh room starts with an empty chat). */
+    /** ล้างประวัติข้อความแชตทั้งหมด */
     public void clearChat() {
         chatListPanel.removeAll();
         chatListPanel.revalidate();
         chatListPanel.repaint();
     }
 
-    /** Adds one chat line; system lines are drawn muted. */
+    /** เพิ่มข้อความใหม่ลงในกล่องแชต */
     public void addChatMessage(String sender, String text) {
         boolean isUser = sender != null && sender.equals(myName);
         boolean isSystem = "System".equalsIgnoreCase(sender);
@@ -493,10 +523,10 @@ public class LobbyScreen extends JPanel {
     }
 
     // =====================================================================
-    //  Rows and small factories
+    //  คอมโพเนนต์ย่อยและตัวช่วยสร้าง (Rows and Small Factories)
     // =====================================================================
 
-    /** Solid-bordered slot for the next player to join. */
+    /** ช่องสำหรับแสดงสถานะรอผู้เล่นคนถัดไป */
     private JPanel createEmptySlot() {
         var slot = new JPanel(new BorderLayout());
         slot.setBackground(AppDialog.BG_LIGHT);
@@ -518,7 +548,7 @@ public class LobbyScreen extends JPanel {
         return row;
     }
 
-    /** Borderless text field; the border and the padding come from the panel around it. */
+    /** สร้างช่องกรอกข้อความแชต */
     private static JTextField makeTextField() {
         var field = new JTextField("");
         field.setBackground(Color.WHITE);

@@ -24,40 +24,45 @@ import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 
 /**
- * QuestionerScreen: screen 3 - the questioner picks the secret shapes. A shape is dragged from the
- * Objects picker onto the canvas, dragged around on the canvas, or dragged back to remove it.
+ * QuestionerScreen: หน้าจอของผู้ตั้งโจทย์ (หน้าจอที่ 3)
+ * ผู้ตั้งโจทย์จะเลือกลวดลายรูปทรงความลับสำหรับรอบนี้
+ * โดยสามารถลากรูปทรงจากรายการ Objects ไปวางบนผืนผ้าใบ (Canvas),
+ * ลากจัดตำแหน่งบน Canvas หรือลากรูปทรงกลับไปยังรายการ Objects เพื่อลบออกได้
  */
 public class QuestionerScreen extends JPanel {
 
-    private static final int SMALL_ICON = 36;    // picture inside a picker card
-    private static final int BIG_ICON = 100;     // picture on the canvas, and under the mouse while dragging
-    private static final int LEFT_WIDTH = 260;
-    private static final int RIGHT_WIDTH = 330;
-    private static final Color CANVAS_BG = new Color(250, 252, 255);
-    private static final String HINT = "Drag a shape to move it, or back to Objects to remove it";
+    private static final int SMALL_ICON = 36;    // ขนาดรูปภาพในช่องเลือกรูปทรงฝั่งขวา
+    private static final int BIG_ICON = 100;     // ขนาดรูปภาพบน Canvas และขนาดรูปที่ลอยตามเมาส์ขณะลาก
+    private static final int LEFT_WIDTH = 260;   // ความกว้างของคอลัมน์ซ้าย
+    private static final int RIGHT_WIDTH = 330;  // ความกว้างของคอลัมน์ขวา
+    private static final Color CANVAS_BG = new Color(250, 252, 255); // สีพื้นหลังของ Canvas
+    private static final String HINT = "Drag a shape to move it, or back to Objects to remove it"; // ข้อความแนะนำ
 
-    // ===== State =====
-    private final Set<String> selectedShapes = new LinkedHashSet<>();   // empty at the start of every round
-    private final List<ShapeImages.Picker> pickers = new ArrayList<>();
-    private final Map<String, double[]> shapeSpots = new HashMap<>();   // shape -> {x, y} as fractions of the canvas
-    private final List<StepRow> stepRows = new ArrayList<>();
-    private final ShapeImages.DragBoard drag;
-    private final ActionListener onConfirmAction;
+    // ===== ข้อมูลสถานะการเลือกรูปทรง (State) =====
+    private final Set<String> selectedShapes = new LinkedHashSet<>();   // เซ็ตเก็บชื่อรูปทรงที่เลือก (เริ่มใหม่ทุกรอบ)
+    private final List<ShapeImages.Picker> pickers = new ArrayList<>(); // รายการช่องเลือกรูปทรง
+    private final Map<String, double[]> shapeSpots = new HashMap<>();   // เก็บพิกัด {x, y} ของแต่ละรูปทรงเป็นสัดส่วนบน Canvas (0.0 - 1.0)
+    private final List<StepRow> stepRows = new ArrayList<>();           // รายการแถวแสดงขั้นตอนความคืบหน้า
+    private final ShapeImages.DragBoard drag;                           // ตัวจัดการระบบลากและวาง (DragBoard)
+    private final ActionListener onConfirmAction;                       // ตัวรับเหตุการณ์เมื่อกดปุ่มยืนยัน (Confirm)
 
-    private DashedCanvas canvas;
-    private JLabel selectedCounterLabel;
-    private JLabel readyBadge;
-    private JPanel scoreRowsPanel;
-    private JLabel roundLabel;
-    private JLabel hintLabel;
-    private JButton confirmButton;
-    private JLabel timeBadge;
-    private JLabel targetBadge;
-    private int requiredShapes = GameServer.MIN_SHAPES;   // drawn by the server for every round
-    private boolean selectionLocked;
-    private boolean roundActive;                          // false before the first round of the game
-    private String myName = "";
+    private DashedCanvas canvas;                         // ผืนผ้าใบแสดงรูปทรงที่มีเส้นประ
+    private JLabel selectedCounterLabel;                 // ป้ายนับจำนวนรูปทรงที่เลือก
+    private JLabel readyBadge;                           // ป้ายสถานะความพร้อมในการยืนยัน
+    private JPanel scoreRowsPanel;                       // พาเนลแสดงแถบคะแนนผู้เล่น
+    private JLabel roundLabel;                           // ป้ายบอกหมายเลขรอบ
+    private JLabel hintLabel;                            // ป้ายข้อความแนะนำใต้ Canvas
+    private JButton confirmButton;                       // ปุ่มกดยืนยันตัวเลือกรูปทรง
+    private JLabel timeBadge;                            // ป้ายเวลานับถอยหลัง
+    private JLabel targetBadge;                          // ป้ายบอกจำนวนเป้าหมายรูปทรงที่ต้องเลือก
+    private int requiredShapes = GameServer.MIN_SHAPES;  // จำนวนรูปทรงที่เซิร์ฟเวอร์สุ่มขึ้นมาสำหรับรอบนี้
+    private boolean selectionLocked;                     // สถานะว่าล็อกตัวเลือกแล้วหรือไม่ (หลังกดยืนยัน)
+    private boolean roundActive;                         // สถานะว่ารอบกำลังดำเนินอยู่หรือไม่
+    private String myName = "";                          // ชื่อของผู้เล่นเครื่องนี้
 
+    /**
+     * คอนสตรักเตอร์สร้างหน้าจอผู้ตั้งโจทย์ จัดวาง 3 คอลัมน์ (ซ้าย: สกอร์บอร์ด & ขั้นตอน, กลาง: Canvas, ขวา: รายการ Objects)
+     */
     public QuestionerScreen(ActionListener onConfirmAction) {
         this.onConfirmAction = onConfirmAction;
         drag = new ShapeImages.DragBoard(this, BIG_ICON);
@@ -84,7 +89,9 @@ public class QuestionerScreen extends JPanel {
         refreshUI();
     }
 
-    /** The picture that follows the mouse while a shape is dragged is painted over the whole screen. */
+    /**
+     * วาดรูปทรงโปร่งแสงที่กำลังลากตามตำแหน่งเคอร์เซอร์เมาส์ทับบนหน้าจอทั้งหมด
+     */
     @Override
     public void paint(Graphics g) {
         super.paint(g);
@@ -92,9 +99,12 @@ public class QuestionerScreen extends JPanel {
     }
 
     // =====================================================================
-    //  Sections
+    //  การสร้างแต่ละส่วนของหน้าจอ (Sections)
     // =====================================================================
 
+    /**
+     * สร้างแถบส่วนหัวด้านบน: แสดงหัวข้อว่าถึงตาคุณเลือกแล้ว พร้อมป้ายเป้าหมายจำนวนรูปและเวลานับถอยหลัง
+     */
     private JPanel createSubHeader() {
         var titles = AppDialog.panel();
         titles.setLayout(new GridLayout(2, 1, 0, 2));
@@ -114,11 +124,14 @@ public class QuestionerScreen extends JPanel {
         subHeader.setLayout(new BorderLayout());
         subHeader.setBorder(new EmptyBorder(4, 0, 6, 0));
         subHeader.add(titles, BorderLayout.WEST);
-        // CENTER lets the badge row wrap onto a second line instead of being clipped in a narrow window.
+        // CENTER ช่วยให้ป้ายต่างๆ ปรับขึ้นบรรทัดใหม่ได้เมื่อหน้าต่างมีขนาดแคบ
         subHeader.add(badges, BorderLayout.CENTER);
         return subHeader;
     }
 
+    /**
+     * คอลัมน์ฝั่งซ้าย: แสดงตารางคะแนนสดของผู้เล่น และแถบขั้นตอน 3 ขั้นตอน
+     */
     private JPanel createLeftPanel() {
         var playersCard = AppDialog.stack(AppDialog.card());
         playersCard.add(alignLeft(AppDialog.label("Players", AppDialog.SUBTITLE, AppDialog.TEXT_DARK)));
@@ -128,7 +141,7 @@ public class QuestionerScreen extends JPanel {
         playersCard.add(alignLeft(scoreRowsPanel));
         playersCard.add(AppDialog.strut(14));
 
-        // The divider is just the top border of the tip box.
+        // กล่องคำแนะนำกติกาการให้คะแนน
         var tipLines = AppDialog.panel();
         tipLines.setLayout(new GridLayout(2, 1));
         tipLines.add(AppDialog.label("Info: Guessers score +1 per correct shape,", AppDialog.SMALL, AppDialog.TEXT_MUTED));
@@ -138,6 +151,7 @@ public class QuestionerScreen extends JPanel {
                 new EmptyBorder(10, 0, 0, 0)));
         playersCard.add(alignLeft(tipBox));
 
+        // การ์ดแสดงขั้นตอน 3 สเต็ป: 1. เลือกรูปทรง, 2. ยืนยัน, 3. รอดูคนทาย
         var roundCard = AppDialog.stack(AppDialog.card());
         roundLabel = AppDialog.label("Waiting to start", AppDialog.SUBTITLE, AppDialog.TEXT_DARK);
         roundCard.add(alignLeft(roundLabel));
@@ -156,6 +170,9 @@ public class QuestionerScreen extends JPanel {
         return column;
     }
 
+    /**
+     * คอลัมน์ตรงกลาง: ผืนผ้าใบ (Canvas) พร้อมเส้นประ สำหรับวางและจัดตำแหน่งรูปทรงความลับ
+     */
     private JPanel createCenterPanel() {
         var titles = AppDialog.panel();
         titles.setLayout(new GridLayout(2, 1, 0, 2));
@@ -169,20 +186,20 @@ public class QuestionerScreen extends JPanel {
         cardHeader.add(titles, BorderLayout.WEST);
         cardHeader.add(centered(readyBadge), BorderLayout.EAST);
 
-        // The canvas takes shapes from the picker and shapes being moved around on it.
+        // กำหนด Canvas เป็นพื้นที่รับการวางรูปทรง (Drop zone)
         canvas = new DashedCanvas();
         drag.dropZone(canvas,
                 () -> drag.fromBoard() || selectedShapes.contains(drag.shape()) || selectedShapes.size() < requiredShapes,
                 canvas::setDropHighlight,
                 (shapeName, where) -> {
                     if (selectionLocked) {
-                        return;
+                        return; // หากล็อกแล้ว ไม่อนุญาตให้แก้ไข
                     }
                     if (selectedShapes.size() >= requiredShapes && !selectedShapes.contains(shapeName)) {
-                        return;
+                        return; // ไม่ให้เลือกเกินจำนวนที่กำหนด
                     }
                     selectedShapes.add(shapeName);
-                    // The shape's center goes exactly where the mouse was released.
+                    // คำนวณพิกัดกึ่งกลางตามจุดที่เมาส์ปล่อยวาง
                     double fx = where.x / (double) Math.max(1, canvas.getWidth());
                     double fy = where.y / (double) Math.max(1, canvas.getHeight());
                     shapeSpots.put(shapeName, new double[] {clamp(fx), clamp(fy)});
@@ -198,6 +215,9 @@ public class QuestionerScreen extends JPanel {
         return centerCard;
     }
 
+    /**
+     * คอลัมน์ฝั่งขวา: รายการรูปทรงทั้งหมด 8 แบบในกล่อง Objects พร้อมปุ่ม CLEAR และ CONFIRM
+     */
     private JPanel createRightPanel() {
         selectedCounterLabel = AppDialog.label("Selected: 0 / " + requiredShapes, AppDialog.SMALL_BOLD,
                 AppDialog.PRIMARY_BLUE);
@@ -215,6 +235,7 @@ public class QuestionerScreen extends JPanel {
             grid.add(picker);
         }
 
+        // ปุ่มล้างตัวเลือกทั้งหมด (CLEAR)
         var clearBtn = AppDialog.button("CLEAR", Color.WHITE, AppDialog.BG_LIGHT, AppDialog.CARD_BORDER,
                 AppDialog.TEXT_DARK, AppDialog.CARD_BORDER, 10, 18);
         clearBtn.addActionListener(event -> {
@@ -225,6 +246,7 @@ public class QuestionerScreen extends JPanel {
             shapeSpots.clear();
             refreshUI();
         });
+        // ปุ่มยืนยันชุดรูปทรงความลับ (CONFIRM)
         confirmButton = AppDialog.button("CONFIRM", AppDialog.PRIMARY_BLUE, AppDialog.PRIMARY_HOVER,
                 AppDialog.PRIMARY_PRESS, Color.WHITE, AppDialog.PRIMARY_BLUE, 10, 18);
         confirmButton.addActionListener(event -> confirmSelection());
@@ -242,7 +264,7 @@ public class QuestionerScreen extends JPanel {
         objectsCard.add(AppDialog.strut(14));
         objectsCard.add(alignLeft(buttonRow, 46));
 
-        // The whole card is a "drop here to remove" zone for shapes dragged off the canvas.
+        // การ์ดฝั่งขวาทั้งหมดทำหน้าที่เป็น Drop Zone สำหรับลากรูปออกจาก Canvas เพื่อลบทิ้ง
         drag.dropZone(objectsCard, () -> drag.fromBoard(), on -> {
             objectsCard.setBackground(on ? AppDialog.DANGER_BG : AppDialog.CARD_BG);
             objectsCard.setBorder(AppDialog.box(on ? AppDialog.DANGER_BORDER : AppDialog.CARD_BORDER, 1, 16, 16));
@@ -252,7 +274,6 @@ public class QuestionerScreen extends JPanel {
             refreshUI();
         });
 
-        // The glue soaks up the extra height, so the card keeps its natural size.
         var column = AppDialog.stack(AppDialog.panel());
         column.add(alignLeft(objectsCard, objectsCard.getPreferredSize().height));
         column.add(AppDialog.glue());
@@ -260,10 +281,12 @@ public class QuestionerScreen extends JPanel {
     }
 
     // =====================================================================
-    //  Rows and steps
+    //  การจัดการขั้นตอนและแถวคะแนน (Rows and Steps)
     // =====================================================================
 
-    /** One "Choose / Confirm / Watch" step row; its circle and text are remembered for setStep(). */
+    /**
+     * สร้างแถวขั้นตอน (Step row) แสดงหมายเลขในวงกลมและคำอธิบาย
+     */
     private StepRow createStepRow(int number, String text) {
         var row = AppDialog.panel();
         row.setLayout(new FlowLayout(FlowLayout.LEFT, 8, 0));
@@ -277,7 +300,9 @@ public class QuestionerScreen extends JPanel {
         return step;
     }
 
-    /** Highlights one of the three steps: done ones green, the active one blue and bold, later ones grey. */
+    /**
+     * ไฮไลต์แถบขั้นตอน: ขั้นที่เสร็จแล้วเป็นสีเขียว ขั้นตอนปัจจุบันเป็นสีน้ำเงินตัวหนา ขั้นตอนถัดไปเป็นสีเทา
+     */
     private void setStep(int activeStep) {
         for (int i = 0; i < stepRows.size(); i++) {
             var step = stepRows.get(i);
@@ -293,6 +318,7 @@ public class QuestionerScreen extends JPanel {
         repaint();
     }
 
+    // สร้างแถวแสดงคะแนนของผู้เล่นแต่ละคน
     private JPanel createScoreRow(String initial, Color avatarColor, String name, int score, boolean highlight) {
         var who = AppDialog.panel();
         who.setLayout(new FlowLayout(FlowLayout.LEFT, 8, 0));
@@ -314,15 +340,17 @@ public class QuestionerScreen extends JPanel {
     }
 
     // =====================================================================
-    //  State changes
+    //  การอัปเดตการแสดงผลเมื่อสถานะเปลี่ยน (State changes)
     // =====================================================================
 
-    /** Rebuilds the canvas and re-syncs every widget that depends on the selection. */
+    /**
+     * วาดรูปทรงบน Canvas ใหม่ และรีเฟรชคอมโพเนนต์ทั้งหมดที่เกี่ยวข้องกับจำนวนที่เลือก
+     */
     private void refreshUI() {
         canvas.removeAll();
         for (String shapeName : selectedShapes) {
             var picture = ShapeImages.shape(shapeName, BIG_ICON);
-            picture.setName(shapeName);   // the canvas finds the shape's spot through this name
+            picture.setName(shapeName);   // ให้ Canvas ค้นหาพิกัดของรูปทรงได้จากชื่อนี้
             picture.setToolTipText("Drag to move " + shapeName + ", or back to Objects to remove it");
             drag.draggable(picture, shapeName, true, () -> selectionLocked);
             canvas.add(picture);
@@ -341,12 +369,12 @@ public class QuestionerScreen extends JPanel {
         }
         targetBadge.setText(AppDialog.targetText(requiredShapes));
 
-        // The card look lives in the background and the border, so every cell is refreshed, not just repainted.
+        // อัปเดตสถานะการถูกเลือกของแต่ละช่องในรายการ Objects
         for (var picker : pickers) {
             picker.setSelected(selectedShapes.contains(picker.shapeName));
         }
 
-        // Before the first round no step is active; a locked selection stays on step 3.
+        // ปรับขั้นตอนความคืบหน้า
         if (!roundActive) {
             setStep(0);
         } else if (selectionLocked) {
@@ -359,14 +387,17 @@ public class QuestionerScreen extends JPanel {
     }
 
     // =====================================================================
-    //  Multiplayer hooks (called by MainApp from the network listener)
+    //  การเชื่อมต่อระบบมัลติเพลเยอร์ (Multiplayer hooks เรียกโดย MainApp)
     // =====================================================================
 
+    // กำหนดชื่อของผู้เล่นเครื่องนี้
     public void setMyName(String name) {
         myName = (name == null) ? "" : name;
     }
 
-    /** Clears the canvas for a new round with the server's random shape count. */
+    /**
+     * เริ่มต้นรอบใหม่ ล้าง Canvas และตั้งค่าเป้าหมายจำนวนรูปทรงตามที่เซิร์ฟเวอร์สุ่มมา
+     */
     public void startRound(int roundNumber, int totalRounds, int requiredShapes) {
         if (requiredShapes >= GameServer.MIN_SHAPES && requiredShapes <= GameServer.MAX_SHAPES) {
             this.requiredShapes = requiredShapes;
@@ -384,17 +415,19 @@ public class QuestionerScreen extends JPanel {
         setStep(1);
     }
 
-    /** How many shapes this round needs; the server draws it and every player must match it. */
+    /** ดึงจำนวนรูปทรงที่ต้องเลือกในรอบนี้ */
     public int getRequiredPicks() {
         return requiredShapes;
     }
 
-    /** The shapes currently on the canvas, in pick order. */
+    /** ดึงรายการรูปทรงที่เลือกไว้เรียงตามลำดับที่เลือก */
     public List<String> getSelectedShapes() {
         return new ArrayList<>(selectedShapes);
     }
 
-    /** Locks the choice after the server accepted it; the round continues while the others guess. */
+    /**
+     * ล็อกการเลือกหลังจากส่งข้อมูลไปยังเซิร์ฟเวอร์แล้ว และเข้าสู่สถานะรอคนอื่นทาย
+     */
     public void lockSelection() {
         selectionLocked = true;
         confirmButton.setEnabled(false);
@@ -402,12 +435,14 @@ public class QuestionerScreen extends JPanel {
         setStep(3);
     }
 
-    /** Updates the hint line under the canvas, which doubles as the round status line. */
+    /** อัปเดตข้อความแนะนำสถานะใต้ Canvas */
     public void setStatus(String text) {
         hintLabel.setText(text);
     }
 
-    /** Countdown fed by the server's TICK; the last ten seconds turn red. */
+    /**
+     * อัปเดตเวลานับถอยหลังตามข้อความ TICK ของเซิร์ฟเวอร์ (10 วินาทีสุดท้ายจะเป็นสีแดง)
+     */
     public void setTimeLeft(int seconds) {
         boolean hurry = seconds <= GameServer.BONUS_WINDOW_SECONDS;
         AppDialog.paintTopBadge(timeBadge, AppDialog.timeText(seconds),
@@ -416,13 +451,15 @@ public class QuestionerScreen extends JPanel {
                 hurry ? AppDialog.DANGER_BORDER : AppDialog.WARNING_BORDER, true);
     }
 
-    /** Before the secret is locked the shared clock has not started yet. */
+    // แสดงเวลาในสถานะรอ ("Time: --:--") ก่อนที่นาฬิกาจะเริ่มนับ
     private void showWaitingTime() {
         AppDialog.paintTopBadge(timeBadge, "Time: --:--", AppDialog.WARNING_BG, AppDialog.WARNING_TEXT,
                 AppDialog.WARNING_BORDER, true);
     }
 
-    /** Rebuilds the live round score list straight from the server's numbers. */
+    /**
+     * อัปเดตรายการคะแนนสดของผู้เล่นทุกคนจากเซิร์ฟเวอร์
+     */
     public void setScoreboard(String[] names, int[] scores) {
         scoreRowsPanel.removeAll();
         for (int i = 0; i < names.length; i++) {
@@ -437,6 +474,9 @@ public class QuestionerScreen extends JPanel {
         scoreRowsPanel.repaint();
     }
 
+    /**
+     * ตรวจสอบว่าเลือกรูปทรงครบตามเป้าหมายหรือไม่ ก่อนส่งเหตุการณ์ยืนยัน (Confirm)
+     */
     private void confirmSelection() {
         if (selectionLocked) {
             return;
@@ -450,19 +490,19 @@ public class QuestionerScreen extends JPanel {
         if (onConfirmAction != null) {
             onConfirmAction.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "confirm"));
         } else {
-            lockSelection();   // preview mode with no network attached
+            lockSelection();   // โหมดทดสอบพรีวิวโดยไม่ต้องต่อเน็ตเวิร์ก
         }
     }
 
     // =====================================================================
-    //  Small helpers and inner classes
+    //  ฟังก์ชันช่วยและคลาสภายใน (Small Helpers and Inner Classes)
     // =====================================================================
 
+    // จำกัดค่าให้อยู่ในช่วง 0.0 ถึง 1.0
     private static double clamp(double value) {
         return Math.max(0, Math.min(1, value));
     }
 
-    /** Left aligned inside a BoxLayout column, and never taller than maxHeight. */
     private static JPanel alignLeft(JPanel c, int maxHeight) {
         c.setMaximumSize(new Dimension(Integer.MAX_VALUE, maxHeight));
         return alignLeft(c);
@@ -478,7 +518,6 @@ public class QuestionerScreen extends JPanel {
         return c;
     }
 
-    /** Wraps a label so it keeps its own height and sits in the vertical middle of its column. */
     private static JPanel centered(JLabel c) {
         var wrapper = AppDialog.stack(AppDialog.panel());
         wrapper.add(AppDialog.glue());
@@ -487,7 +526,9 @@ public class QuestionerScreen extends JPanel {
         return wrapper;
     }
 
-    /** The mutable parts of one step row, so setStep() can restyle the circle and the text. */
+    /**
+     * คลาสเก็บข้อมูลของแถวแสดงขั้นตอน
+     */
     private static class StepRow {
         final JPanel row;
         final JLabel circle;
@@ -500,16 +541,21 @@ public class QuestionerScreen extends JPanel {
         }
     }
 
-    /** Light canvas with a dashed cross; every shape sits on its own spot, looked up by its name. */
+    /**
+     * DashedCanvas: ผืนผ้าใบวาดเส้นประตัดกันตรงกลาง
+     * คำนวณตำแหน่ง Bounds ของแต่ละรูปทรงตามสัดส่วน spot ที่เก็บไว้ใน doLayout()
+     */
     private class DashedCanvas extends JPanel {
-        private boolean dropHighlight;
+        private boolean dropHighlight; // สถานะไฮไลต์เมื่อมีรูปทรงกำลังลากเข้ามาวาง
 
         DashedCanvas() {
             setOpaque(false);
-            setLayout(null);   // the shapes are placed by doLayout() below
+            setLayout(null);   // วางตำแหน่งคอมโพเนนต์ด้วยพิกัดเจาะจงผ่าน doLayout() ด้านล่าง
         }
 
-        /** Puts each shape's center on its spot, nudged inward so it never leaves the canvas. */
+        /**
+         * กำหนดตำแหน่งและขนาดของแต่ละรูปทรงให้อยู่ตรงกลางพิกัดที่กำหนด โดยไม่ให้ออกนอกขอบ Canvas
+         */
         @Override
         public void doLayout() {
             for (int i = 0; i < getComponentCount(); i++) {
@@ -527,7 +573,7 @@ public class QuestionerScreen extends JPanel {
             }
         }
 
-        /** Tints the canvas while a shape is being dragged over it. */
+        /** เปลี่ยนสีพื้นหลัง Canvas ขณะที่กำลังลากรูปทรงผ่าน */
         void setDropHighlight(boolean on) {
             dropHighlight = on;
             repaint();
@@ -543,7 +589,7 @@ public class QuestionerScreen extends JPanel {
             g.setColor(dropHighlight ? AppDialog.PRIMARY_BLUE : AppDialog.CARD_BORDER);
             g.drawRect(0, 0, w - 1, h - 1);
 
-            // Dashed cross: 6px dashes with a 4px gap.
+            // วาดเส้นประตัดกันตรงกลาง: ขีด 6px เว้นช่องว่าง 4px
             g.setColor(AppDialog.CARD_BORDER);
             int midY = h / 2 + 30;
             int midX = w / 2;

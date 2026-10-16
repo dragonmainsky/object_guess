@@ -18,39 +18,44 @@ import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
 
 /**
- * GuesserScreen: screen 4 - the guessers try to match the secret shapes. A shape is dragged from the
- * Objects picker into a guess slot, a placed shape can be swapped between slots or dragged back to Objects.
+ * GuesserScreen: หน้าจอของผู้ทาย (หน้าจอที่ 4)
+ * ผู้เล่นที่ทำหน้าที่ทายจะต้องเลือกรูปทรงให้ตรงกับที่ Questioner เลือกไว้
+ * สามารถลากรูปทรงจากรายการ Objects มาวางในช่องทาย (Guess slots),
+ * สลับตำแหน่งระหว่างช่อง หรือลากกลับไปยัง Objects เพื่อลบออกได้
  */
 public class GuesserScreen extends JPanel {
 
-    private static final int GHOST_SIZE = 64;
-    private static final int SLOT_ICON_WIDE = 78;    // slot picture when the round needs up to 3 shapes
-    private static final int SLOT_ICON_TIGHT = 54;   // smaller picture so 4-5 slots still fit the row
-    private static final Color STAGE_BG = new Color(247, 250, 255);
+    private static final int GHOST_SIZE = 64;        // ขนาดรูปทรงที่ลอยตามเคอร์เซอร์เมาส์ขณะลาก
+    private static final int SLOT_ICON_WIDE = 78;    // ขนาดรูปทรงในช่องทายเมื่อรอบนั้นต้องการ 1-3 รูป
+    private static final int SLOT_ICON_TIGHT = 54;   // ขนาดรูปทรงในช่องทายเมื่อรอบนั้นต้องการ 4-5 รูป (ย่อให้พอดีกับแถว)
+    private static final Color STAGE_BG = new Color(247, 250, 255); // สีพื้นหลังของพื้นที่สเตจตรงกลาง
 
-    // ===== State =====
-    private final List<String> guessedShapes = new ArrayList<>();   // empty at the start of every round
-    private final List<ShapeImages.Picker> pickers = new ArrayList<>();
-    private final ShapeImages.DragBoard drag;
-    private final ActionListener onSubmitAction;
+    // ===== ข้อมูลสถานะการทาย (State) =====
+    private final List<String> guessedShapes = new ArrayList<>();   // รายการรูปทรงที่ผู้เล่นทาย (เริ่มใหม่ทุกรอบ)
+    private final List<ShapeImages.Picker> pickers = new ArrayList<>(); // รายการช่องเลือกรูปทรง
+    private final ShapeImages.DragBoard drag;                           // ตัวจัดการระบบลากและวาง (DragBoard)
+    private final ActionListener onSubmitAction;                       // ตัวรับเหตุการณ์เมื่อกดปุ่มส่งคำตอบทาย
 
-    private JPanel guessSlotsPanel;
-    private JLabel selectedBadge;
-    private JLabel pickCounterLabel;
-    private JButton submitBtn;
-    private int requiredPicks;       // shapes this round needs; 0 until SECRET_LOCKED says so
-    private JPanel scoreRowsPanel;
-    private JLabel roundLabel;
-    private JLabel scoreBadge;
-    private JLabel submittedBadge;
-    private JLabel statusLabel;
-    private JLabel targetBadge;
-    private JLabel timeBadge;
-    private boolean submitted;       // true once this round's guess has been sent
-    private boolean secretLocked;    // guesses are only accepted after the questioner locked in
-    private String myName = "";
-    private String questionerName = "";
+    private JPanel guessSlotsPanel;     // พาเนลแสดงช่องทายรูปทรง
+    private JLabel selectedBadge;       // ป้ายแสดงจำนวนรูปที่เลือก
+    private JLabel pickCounterLabel;    // ป้ายนับจำนวนที่เลือกบนการ์ด Objects
+    private JButton submitBtn;          // ปุ่มกดยืนยันส่งคำตอบ (SUBMIT GUESS)
+    private int requiredPicks;          // จำนวนรูปทรงที่ต้องทายในรอบนี้ (กำหนดโดย SECRET_LOCKED)
+    private JPanel scoreRowsPanel;      // พาเนลแสดงรายการคะแนนสด
+    private JLabel roundLabel;          // ป้ายบอกหมายเลขรอบ
+    private JLabel scoreBadge;          // ป้ายแสดงคะแนนปัจจุบันของผู้เล่น
+    private JLabel submittedBadge;      // ป้ายแสดงสถานะว่าส่งคำตอบแล้วหรือยัง
+    private JLabel statusLabel;         // ป้ายข้อความแนะนำสถานะใต้การ์ด
+    private JLabel targetBadge;         // ป้ายแสดงจำนวนเป้าหมายรูปทรง
+    private JLabel timeBadge;           // ป้ายเวลานับถอยหลัง
+    private boolean submitted;          // สถานะว่าส่งคำตอบในรอบนี้ไปแล้วหรือไม่
+    private boolean secretLocked;       // สถานะว่า Questioner ได้ล็อกรูปทรงแล้วหรือไม่
+    private String myName = "";         // ชื่อของผู้เล่นเครื่องนี้
+    private String questionerName = ""; // ชื่อของ Questioner ในรอบนี้
 
+    /**
+     * คอนสตรักเตอร์สร้างหน้าจอผู้ทาย จัดวางแบบ 3 คอลัมน์ และผูกปุ่ม ENTER สำหรับส่งคำตอบ
+     */
     public GuesserScreen(ActionListener onSubmitAction) {
         this.onSubmitAction = onSubmitAction;
         drag = new ShapeImages.DragBoard(this, GHOST_SIZE);
@@ -64,7 +69,7 @@ public class GuesserScreen extends JPanel {
         mainContent.add(createColumns(), BorderLayout.CENTER);
         add(mainContent, BorderLayout.CENTER);
 
-        // ENTER submits the guess while this screen is the visible one and no dialog is in front.
+        // รองรับการกดปุ่ม ENTER บนคีย์บอร์ดเพื่อส่งคำตอบทันที หากหน้าจอนี้แสดงอยู่และไม่มี Dialog บัง
         var manager = KeyboardFocusManager.getCurrentKeyboardFocusManager();
         manager.addKeyEventDispatcher(event -> {
             boolean submitNow = isShowing() && event.getID() == KeyEvent.KEY_PRESSED
@@ -73,19 +78,26 @@ public class GuesserScreen extends JPanel {
             if (submitNow) {
                 submitBtn.doClick();
             }
-            return false;   // never consume the event: the buttons keep working normally
+            return false;   // ไม่ระงับ Event เพื่อให้ปุ่มอื่นๆ ทำงานได้ตามปกติ
         });
     }
 
-    /** The picture that follows the mouse while a shape is dragged is painted over the whole screen. */
+    /**
+     * วาดรูปทรงโปร่งแสงที่กำลังลากตามตำแหน่งเคอร์เซอร์เมาส์ทับบนหน้าจอ
+     */
     @Override
     public void paint(Graphics g) {
         super.paint(g);
         drag.paintGhost(g);
     }
 
-    // ==================== Sub header and columns ====================
+    // =====================================================================
+    //  ส่วนหัวและคอลัมน์ (Sub header and Columns)
+    // =====================================================================
 
+    /**
+     * สร้างแถบส่วนหัวด้านบน: แสดงคำแนะนำการเล่น พร้อมป้ายเป้าหมาย เวลา คะแนน และสถานะส่งคำตอบ
+     */
     private JPanel createSubHeader() {
         var titles = AppDialog.panel();
         titles.setLayout(new GridLayout(2, 1, 0, 2));
@@ -110,11 +122,14 @@ public class GuesserScreen extends JPanel {
         subHeader.setLayout(new BorderLayout());
         subHeader.setBorder(new EmptyBorder(4, 0, 6, 0));
         subHeader.add(titles, BorderLayout.WEST);
-        // CENTER lets the badge row wrap onto a second line instead of being clipped in a narrow window.
+        // CENTER ช่วยให้แถบป้ายสามารถตัดขึ้นบรรทัดใหม่ได้เมื่อหน้าต่างแคบ
         subHeader.add(badges, BorderLayout.CENTER);
         return subHeader;
     }
 
+    /**
+     * รวมคอลัมน์ซ้าย, กลาง, ขวา เข้าด้วยกัน
+     */
     private JPanel createColumns() {
         var left = createLeftPanel();
         left.setPreferredSize(new Dimension(240, 0));
@@ -129,7 +144,9 @@ public class GuesserScreen extends JPanel {
         return columns;
     }
 
-    // ==================== Left column: scoreboard and scoring rules ====================
+    // =====================================================================
+    //  คอลัมน์ซ้าย: สกอร์บอร์ดและกติกาการให้คะแนน (Left Column)
+    // =====================================================================
 
     private JPanel createLeftPanel() {
         scoreRowsPanel = AppDialog.panel();
@@ -145,6 +162,7 @@ public class GuesserScreen extends JPanel {
         scoreCard.add(scoreHeader, BorderLayout.NORTH);
         scoreCard.add(scoreRowsPanel, BorderLayout.CENTER);
 
+        // การ์ดแสดงกติกาคะแนน: +1 ถูกต้อง, +2 ถูกหมดใน 10 วิ, 0 ผิด
         var ruleRows = AppDialog.panel();
         ruleRows.setLayout(new GridLayout(0, 1, 0, 8));
         ruleRows.add(createRuleRow("+1", AppDialog.SUCCESS_BG, AppDialog.SUCCESS_TEXT, AppDialog.SUCCESS_BORDER,
@@ -158,7 +176,6 @@ public class GuesserScreen extends JPanel {
         guideCard.add(AppDialog.header("Scoring", AppDialog.SUBTITLE, null, null, null), BorderLayout.NORTH);
         guideCard.add(ruleRows, BorderLayout.CENTER);
 
-        // Both cards keep their natural height; the leftover space stays empty at the bottom.
         var left = AppDialog.panel();
         left.setLayout(new BorderLayout(0, 12));
         left.add(scoreCard, BorderLayout.NORTH);
@@ -166,6 +183,7 @@ public class GuesserScreen extends JPanel {
         return left;
     }
 
+    // สร้างแถวคะแนนของผู้เล่นแต่ละคน
     private JPanel createScoreRow(String initial, Color avatarColor, String name, int score, boolean highlight) {
         var row = AppDialog.panel();
         row.setLayout(new BorderLayout());
@@ -184,6 +202,7 @@ public class GuesserScreen extends JPanel {
         return row;
     }
 
+    // สร้างแถวแสดงกติกาคะแนน
     private JPanel createRuleRow(String badgeText, Color bg, Color fg, Color border, String ruleText) {
         var badge = AppDialog.badge(badgeText, bg, fg, border, 2, 6);
         badge.setPreferredSize(new Dimension(34, 22));
@@ -195,7 +214,9 @@ public class GuesserScreen extends JPanel {
         return row;
     }
 
-    // ==================== Center column: the guess slots ====================
+    // =====================================================================
+    //  คอลัมน์กลาง: สเตจและช่องวางรูปทาย (Center Column)
+    // =====================================================================
 
     private JPanel createCenterPanel() {
         selectedBadge = AppDialog.badge(picksText(), AppDialog.BLUE_LIGHT_BG, AppDialog.PRIMARY_BLUE,
@@ -206,7 +227,7 @@ public class GuesserScreen extends JPanel {
                 AppDialog.BODY, selectedBadge), BorderLayout.NORTH);
         centerCard.add(createStagePanel(), BorderLayout.CENTER);
 
-        // The tip sits outside the card, under its left edge, and doubles as the status line.
+        // แถบคำแนะนำด้านล่างการ์ดทำหน้าที่เป็นป้ายแสดงสถานะรอบด้วย
         var hintRow = AppDialog.panel();
         hintRow.setLayout(new FlowLayout(FlowLayout.LEFT, 6, 0));
         hintRow.add(AppDialog.label("TIP", AppDialog.SMALL_BOLD, AppDialog.WARNING_TEXT));
@@ -221,7 +242,9 @@ public class GuesserScreen extends JPanel {
         return center;
     }
 
-    /** Tinted stage in three rows: the how-to banner, the guess slots, then the scoring banner. */
+    /**
+     * สเตจ 3 ชั้น: แบนเนอร์วิธีเล่น, แถวช่องวางรูปทาย, แบนเนอร์กติกาคะแนน
+     */
     private JPanel createStagePanel() {
         guessSlotsPanel = AppDialog.panel();
         updateGuessSlots();
@@ -244,7 +267,7 @@ public class GuesserScreen extends JPanel {
         return stage;
     }
 
-    /** A banner that hugs its content, wrapped in a row that spans the stage width. */
+    /** แบนเนอร์แสดงข้อความเตือน/แนะนำ */
     private static JPanel createAlertBanner(String title, String desc, Color bg, Color border, Color fg, int align) {
         var banner = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         banner.setBackground(bg);
@@ -258,7 +281,9 @@ public class GuesserScreen extends JPanel {
         return slot;
     }
 
-    /** One slot per shape the round needs; before the secret is locked there is nothing to size yet. */
+    /**
+     * สร้างช่องทายตามจำนวนเป้าหมายของรอบ
+     */
     private void updateGuessSlots() {
         guessSlotsPanel.removeAll();
         guessSlotsPanel.setLayout(new GridLayout(1, Math.max(1, requiredPicks), 14, 0));
@@ -274,12 +299,15 @@ public class GuesserScreen extends JPanel {
         guessSlotsPanel.repaint();
     }
 
-    /** 4-5 slots need smaller pictures, otherwise the row would not fit. */
+    // กำหนดขนาดรูปภาพในช่องทาย ถ้าต้องการเกิน 3 รูป จะย่อขนาดลงเพื่อให้พอดีแถว
     private int slotIconSize() {
         return requiredPicks > 3 ? SLOT_ICON_TIGHT : SLOT_ICON_WIDE;
     }
 
-    /** A big draggable shape card when filled, an "Empty" box otherwise. Both accept drops. */
+    /**
+     * สร้างแต่ละช่องสำหรับใส่รูปทาย: หากมีรูปแล้วจะเป็นการ์ดพร้อมรูปและลากได้ หากว่างจะเป็นกล่องคำว่า "Empty"
+     * ทั้งสองแบบรองรับการปล่อยวางรูปทรง (Drop zone)
+     */
     private JPanel createSlot(int index) {
         boolean filled = index < guessedShapes.size();
         var slot = new JPanel(new BorderLayout(0, filled ? 8 : 0));
@@ -291,12 +319,13 @@ public class GuesserScreen extends JPanel {
             slot.add(ShapeImages.shape(name, icon), BorderLayout.CENTER);
             slot.add(AppDialog.label(name, requiredPicks > 3 ? AppDialog.SMALL_BOLD : AppDialog.BODY_BOLD,
                     AppDialog.TEXT_DARK, JLabel.CENTER), BorderLayout.SOUTH);
-            drag.draggable(slot, name, true, () -> submitted);   // drag it back to Objects to remove it
+            drag.draggable(slot, name, true, () -> submitted);   // ลากกลับไปที่ Objects เพื่อลบออก
         } else {
             slot.setBackground(AppDialog.ROW_BG);
             slot.setBorder(AppDialog.box(AppDialog.SLOT_BORDER, 2, 0, 0));
             slot.add(AppDialog.label("Empty", AppDialog.SMALL, AppDialog.TEXT_MUTED, JLabel.CENTER), BorderLayout.CENTER);
         }
+        // กำหนดให้ช่องนี้เป็น Drop zone
         drag.dropZone(slot, () -> true, on -> {
             slot.setBackground(on ? AppDialog.BLUE_LIGHT_BG : (filled ? Color.WHITE : AppDialog.ROW_BG));
             if (!filled) {
@@ -307,7 +336,9 @@ public class GuesserScreen extends JPanel {
         return slot;
     }
 
-    // ==================== Right column: the Objects picker ====================
+    // =====================================================================
+    //  คอลัมน์ขวา: รายการ Objects และปุ่มส่งคำตอบ (Right Column)
+    // =====================================================================
 
     private JPanel createRightPanel() {
         pickCounterLabel = AppDialog.label(picksCountText(), AppDialog.BODY_BOLD, AppDialog.PRIMARY_BLUE);
@@ -318,7 +349,7 @@ public class GuesserScreen extends JPanel {
 
         var grid = AppDialog.panel();
         grid.setLayout(new GridLayout(4, 2, 8, 8));
-        grid.setPreferredSize(new Dimension(0, 316));   // fixed height so the card keeps its size
+        grid.setPreferredSize(new Dimension(0, 316));   // ล็อกความสูงคงที่เพื่อให้ขนาดการ์ดไม่เปลี่ยน
         for (String name : ShapeImages.NAMES) {
             var picker = new ShapeImages.Picker(name, 34, 8, 6, false);
             pickers.add(picker);
@@ -327,13 +358,14 @@ public class GuesserScreen extends JPanel {
         }
         objectsCard.add(grid, BorderLayout.CENTER);
 
+        // ปุ่มกดยืนยันส่งคำตอบ (SUBMIT GUESS)
         submitBtn = AppDialog.button("SUBMIT GUESS", AppDialog.PRIMARY_BLUE, AppDialog.PRIMARY_HOVER,
                 AppDialog.PRIMARY_PRESS, Color.WHITE, null, 10, 18);
         submitBtn.setPreferredSize(new Dimension(0, 44));
         submitBtn.addActionListener(event -> submitGuess());
         objectsCard.add(submitBtn, BorderLayout.SOUTH);
 
-        // The whole card is a "drop here to remove" zone for shapes dragged off the slots.
+        // การ์ด Objects ทั้งหมดทำหน้าที่เป็น Drop Zone สำหรับลากรูปออกจากช่องทายเพื่อลบออก
         drag.dropZone(objectsCard, () -> drag.fromBoard(), on -> {
             objectsCard.setBackground(on ? AppDialog.DANGER_BG : AppDialog.CARD_BG);
             objectsCard.setBorder(AppDialog.box(on ? AppDialog.DANGER_BORDER : AppDialog.CARD_BORDER, 1, 16, 16));
@@ -351,12 +383,16 @@ public class GuesserScreen extends JPanel {
         return right;
     }
 
-    // ==================== Guess handling ====================
+    // =====================================================================
+    //  การจัดการรายการรูปทรงที่ทาย (Guess handling)
+    // =====================================================================
 
-    /** Puts a shape into the slot at slotIndex; an empty slot simply appends to the end of the guess. */
+    /**
+     * วางรูปทรงลงในช่องตาม slotIndex หากรูปทรงมีอยู่แล้วจะสลับตำแหน่ง หากเป็นช่องว่างจะต่อท้าย
+     */
     private void placeShape(String shapeName, int slotIndex) {
         if (submitted) {
-            return;   // the guess is already locked in for this round
+            return;   // ส่งคำตอบแล้ว ไม่อนุญาตให้แก้ไข
         }
         int from = guessedShapes.indexOf(shapeName);
         if (from >= 0) {
@@ -374,13 +410,14 @@ public class GuesserScreen extends JPanel {
         refreshSelection();
     }
 
+    /** ลบรูปทรงออกจากการทาย */
     private void removeShape(String shapeName) {
         if (!submitted && guessedShapes.remove(shapeName)) {
             refreshSelection();
         }
     }
 
-    /** Re-syncs every widget that depends on how many shapes are picked right now. */
+    /** อัปเดตคอมโพเนนต์ทั้งหมดที่ขึ้นอยู่กับจำนวนรูปทรงที่ทาย */
     private void refreshSelection() {
         updateGuessSlots();
         selectedBadge.setText(picksText());
@@ -399,14 +436,17 @@ public class GuesserScreen extends JPanel {
     }
 
     // =====================================================================
-    //  Multiplayer hooks (called by MainApp from the network listener)
+    //  การเชื่อมต่อระบบมัลติเพลเยอร์ (Multiplayer hooks เรียกโดย MainApp)
     // =====================================================================
 
+    // ตั้งชื่อผู้เล่นเครื่องนี้
     public void setMyName(String name) {
         myName = (name == null) ? "" : name;
     }
 
-    /** Starts a round; guessing and the shared clock stay locked until the questioner locks the secret in. */
+    /**
+     * เริ่มต้นรอบใหม่ ล้างคำตอบเดิม และรอให้ Questioner ล็อกรูปทรงก่อนเริ่มนับเวลา
+     */
     public void startRound(int roundNumber, int totalRounds, String questioner, int requiredShapes) {
         submitted = false;
         secretLocked = false;
@@ -423,7 +463,10 @@ public class GuesserScreen extends JPanel {
         setSubmitEnabled(false);
     }
 
-    /** Called when the server confirms the secret; the slot count follows what the questioner picked. */
+    /**
+     * ทำงานเมื่อเซิร์ฟเวอร์แจ้งว่า Questioner ได้ล็อกรูปทรงแล้ว
+     * ปลดล็อกปุ่มส่งคำตอบ และเริ่มเปิดให้ทายได้
+     */
     public void onSecretLocked(String questioner, int count) {
         secretLocked = true;
         questionerName = (questioner == null) ? "" : questioner;
@@ -439,12 +482,12 @@ public class GuesserScreen extends JPanel {
         refreshSelection();
     }
 
-    /** How many shapes this round needs (0 while the questioner has not locked in yet). */
+    /** ดึงจำนวนรูปทรงที่ต้องทายในรอบนี้ */
     public int getRequiredPicks() {
         return requiredPicks;
     }
 
-    /** Countdown fed by the server's TICK; the last ten seconds turn red. */
+    /** อัปเดตเวลานับถอยหลังตาม TICK ของเซิร์ฟเวอร์ (10 วิสุดท้ายเป็นสีแดง) */
     public void setTimeLeft(int seconds) {
         boolean hurry = seconds <= GameServer.BONUS_WINDOW_SECONDS;
         AppDialog.paintTopBadge(timeBadge, AppDialog.timeText(seconds),
@@ -453,7 +496,7 @@ public class GuesserScreen extends JPanel {
                 hurry ? AppDialog.DANGER_BORDER : AppDialog.WARNING_BORDER, true);
     }
 
-    /** The guessers' clock only runs after the questioner submitted. */
+    // แสดงเวลารอคอยก่อนที่นาฬิกาจะเริ่มนับจริง
     private void showWaitingTime() {
         AppDialog.paintTopBadge(timeBadge, "Time: --:--", AppDialog.WARNING_BG, AppDialog.WARNING_TEXT,
                 AppDialog.WARNING_BORDER, true);
@@ -463,7 +506,7 @@ public class GuesserScreen extends JPanel {
         targetBadge.setText(AppDialog.targetText(count));
     }
 
-    /** Locks the guess after the server accepted it, so it cannot be sent twice. */
+    /** ล็อกการทายหลังจากเซิร์ฟเวอร์ตอบรับคำตอบแล้ว ป้องกันการส่งซ้ำ */
     public void markSubmitted() {
         submitted = true;
         setSubmitEnabled(false);
@@ -472,12 +515,12 @@ public class GuesserScreen extends JPanel {
                 AppDialog.SUCCESS_BORDER, false);
     }
 
-    /** Updates the hint line under the guess card. */
+    /** อัปเดตข้อความแนะนำสถานะใต้การ์ด */
     public void setStatus(String text) {
         statusLabel.setText(text);
     }
 
-    /** Rebuilds the left scoreboard straight from the server's numbers. */
+    /** รีเฟรชสกอร์บอร์ดคะแนนสดฝั่งซ้าย */
     public void setScoreboard(String[] names, int[] scores) {
         scoreRowsPanel.removeAll();
         for (int i = 0; i < names.length; i++) {
@@ -493,10 +536,14 @@ public class GuesserScreen extends JPanel {
         scoreRowsPanel.repaint();
     }
 
+    /** ดึงรายการรูปทรงที่ทาย */
     public List<String> getGuessedShapes() {
         return new ArrayList<>(guessedShapes);
     }
 
+    /**
+     * ตรวจสอบความถูกต้องก่อนส่งคำตอบทายไปยังเซิร์ฟเวอร์
+     */
     private void submitGuess() {
         if (submitted) {
             AppDialog.showInfo(this, "Already submitted", "You already submitted a guess this round.");
@@ -512,17 +559,19 @@ public class GuesserScreen extends JPanel {
             return;
         }
         if (onSubmitAction == null) {
-            markSubmitted();   // preview mode with no network attached
+            markSubmitted();   // โหมดทดสอบพรีวิวโดยไม่ต้องต่อเน็ตเวิร์ก
             return;
         }
         onSubmitAction.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "submit"));
     }
 
+    // เปิด/ปิดการใช้งานปุ่มส่งคำตอบ พร้อมเปลี่ยนสี
     private void setSubmitEnabled(boolean enabled) {
         submitBtn.setEnabled(enabled);
         submitBtn.setBackground(enabled ? AppDialog.PRIMARY_BLUE : AppDialog.SLOT_BORDER);
     }
 
+    // อัปเดตป้ายสถานะการส่งคำตอบ
     private void updateSubmittedBadge() {
         AppDialog.paintTopBadge(submittedBadge, submitted ? "Submitted" : "Not submitted",
                 submitted ? AppDialog.SUCCESS_BG : AppDialog.WARNING_BG,

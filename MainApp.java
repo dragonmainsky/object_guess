@@ -16,11 +16,13 @@ import javax.swing.JFrame;
 import javax.swing.JPanel;
 
 /**
- * MainApp: the master window. It owns the six screens, the network objects and is the only place that
- * knows how one server message maps onto a screen.
+ * MainApp: หน้าต่างหลักของแอปพลิเคชัน (Master window)
+ * ทำหน้าที่เป็นศูนย์กลางถือครองหน้าจอทั้ง 6 หน้าจอ (screens), วัตถุด้านเครือข่าย (GameClient, GameServer)
+ * และเป็นจุดเดียวที่จัดการแปลงข้อความที่ได้รับจากเซิร์ฟเวอร์เพื่อสลับหรืออัปเดตหน้าจอ UI
  */
 public class MainApp extends JFrame implements JoinScreen.JoinListener {
 
+    // ตัวระบุชื่อของแต่ละหน้าจอ
     public static final String SCREEN_JOIN = "JOIN";
     public static final String SCREEN_LOBBY = "LOBBY";
     public static final String SCREEN_QUESTIONER = "QUESTIONER";
@@ -28,10 +30,11 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     public static final String SCREEN_SCOREBOARD = "SCOREBOARD";
     public static final String SCREEN_ROUND_RESULT = "ROUND_RESULT";
 
-    /** The visible area holds exactly one screen: showScreen() swaps that one panel. */
+    /** พื้นที่แสดงผลสำหรับสลับหน้าจอพาเนลต่างๆ ด้วยเมธอด showScreen() */
     private final JPanel screenHost = new JPanel(new BorderLayout());
     private final Map<String, JPanel> screens = new LinkedHashMap<>();
 
+    // วัตถุหน้าจอทั้ง 6 หน้าจอ
     private final JoinScreen joinScreen;
     private final LobbyScreen lobbyScreen;
     private final QuestionerScreen questionerScreen;
@@ -39,37 +42,41 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     private final ScoreboardScreen scoreboardScreen;
     private final RoundResultScreen roundResultScreen;
 
-    /** Every socket call runs here so the UI thread is never blocked by networking. */
+    /** เธรดพูลสำหรับจัดการงานด้านเครือข่าย เพื่อไม่ให้บล็อกการทำงานของ UI Thread */
     private final ExecutorService netExecutor = Executors.newSingleThreadExecutor(task -> {
         var thread = new Thread(task, "MainApp-Net");
         thread.setDaemon(true);
         return thread;
     });
 
-    private GameClient client;
-    private GameServer server;
-    private String myName = "";
-    private boolean isHost;
-    private String connectAddress = "";
-    private boolean intentionalLeave;
-    private String currentScreen = SCREEN_JOIN;
+    private GameClient client;          // ไคลเอนต์สำหรับเชื่อมต่อกับเซิร์ฟเวอร์
+    private GameServer server;          // เซิร์ฟเวอร์ (สร้างเฉพาะเมื่อเครื่องนี้เป็นโฮสต์)
+    private String myName = "";         // ชื่อของผู้เล่นเครื่องนี้
+    private boolean isHost;             // สถานะว่าเป็นโฮสต์ของห้องหรือไม่
+    private String connectAddress = ""; // ที่อยู่ IP:Port ที่ใช้เชื่อมต่อ
+    private boolean intentionalLeave;   // สถานะว่าเป็นการกดออกจากห้องเองโดยเจตนาหรือไม่
+    private String currentScreen = SCREEN_JOIN; // หน้าจอปัจจุบันที่กำลังแสดงอยู่
 
-    /** How long the join waits for JOIN_SUCCESS / JOIN_FAILED before giving up. */
+    /** ระยะเวลาที่รอการตอบรับ JOIN_SUCCESS / JOIN_FAILED จากโฮสต์ ก่อนจะหมดเวลา (8 วินาที) */
     private static final int JOIN_REPLY_TIMEOUT_MS = 8000;
     private Thread joinTimeout;
 
+    // ข้อมูลสถานะของห้องที่บันทึกไว้ใน MainApp
     private final List<String> playerNames = new ArrayList<>();
     private final Map<String, Boolean> readyStates = new LinkedHashMap<>();
     private final Map<String, Integer> lastScores = new LinkedHashMap<>();
     private String hostName = "";
-    private int currentRound;          // the round the UI is showing
-    private int knownTotalRounds;      // totalRounds as reported by the server
-    private boolean roundInProgress;
+    private int currentRound;          // หมายเลขรอบปัจจุบันที่กำลังแสดงบน UI
+    private int knownTotalRounds;      // จำนวนรอบทั้งหมดตามที่เซิร์ฟเวอร์แจ้ง
+    private boolean roundInProgress;   // มีรอบที่กำลังเล่นอยู่หรือไม่
 
+    /**
+     * คอนสตรักเตอร์เริ่มต้น MainApp: กำหนดขนาดหน้าต่าง สร้างหน้าจอทั้ง 6 และแสดงหน้าจอแรก (JoinScreen)
+     */
     public MainApp() {
         setTitle("Guess What It Looks Like? - Multiplayer Party Game (LAN)");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        // Fit the window to the usable screen so the bottom buttons never fall off a small display.
+        // ปรับขนาดหน้าต่างให้เหมาะสมกับหน้าจอที่ใช้งานได้ เพื่อไม่ให้ปุ่มด้านล่างตกขอบจอ
         var toolkit = Toolkit.getDefaultToolkit();
         Insets usable = toolkit.getScreenInsets(getGraphicsConfiguration());
         Dimension screen = toolkit.getScreenSize();
@@ -80,9 +87,10 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
 
-        // JoinScreen reports the host / join requests back to this frame.
+        // หน้าจอที่ 1: หน้าจอสร้าง/เข้าร่วมห้อง
         joinScreen = new JoinScreen(this);
 
+        // หน้าจอที่ 2: หน้าจอห้องพักคอย (Lobby)
         lobbyScreen = new LobbyScreen(event -> requestStartGame(), event -> leaveRoom());
         lobbyScreen.setReadyAction(event -> toggleReady());
         lobbyScreen.setChatAction(text -> {
@@ -91,14 +99,16 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
             }
         });
 
-        // Questioner CONFIRM sends the secret; the server decides what happens next.
+        // หน้าจอที่ 3: หน้าจอผู้ตั้งโจทย์ (Questioner)
         questionerScreen = new QuestionerScreen(event -> submitSecret());
-        // Guesser SUBMIT sends the guess; the server scores it.
+        // หน้าจอที่ 4: หน้าจอผู้ทาย (Guesser)
         guesserScreen = new GuesserScreen(event -> submitGuess());
+        // หน้าจอที่ 5: หน้าจอตารางคะแนนรวมสุดท้าย (Scoreboard)
         scoreboardScreen = new ScoreboardScreen(event -> requestNewGame(), event -> leaveRoom());
-        // The round result has no buttons: its countdown is display only and the server owns the clock.
+        // หน้าจอที่ 6: หน้าจอสรุปผลของแต่ละรอบ (Round Result)
         roundResultScreen = new RoundResultScreen();
 
+        // บันทึกหน้าจอทั้งหมดลงใน Map
         screens.put(SCREEN_JOIN, joinScreen);
         screens.put(SCREEN_LOBBY, lobbyScreen);
         screens.put(SCREEN_QUESTIONER, questionerScreen);
@@ -111,6 +121,9 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         setVisible(true);
     }
 
+    /**
+     * สลับพาเนลหน้าจอที่กำลังแสดงอยู่ตามชื่อที่ระบุ
+     */
     public void showScreen(String name) {
         currentScreen = name;
         screenHost.removeAll();
@@ -119,15 +132,18 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         screenHost.repaint();
     }
 
-    /** True when the terminal handlers have already returned the user to the join screen. */
+    /** ตรวจสอบว่าหน้าจอปัจจุบันคือหน้าจอ JoinScreen แล้วหรือไม่ */
     private boolean alreadyAtJoinScreen() {
         return SCREEN_JOIN.equals(currentScreen);
     }
 
     // =====================================================================
-    //  JoinScreen.JoinListener (called on the UI thread)
+    //  อินเตอร์เฟส JoinScreen.JoinListener (ทำงานบน UI Thread)
     // =====================================================================
 
+    /**
+     * ดำเนินการเมื่อผู้เล่นกดสร้างห้อง (Host) จากหน้า JoinScreen
+     */
     @Override
     public void onCreateGame(String playerName, int port) {
         if (server != null && server.isRunning()) {
@@ -141,6 +157,9 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         netExecutor.submit(() -> startHost(playerName, port));
     }
 
+    /**
+     * ดำเนินการเมื่อผู้เล่นกดเข้าร่วมห้อง (Join) จากหน้า JoinScreen
+     */
     @Override
     public void onJoinGame(String playerName, String serverIp, int port) {
         if (client != null && client.isConnected()) {
@@ -154,9 +173,12 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     }
 
     // =====================================================================
-    //  Network lifecycle (everything below runs on the network thread)
+    //  การจัดการวงจรชีวิตระบบเครือข่าย (ทำงานบน Network Thread)
     // =====================================================================
 
+    /**
+     * เริ่มการทำงานของ GameServer บนเครื่องนี้ จากนั้นเชื่อมต่อ GameClient ในฐานะโฮสต์ผ่าน 127.0.0.1
+     */
     private void startHost(String playerName, int port) {
         var newServer = new GameServer(port);
         try {
@@ -172,10 +194,13 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         server = newServer;
         joinScreen.showStatus("Room is up on port " + port + ". Joining as host...");
 
-        // The host joins through the normal loopback path, so it behaves exactly like any other player.
+        // โฮสต์จะเชื่อมต่อไปยังเซิร์ฟเวอร์ผ่าน Loopback (127.0.0.1) เหมือนกับผู้เล่นคนอื่นๆ
         connectAndJoin(playerName, "127.0.0.1", port, true);
     }
 
+    /**
+     * เริ่มการเชื่อมต่อ GameClient ไปยังเซิร์ฟเวอร์ปลายทาง
+     */
     private void connectAndJoin(String playerName, String ip, int port, boolean host) {
         var newClient = new GameClient(ip, port, new NetworkListener());
         try {
@@ -205,17 +230,19 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         startJoinTimeout();
     }
 
-    /** Stops waiting when the host never answers the JOIN request, and gives the buttons back. */
+    /**
+     * เริ่มเวลานับถอยหลังรอการตอบรับการเข้าห้อง หากโฮสต์ไม่ตอบรับภายใน 8 วินาทีจะยกเลิก
+     */
     private void startJoinTimeout() {
         cancelJoinTimeout();
         joinTimeout = new Thread(() -> {
             try {
                 Thread.sleep(JOIN_REPLY_TIMEOUT_MS);
             } catch (InterruptedException e) {
-                return;   // cancelled: the join answer arrived in time
+                return;   // ได้รับการตอบรับทันเวลา เธรดถูกยกเลิก
             }
             if (joinTimeout != Thread.currentThread() || !alreadyAtJoinScreen()) {
-                return;   // a newer attempt replaced this one, or the join already succeeded
+                return;   // มีการพยายามเชื่อมต่อใหม่ หรือเข้าห้องสำเร็จแล้ว
             }
             joinTimeout = null;
             teardownSession();
@@ -236,6 +263,9 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         }
     }
 
+    /**
+     * แปลง Exception ของการเชื่อมต่อเป็นข้อความภาษาที่เข้าใจง่าย
+     */
     private String describeConnectionFailure(IOException e, String ip, int port) {
         if (e instanceof UnknownHostException) {
             return "Server address not found: \"" + ip + "\". Check the IP the host showed you.";
@@ -251,7 +281,9 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         return "Could not connect to " + ip + ":" + port + ": " + e.getMessage();
     }
 
-    /** Closes everything and returns to the join screen. Safe to call when already offline. */
+    /**
+     * ออกจากห้อง: ปิดการเชื่อมต่อไคลเอนต์และเซิร์ฟเวอร์ แล้วกลับไปยังหน้า JoinScreen
+     */
     private void leaveRoom() {
         intentionalLeave = true;
         if (client != null) {
@@ -267,6 +299,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         showScreen(SCREEN_JOIN);
     }
 
+    // ล้างข้อมูลสถานะห้องทั้งหมด
     private void resetRoomState() {
         myName = "";
         isHost = false;
@@ -281,6 +314,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         lobbyScreen.clearChat();
     }
 
+    // ขอเริ่มเกมไปยังเซิร์ฟเวอร์
     private void requestStartGame() {
         if (client == null) {
             showError("Not connected", "You are not in a room right now.");
@@ -289,12 +323,14 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         client.requestStartGame();
     }
 
+    // สลับสถานะพร้อมของผู้เล่น
     private void toggleReady() {
         if (client != null) {
             client.setReady(!lobbyScreen.isReady());
         }
     }
 
+    // ส่งชุดรูปทรงความลับของผู้ตั้งโจทย์
     private void submitSecret() {
         if (client == null) {
             return;
@@ -307,6 +343,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         questionerScreen.lockSelection();
     }
 
+    // ส่งคำตอบทายของผู้ทาย
     private void submitGuess() {
         if (client == null) {
             return;
@@ -319,6 +356,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         guesserScreen.markSubmitted();
     }
 
+    // ขอเริ่มทัวร์นาเมนต์ใหม่ไปยังเซิร์ฟเวอร์ (สำหรับโฮสต์)
     private void requestNewGame() {
         if (client == null) {
             return;
@@ -331,11 +369,13 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     }
 
     // =====================================================================
-    //  Server message handling
+    //  การประมวลผลข้อความจากเซิร์ฟเวอร์ (Server message handling)
     // =====================================================================
 
+    /**
+     * แยกแยะและจัดการข้อความตามประเภทที่ได้รับจากเซิร์ฟเวอร์
+     */
     private void handleMessage(String type, String[] args) {
-        // Every branch is one line; unknown types are ignored, exactly like before.
         if (GameServer.JOIN_SUCCESS.equals(type)) { handleJoinSuccess(args); }
         else if (GameServer.JOIN_FAILED.equals(type)) { handleJoinFailed(args); }
         else if (GameServer.PLAYER_LIST.equals(type)) { handlePlayerList(args); }
@@ -351,14 +391,14 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         else if (GameServer.SYSTEM.equals(type)) { lobbyScreen.addChatMessage("System", arg(args, 0)); }
         else if (GameServer.SERVER_CLOSED.equals(type)) { handleServerClosed(); }
         else if (GameServer.ERROR.equals(type)) { showError("Server message", arg(args, 0).isEmpty() ? "Unknown error" : arg(args, 0)); }
-        // PLAYER_LEFT needs nothing: the refreshed PLAYER_LIST that follows updates the lobby rows.
     }
 
+    /** จัดการเมื่อเข้าห้องสำเร็จ (JOIN_SUCCESS) สลับไปหน้าจอ Lobby */
     private void handleJoinSuccess(String[] args) {
         cancelJoinTimeout();
         myName = arg(args, 0);
         isHost = "1".equals(arg(args, 1));
-        hostName = myName;   // corrected by the first PLAYER_LIST
+        hostName = myName;
 
         lobbyScreen.setMyName(myName);
         lobbyScreen.setHost(isHost);
@@ -374,7 +414,6 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
                 try {
                     lobbyScreen.setPort(Integer.parseInt(connectAddress.substring(colon + 1)));
                 } catch (NumberFormatException ignored) {
-                    // keep the previous port label
                 }
             }
         }
@@ -384,6 +423,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         showScreen(SCREEN_LOBBY);
     }
 
+    /** จัดการเมื่อเข้าห้องไม่สำเร็จ (JOIN_FAILED) */
     private void handleJoinFailed(String[] args) {
         String reason = arg(args, 0).isEmpty() ? "The host refused the connection." : arg(args, 0);
         teardownSession();
@@ -393,6 +433,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         showScreen(SCREEN_JOIN);
     }
 
+    /** จัดการข้อมูลรายชื่อและสถานะความพร้อมของผู้เล่น (PLAYER_LIST) */
     private void handlePlayerList(String[] args) {
         int count = parseInt(arg(args, 0), 0);
         playerNames.clear();
@@ -417,14 +458,15 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         pushScoreboards();
     }
 
+    /**
+     * จัดการข้อมูลรอบใหม่ (ROUND_INFO) สลับไปยังหน้า Questioner หรือ Guesser ตามบทบาท
+     */
     private void handleRoundInfo(String[] args) {
         int round = parseInt(arg(args, 0), 1);
         int total = parseInt(arg(args, 1), 0);
         String questioner = arg(args, 2);
-        // Fourth field: the random shape count the server drew for this round.
         int requiredShapes = parseInt(arg(args, 3), GameServer.MIN_SHAPES);
 
-        // A new round is starting, so the previous round-result countdown is finished with.
         roundResultScreen.stopCountdown();
         currentRound = round;
         knownTotalRounds = total;
@@ -440,6 +482,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         }
     }
 
+    /** จัดการเมื่อ Questioner ล็อกรูปทรงเรียบร้อยแล้ว (SECRET_LOCKED) */
     private void handleSecretLocked(String[] args) {
         String questioner = arg(args, 0);
         int count = parseInt(arg(args, 1), 1);
@@ -450,7 +493,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         }
     }
 
-    /** Countdown from the server; ticks of an old round, or after the round ended, are dropped. */
+    /** จัดการเวลานับถอยหลัง (TICK) จากเซิร์ฟเวอร์ */
     private void handleTick(String[] args) {
         int tickRound = parseInt(arg(args, 0), -1);
         int remaining = parseInt(arg(args, 1), -1);
@@ -461,6 +504,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         guesserScreen.setTimeLeft(remaining);
     }
 
+    /** จัดการเมื่อมีผู้เล่นส่งคำตอบทาย (GUESS_SUBMITTED) */
     private void handleGuessSubmitted(String[] args) {
         String who = arg(args, 0);
         String submitted = arg(args, 1);
@@ -473,9 +517,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     }
 
     /**
-     * Payload: [round, totalRounds, isFinal, secretCsv, reason, questioner, playerCount,
-     * (name, delta, total, guessCsv, correctCount, bonus) * playerCount], so the player blocks
-     * start at index 7 with a stride of 6.
+     * จัดการผลสรุปของรอบ (ROUND_RESULT) และสลับไปยังหน้าจอ RoundResultScreen
      */
     private void handleRoundResult(String[] args) {
         int round = parseInt(arg(args, 0), 1);
@@ -512,20 +554,22 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
 
         pushScoreboards();
 
-        // The overall standings stay ready, but the final scoreboard only opens on demand.
+        // อัปเดตข้อมูลตารางคะแนนสุดท้ายเตรียมไว้
         scoreboardScreen.setResults(names, totals, round, total, isFinal);
         scoreboardScreen.setNextEnabled(isHost);
 
+        // แสดงผลสรุปของรอบนี้
         roundResultScreen.showResult(round, total, isFinal, splitCsv(secretCsv), reason, questioner, names,
                 deltas, totals, guesses, correctCounts, bonuses);
         showScreen(SCREEN_ROUND_RESULT);
     }
 
-    /** Splits a comma separated shape list; an empty string becomes an empty array. */
+    /** แยกชุดชื่อรูปทรงที่คั่นด้วยจุลภาค */
     private static String[] splitCsv(String csv) {
         return (csv == null || csv.isEmpty()) ? new String[0] : csv.split(",");
     }
 
+    /** กลับไปยังหน้าห้องพักคอย (TO_LOBBY) */
     private void handleToLobby(String[] args) {
         String reason = arg(args, 1);
         roundInProgress = false;
@@ -538,8 +582,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     }
 
     /**
-     * The server says the tournament is over, so the final standings open for every player at the
-     * same moment. This is the only place the final scoreboard is opened.
+     * เซิร์ฟเวอร์แจ้งว่าจบทัวร์นาเมนต์แล้ว ให้เปิดหน้าตารางคะแนนรวมสุดท้าย (SHOW_SCOREBOARD)
      */
     private void handleShowScoreboard() {
         roundResultScreen.stopCountdown();
@@ -557,8 +600,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     }
 
     /**
-     * Ends a session that stopped on its own. Nothing happens when the player left on purpose or a
-     * terminal handler has already cleaned everything up.
+     * ปิดเซสชันเมื่อการเชื่อมต่อสิ้นสุดลง แล้วกลับไปหน้า JoinScreen
      */
     private void endSession(String title, String message) {
         if (intentionalLeave || alreadyAtJoinScreen()) {
@@ -570,7 +612,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         showError(title, message);
     }
 
-    /** Closes the client and the server (when this machine was hosting) and forgets the room. */
+    /** ปิดไคลเอนต์และเซิร์ฟเวอร์ พร้อมล้างสถานะห้อง */
     private void teardownSession() {
         cancelJoinTimeout();
         if (client != null) {
@@ -584,7 +626,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         resetRoomState();
     }
 
-    /** Rebuilds both in-game side scoreboards from the latest known player list and scores. */
+    /** ซิงค์คะแนนและรายชื่อผู้เล่นไปยังหน้าจอในเกมทั้งสองหน้า (Questioner และ Guesser) */
     private void pushScoreboards() {
         String[] names = playerNames.toArray(new String[0]);
         var scores = new int[names.length];
@@ -597,7 +639,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     }
 
     // =====================================================================
-    //  Small helpers
+    //  ฟังก์ชันช่วยและการแสดงผลกล่องข้อความ (Small Helpers)
     // =====================================================================
 
     private static String arg(String[] args, int index) {
@@ -620,7 +662,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         AppDialog.showInfo(this, title, message);
     }
 
-    /** Reader-thread callbacks: the message handlers run straight on the network threads. */
+    /** คลาสรับคอลแบ็กข้อความจาก GameClient */
     private class NetworkListener implements GameClient.Listener {
         @Override
         public void onMessage(String type, String[] args) {
@@ -633,6 +675,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         }
     }
 
+    // จุดเริ่มต้นโปรแกรม
     public static void main(String[] args) {
         new MainApp();
     }

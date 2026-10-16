@@ -18,19 +18,25 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 
 /**
- * JoinScreen: screen 1 - host a room on this machine or join a friend's room over the same LAN.
- * The screen never opens a socket itself: it validates the input and reports through {@link JoinListener}.
+ * JoinScreen: หน้าจอแรก (หน้าจอที่ 1) ของเกม
+ * ใช้สำหรับสร้างห้อง (Host) บนเครื่องนี้ หรือเข้าร่วมห้อง (Join) ของเพื่อนผ่านเครือข่าย LAN เดียวกัน
+ * หน้านี้จะไม่เปิด Socket เองโดยตรง แต่จะตรวจสอบความถูกต้องของข้อมูลแล้วส่งต่อผ่าน {@link JoinListener}
  */
 public class JoinScreen extends JPanel {
 
-    /** Called when the player chooses to host or to join. Runs on the event thread; do networking off it. */
+    /**
+     * อินเตอร์เฟสสำหรับแจ้งเตือนเมื่อผู้เล่นเลือกสร้างห้องหรือเข้าร่วมห้อง
+     * เมธอดเหล่านี้จะทำงานบน Event Dispatch Thread (UI Thread)
+     */
     public interface JoinListener {
+        // ทำงานเมื่อผู้เล่นเลือกสร้างห้อง (เป็นโฮสต์)
         void onCreateGame(String playerName, int port);
 
+        // ทำงานเมื่อผู้เล่นเลือกเข้าร่วมห้อง
         void onJoinGame(String playerName, String serverIp, int port);
     }
 
-    // Colours and fonts that are particular to this screen (the rest comes from AppDialog).
+    // สีและค่าคงที่เฉพาะของหน้าจอนี้ (ส่วนอื่นดึงมาจาก AppDialog)
     private static final Color BG_LIGHT = new Color(244, 246, 250), TEXT_DARK = new Color(17, 24, 39);
     private static final Color TEXT_MUTED = new Color(107, 114, 128), DANGER_HOVER = new Color(220, 38, 38);
     private static final Color WARNING_BG = new Color(255, 247, 230), WARNING_TEXT = new Color(146, 84, 0);
@@ -38,21 +44,24 @@ public class JoinScreen extends JPanel {
     private static final Color NAVY = new Color(15, 28, 55), BRAND_TEXT = new Color(186, 203, 236);
     private static final Color BRAND_FOOT = new Color(147, 171, 217);
 
+    // พอร์ตเริ่มต้นที่ใช้เชื่อมต่อ
     private static final int DEFAULT_PORT = GameServer.DEFAULT_PORT;
 
-    private final JoinListener listener;
-    private JTextField nameField;
-    private JTextField ipField;
-    private JTextField portField;
-    private JButton createBtn;
-    private JButton joinBtn;
-    private JButton exitBtn;
-    private JLabel hostInfoLabel;
-    private JLabel statusLabel;
-    private JLabel statusTagLabel;
-    private JPanel statusBanner;
+    private final JoinListener listener;    // ตัวรับเหตุการณ์การสร้าง/เข้าร่วมเกม
+    private JTextField nameField;           // ช่องกรอกชื่อผู้เล่น
+    private JTextField ipField;             // ช่องกรอก IP เซิร์ฟเวอร์
+    private JTextField portField;           // ช่องกรอกพอร์ต
+    private JButton createBtn;              // ปุ่มสร้างห้อง (Host)
+    private JButton joinBtn;                // ปุ่มเข้าร่วมห้อง (Join)
+    private JButton exitBtn;                // ปุ่มออกจากเกม
+    private JLabel hostInfoLabel;           // ป้ายแสดง IP เครื่องนี้สำหรับบอกเพื่อน
+    private JLabel statusLabel;             // ข้อความแสดงสถานะในแถบสถานะ
+    private JLabel statusTagLabel;          // ป้ายกำกับคำว่า "STATUS"
+    private JPanel statusBanner;            // แถบกล่องแสดงสถานะ
 
-    /** Deep navy background with one faint decorative circle, painted with plain Graphics. */
+    /**
+     * พาเนลฝั่งซ้ายพื้นหลังสีกรมท่าเข้ม ตกแต่งด้วยลายวงกลมโปร่งแสง
+     */
     private static class BrandPanel extends JPanel {
         BrandPanel() {
             super(new BorderLayout());
@@ -63,23 +72,29 @@ public class JoinScreen extends JPanel {
             g.setColor(NAVY);
             g.fillRect(0, 0, getWidth(), getHeight());
             int circle = (int) (getHeight() * 1.6);
-            g.setColor(new Color(255, 255, 255, 8));
+            g.setColor(new Color(255, 255, 255, 8)); // วงกลมโปร่งแสงตกแต่ง
             g.fillOval(getWidth() - circle / 2, -circle / 4, circle, circle);
         }
     }
 
+    /**
+     * คอนสตรักเตอร์สำหรับสร้างหน้าจอ JoinScreen แบ่งการจัดวางออกเป็น 2 ฝั่ง (ซ้าย-ขวา)
+     */
     public JoinScreen(JoinListener listener) {
         this.listener = listener;
         setLayout(new BorderLayout());
         setBackground(BG_LIGHT);
 
-        // Split layout: branding on the left, the connection form on the right.
+        // แบ่งครึ่งหน้าจอ: ฝั่งซ้ายคือข้อมูลแบรนด์/โลโก้ ฝั่งขวาคือแบบฟอร์มการเชื่อมต่อ
         var split = new JPanel(new GridLayout(1, 2));
         split.add(buildLeftPanel());
         split.add(buildRightPanel());
         add(split, BorderLayout.CENTER);
     }
 
+    /**
+     * สร้างส่วนแสดงผลฝั่งซ้าย: โลโก้เกม, ชื่อเกม, คำอธิบาย และ IP แนะนำของเครื่องนี้
+     */
     private JPanel buildLeftPanel() {
         var brand = new BrandPanel();
         brand.setBorder(new EmptyBorder(30, 40, 40, 40));
@@ -91,7 +106,7 @@ public class JoinScreen extends JPanel {
         refreshHostInfo(DEFAULT_PORT);
         brand.add(header, BorderLayout.NORTH);
 
-        // Empty first and last rows keep the group vertically centered.
+        // จัดกลุ่มข้อความให้อยู่ตรงกลางตามแนวตั้ง
         var center = AppDialog.panel();
         center.setLayout(new GridLayout(5, 1, 0, 8));
         var title = AppDialog.label("<html>Guess What<br>It Looks Like?</html>", AppDialog.f(Font.BOLD, 36), Color.WHITE);
@@ -113,6 +128,9 @@ public class JoinScreen extends JPanel {
         return brand;
     }
 
+    /**
+     * สร้างส่วนแสดงผลฝั่งขวา: แบบฟอร์มกรอกชื่อผู้เล่น, IP เซิร์ฟเวอร์, พอร์ต และปุ่มกด
+     */
     private JPanel buildRightPanel() {
         var wrapper = new JPanel(new GridLayout(1, 1));
         wrapper.setBackground(BG_LIGHT);
@@ -130,7 +148,7 @@ public class JoinScreen extends JPanel {
                 AppDialog.PLAIN_14, TEXT_MUTED));
         form.add(header, BorderLayout.NORTH);
 
-        // Name, server IP and port, one framed text field each.
+        // รายการช่องกรอกข้อมูล 3 ช่อง: ชื่อ, IP เซิร์ฟเวอร์, พอร์ต
         String[] labels = {"Name", "Server IP (host)", "Port"};
         String[] defaults = {"", "", String.valueOf(DEFAULT_PORT)};
         var inputs = AppDialog.panel();
@@ -153,7 +171,7 @@ public class JoinScreen extends JPanel {
         portField = fields[2];
         form.add(inputs, BorderLayout.CENTER);
 
-        // Status banner plus the three action buttons.
+        // แถบแสดงสถานะพร้อมปุ่มการทำงาน 3 ปุ่ม
         statusTagLabel = AppDialog.label("STATUS", AppDialog.SMALL_BOLD_12, WARNING_TEXT);
         statusLabel = AppDialog.label("Ready. Host a game or enter a host address.", AppDialog.SMALL_BOLD_12, WARNING_TEXT);
         var bannerContent = AppDialog.panel();
@@ -194,9 +212,13 @@ public class JoinScreen extends JPanel {
     }
 
     // =====================================================================
-    //  Actions and validation
+    //  การทำงานและการตรวจสอบความถูกต้องของข้อมูล (Actions and Validation)
     // =====================================================================
 
+    /**
+     * ดำเนินการเมื่อผู้เล่นกดปุ่ม CREATE GAME (HOST)
+     * ตรวจสอบว่ากรอกชื่อและพอร์ตถูกต้องหรือไม่ก่อนส่งให้ listener
+     */
     private void onCreateGame() {
         String name = getPlayerName();
         if (name.isEmpty()) {
@@ -214,6 +236,10 @@ public class JoinScreen extends JPanel {
         }
     }
 
+    /**
+     * ดำเนินการเมื่อผู้เล่นกดปุ่ม JOIN GAME
+     * ตรวจสอบความถูกต้องของชื่อผู้เล่น, IP เซิร์ฟเวอร์ และพอร์ต ก่อนส่งให้ listener
+     */
     private void onJoinGame() {
         String name = getPlayerName();
         String ip = getServerIp();
@@ -233,6 +259,9 @@ public class JoinScreen extends JPanel {
         }
     }
 
+    /**
+     * แปลงข้อความพอร์ตเป็นตัวเลข พร้อมตรวจสอบให้อยู่ระหว่าง 1 ถึง 65535
+     */
     private int parsePort() {
         String text = getServerPortText();
         if (text.isEmpty()) {
@@ -253,12 +282,17 @@ public class JoinScreen extends JPanel {
         return port;
     }
 
+    /**
+     * แสดงข้อความแจ้งเตือนข้อผิดพลาดทั้งบนแถบสถานะและกล่องข้อความ Dialog
+     */
     private void fail(String status, String dialogTitle) {
         showStatus(status, true);
         AppDialog.showWarning(this, dialogTitle, status);
     }
 
-    /** Accepts a dotted IPv4 literal or a plain host name, so "localhost" works for local tests too. */
+    /**
+     * ตรวจสอบรูปแบบของที่อยู่ IPv4 หรือชื่อโฮสต์ เพื่อรองรับทั้ง IP จริงและ localhost
+     */
     private static boolean isValidAddress(String value) {
         if (value.isEmpty() || value.length() > 253 || value.indexOf(' ') >= 0) {
             return false;
@@ -288,6 +322,7 @@ public class JoinScreen extends JPanel {
         return true;
     }
 
+    // ฟังก์ชันตรวจสอบว่าข้อความประกอบด้วยตัวเลขทั้งหมดหรือไม่
     private static boolean isNumeric(String value) {
         if (value.isEmpty()) {
             return false;
@@ -301,22 +336,27 @@ public class JoinScreen extends JPanel {
     }
 
     // =====================================================================
-    //  Public state updates used by MainApp
+    //  เมธอดปรับสถานะและดึงข้อมูลที่ใช้งานโดย MainApp
     // =====================================================================
 
+    // ดึงชื่อผู้เล่นที่กรอก
     public String getPlayerName() {
         return nameField.getText().trim();
     }
 
+    // ดึง IP เซิร์ฟเวอร์ที่กรอก
     public String getServerIp() {
         return ipField.getText().trim();
     }
 
+    // ดึงข้อความพอร์ตที่กรอก
     public String getServerPortText() {
         return portField.getText().trim();
     }
 
-    /** Disables the action buttons while a connect attempt is running. */
+    /**
+     * เปิด/ปิดการทำงานของปุ่มคำสั่งขณะกำลังรอเชื่อมต่อ พร้อมเปลี่ยนเคอร์เซอร์เมาส์เป็นรูปนาฬิกาทราย
+     */
     public void setBusy(boolean busy) {
         createBtn.setEnabled(!busy);
         joinBtn.setEnabled(!busy);
@@ -324,12 +364,12 @@ public class JoinScreen extends JPanel {
         setCursor(new Cursor(busy ? Cursor.WAIT_CURSOR : Cursor.DEFAULT_CURSOR));
     }
 
-    /** Neutral informational line in the status banner. */
+    /** แสดงข้อความสถานะทั่วไป (สีเหลืองอ่อน) */
     public void showStatus(String text) {
         applyStatus(text, WARNING_BG, WARNING_BORDER, WARNING_TEXT);
     }
 
-    /** Error line in the status banner. */
+    /** แสดงข้อความสถานะข้อผิดพลาด (สีแดง) หรือสถานะทั่วไป */
     public void showStatus(String text, boolean error) {
         if (error) {
             applyStatus(text, AppDialog.DANGER_BG, AppDialog.DANGER_BORDER, AppDialog.DANGER_TEXT);
@@ -338,10 +378,12 @@ public class JoinScreen extends JPanel {
         }
     }
 
+    /** แสดงข้อความสถานะสำเร็จ (สีเขียว) */
     public void showSuccess(String text) {
         applyStatus(text, AppDialog.SUCCESS_BG, AppDialog.SUCCESS_BORDER, AppDialog.SUCCESS_TEXT);
     }
 
+    // ปรับสีและข้อความของแถบสถานะ
     private void applyStatus(String text, Color bg, Color border, Color fg) {
         statusLabel.setText(text);
         statusLabel.setForeground(fg);
@@ -352,18 +394,23 @@ public class JoinScreen extends JPanel {
         statusBanner.repaint();
     }
 
-    /** Called after leaving a room so the form is clean for the next attempt. */
+    /**
+     * รีเซ็ตหน้าจอฟอร์มให้กลับสู่สถานะพร้อมใช้งานหลังจากออกจากห้อง
+     */
     public void reset() {
         setBusy(false);
         showStatus("Ready. Host a game or enter a host address.");
     }
 
-    /** Suggests the port field and rebuilds the left-hand "connect here" hint. */
+    /**
+     * กำหนดพอร์ตและรีเฟรชข้อมูล IP ฝั่งซ้ายสำหรับบอกเพื่อนร่วมห้อง
+     */
     public void setHostInfo(int port) {
         portField.setText(String.valueOf(port));
         refreshHostInfo(port);
     }
 
+    // ค้นหาและแสดงรายการ IP ในเครือข่าย LAN สำหรับให้ผู้เล่นคนอื่นพิมพ์เข้าร่วม
     private void refreshHostInfo(int port) {
         List<String> addresses = GameServer.getLanAddresses();
         if (addresses.isEmpty()) {
@@ -378,10 +425,10 @@ public class JoinScreen extends JPanel {
     }
 
     // =====================================================================
-    //  Small factories
+    //  คอมโพเนนต์สำเร็จรูปสำหรับหน้าจอนี้ (Small factories)
     // =====================================================================
 
-    /** Filled box with a 1px line border and inner padding. */
+    /** สร้างกรอบสี่เหลี่ยมมีเส้นขอบและระยะเว้นด้านใน (Padding) */
     private static JPanel framed(Container content, Color fill, Color line, int top, int left, int bottom, int right) {
         var inner = AppDialog.panel();
         inner.setLayout(new BorderLayout());
@@ -395,7 +442,7 @@ public class JoinScreen extends JPanel {
         return outer;
     }
 
-    /** Keeps a component at its preferred size, aligned left, inside a GridLayout cell. */
+    /** จัดวางคอมโพเนนต์ชิดซ้ายโดยคงขนาดเดิมไว้ */
     private static JPanel leftAligned(Container c) {
         var holder = AppDialog.panel();
         holder.setLayout(new FlowLayout(FlowLayout.LEFT, 0, 0));
@@ -403,7 +450,7 @@ public class JoinScreen extends JPanel {
         return holder;
     }
 
-    /** Borderless text field; the box and the padding come from framed(). */
+    /** สร้างช่องกรอกข้อความ (JTextField) แบบไม่มีขอบในตัว */
     private static JTextField makeField(String initialText) {
         var field = new JTextField(initialText);
         field.setFont(AppDialog.PLAIN_14);
@@ -413,6 +460,7 @@ public class JoinScreen extends JPanel {
         return field;
     }
 
+    // สร้างปุ่มกดพร้อมระบบเปลี่ยนสีเมื่อเมาส์ชี้
     private static JButton makeButton(String text, Color normal, Color fg, Color hover, boolean outlined) {
         var button = new JButton(text);
         button.setFont(AppDialog.SUBTITLE);

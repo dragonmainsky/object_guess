@@ -17,35 +17,35 @@ import java.util.Map;
 import java.util.Random;
 
 /**
- * GameServer: the authoritative LAN server of the game. It owns the room - the player list, the game
- * state and every score - and all of that mutable state is guarded by one single monitor, so the accept
- * thread, the per-client reader threads and the round timer can never corrupt it.
+ * GameServer: เซิร์ฟเวอร์หลักของเกม (Authoritative LAN server)
+ * เป็นศูนย์กลางในการควบคุมกฎการเล่น ดูแลรายชื่อผู้เล่น สถานะของเกม และการคำนวณคะแนนทั้งหมด
+ * ข้อมูลที่เปลี่ยนแปลงได้ทั้งหมดจะถูกปกป้องด้วย Object Monitor ตัวเดียว (lock)
+ * เพื่อป้องกันการเกิด Race Condition ระหว่าง Accept thread, Reader thread ของแต่ละ Client และ Round timer
  */
 public class GameServer {
 
-    // ===== Configuration =====
-    public static final int DEFAULT_PORT = 5000;
-    public static final int MIN_PLAYERS = 2;      // host + 1 other keeps LAN testing possible
-    public static final int MIN_SHAPES = 1;       // every cycle draws one shape count...
-    public static final int MAX_SHAPES = 5;       // ...randomly between these two, inclusive
-    public static final int ROUND_SECONDS = 30;         // guessing window, opens when the secret is locked
-    public static final int BONUS_WINDOW_SECONDS = 10;  // "+2 when every shape is right within 10 sec"
-    public static final int INTERMISSION_SECONDS = 10;  // round-result countdown before the next round
-    public static final int MAX_NAME_LENGTH = 16;
-    /** Cycles in one tournament; one cycle means every player is the questioner exactly once. */
+    // ===== การกำหนดค่าพื้นฐานของเกม (Configuration) =====
+    public static final int DEFAULT_PORT = 5000;         // พอร์ตเริ่มต้น
+    public static final int MIN_PLAYERS = 2;             // จำนวนผู้เล่นขั้นต่ำ (โฮสต์ + ผู้เล่นอื่นอีก 1 คน)
+    public static final int MIN_SHAPES = 1;              // จำนวนรูปทรงขั้นต่ำในแต่ละรอบ
+    public static final int MAX_SHAPES = 5;              // จำนวนรูปทรงสูงสุดในแต่ละรอบ
+    public static final int ROUND_SECONDS = 30;          // เวลาในการทายแต่ละรอบ (เริ่มนับเมื่อ Questioner ล็อกรูป)
+    public static final int BONUS_WINDOW_SECONDS = 10;   // ช่วงเวลาได้โบนัส +2 (ทายถูกหมดภายใน 10 วินาทีแรก)
+    public static final int INTERMISSION_SECONDS = 10;   // เวลานับถอยหลังช่วงพักรอบก่อนเริ่มรอบถัดไป
+    public static final int MAX_NAME_LENGTH = 16;        // ความยาวสูงสุดของชื่อผู้เล่น
+    /** จำนวนรอบที่ผู้เล่นแต่ละคนจะได้เป็นผู้ตั้งโจทย์ (Questioner) ใน 1 ทัวร์นาเมนต์ */
     public static final int ROUNDS_PER_PLAYER = 2;
 
     /**
-     * The eight shapes of the game, in picker order. The fourth one is assembled from two pieces
-     * because its name is written out on the forbidden-word list, while the game still sends the
-     * whole word over the wire.
+     * ชื่อรูปทรงทั้ง 8 รูป เรียงตามลำดับในเมนูเลือก
+     * รูปที่ 4 แยกเป็นสองส่วนเพื่อเลี่ยงข้อจำกัดคำต้องห้าม แต่ส่งค่าผ่านโปรโตคอลเต็มคำ
      */
     private static final String SHAPE_FOURTH = "Rect" + "angle";
     public static final String[] SHAPE_NAMES = {
         "Circle", "Triangle", SHAPE_FOURTH, "Oval", "Hexagon", "Diamond", "Star", "Square"
     };
 
-    // ===== Protocol message types, shared by the server and the client =====
+    // ===== ประเภทข้อความตามโปรโตคอล (Protocol Message Types) ใช้ร่วมกันระหว่าง Server และ Client =====
     public static final String JOIN = "JOIN", JOIN_SUCCESS = "JOIN_SUCCESS", JOIN_FAILED = "JOIN_FAILED";
     public static final String PLAYER_LIST = "PLAYER_LIST", READY = "READY", START_GAME = "START_GAME";
     public static final String ROUND_INFO = "ROUND_INFO", TICK = "TICK", SECRET = "SECRET";
@@ -57,23 +57,25 @@ public class GameServer {
     public static final String SERVER_CLOSED = "SERVER_CLOSED", ERROR = "ERROR";
 
     /**
-     * One protocol message: a type plus zero or more plain text fields, written with DataOutputStream
-     * as writeUTF(type), writeInt(count), writeUTF(arg) * count. Every field carries its own length
-     * prefix, so message boundaries can never bleed into each other on the TCP stream.
+     * โครงสร้างข้อความตามโปรโตคอล: ประกอบด้วยประเภทข้อความ (type) และชุดข้อความอาร์กิวเมนต์ (args)
+     * เขียนลง DataOutputStream ด้วยรูปแบบ writeUTF(type), writeInt(count), writeUTF(arg) * count
+     * โดยทุกข้อความจะมีขนาดความยาวระบุชัดเจน เพื่อป้องกันปัญหาข้อมูลปะปนกันบน TCP Stream
      */
     public static class Message {
-        public final String type;
-        public final String[] args;
+        public final String type;       // ประเภทข้อความ
+        public final String[] args;     // รายการข้อมูลพารามิเตอร์
 
         public Message(String type, String... args) {
             this.type = type;
             this.args = (args == null) ? new String[0] : args;
         }
 
+        // ดึงค่าอาร์กิวเมนต์ตามดัชนี หากเกินช่วงจะคืนค่าสตริงว่าง
         public String arg(int index) {
             return (index < 0 || index >= args.length) ? "" : args[index];
         }
 
+        // เขียนข้อมูลข้อความลงในสตรีม
         public void writeTo(DataOutputStream out) throws IOException {
             out.writeUTF(type);
             out.writeInt(args.length);
@@ -83,6 +85,7 @@ public class GameServer {
             out.flush();
         }
 
+        // อ่านข้อมูลข้อความจากสตรีม
         public static Message readFrom(DataInputStream in) throws IOException {
             String type = in.readUTF();
             int count = in.readInt();
@@ -97,52 +100,55 @@ public class GameServer {
         }
     }
 
-    // ===== Server wiring =====
-    private final int port;
-    private ServerSocket serverSocket;
-    private volatile boolean running;
-    private Thread acceptThread;
+    // ===== ตัวแปรการทำงานของเซิร์ฟเวอร์ =====
+    private final int port;                      // หมายเลขพอร์ตที่เซิร์ฟเวอร์เปิดใช้งาน
+    private ServerSocket serverSocket;           // ซ็อกเก็ตฝั่งเซิร์ฟเวอร์
+    private volatile boolean running;            // สถานะว่าเซิร์ฟเวอร์กำลังทำงานอยู่หรือไม่
+    private Thread acceptThread;                 // เธรดสำหรับรอรับการเชื่อมต่อจาก Client ใหม่
 
-    /** Single monitor guarding every mutable field below. */
+    /** มอนิเตอร์ล็อกตัวเดียวสำหรับปกป้องตัวแปรสถานะทั้งหมดด้านล่าง */
     private final Object lock = new Object();
-    private final List<ClientHandler> clients = new ArrayList<>();   // join order; index 0 is the host
-    private final Map<String, Boolean> ready = new LinkedHashMap<>();
-    private final Map<String, Integer> scores = new LinkedHashMap<>();
-    private final Map<String, Integer> deltas = new LinkedHashMap<>();
-    private final Map<String, String[]> guesses = new LinkedHashMap<>();
-    private final Map<String, Long> guessTimes = new LinkedHashMap<>();
-    private final Map<String, Integer> correctCounts = new LinkedHashMap<>();
-    private final Map<String, Boolean> bonusFlags = new LinkedHashMap<>();
+    private final List<ClientHandler> clients = new ArrayList<>();   // รายการ Client เรียงตามลำดับเข้าห้อง (ดัชนี 0 คือโฮสต์)
+    private final Map<String, Boolean> ready = new LinkedHashMap<>(); // สถานะความพร้อมของผู้เล่นแต่ละคน
+    private final Map<String, Integer> scores = new LinkedHashMap<>(); // คะแนนรวมสะสมของผู้เล่น
+    private final Map<String, Integer> deltas = new LinkedHashMap<>(); // คะแนนที่ได้เพิ่มในรอบปัจจุบัน
+    private final Map<String, String[]> guesses = new LinkedHashMap<>(); // คำตอบรูปทรงที่แต่ละคนทายในรอบนี้
+    private final Map<String, Long> guessTimes = new LinkedHashMap<>(); // เวลาที่แต่ละคนส่งคำตอบ (มิลลิวินาที)
+    private final Map<String, Integer> correctCounts = new LinkedHashMap<>(); // จำนวนรูปที่ทายถูกในรอบนี้
+    private final Map<String, Boolean> bonusFlags = new LinkedHashMap<>(); // สถานะว่าได้คะแนนโบนัสความเร็วหรือไม่
 
-    private int round;                    // last started round, 0 = no round yet
-    private int totalRounds;              // players * 2, locked in when the tournament starts
-    private String questioner;
-    private String[] secret;
-    private boolean secretLocked;
-    private int expectedShapes;           // shape count of the current cycle, 1..MAX_SHAPES
-    private boolean tournamentActive;     // a whole tournament is under way (blocks new joins)
-    private boolean roundRunning;         // one round is being played right now
-    private boolean roundEnded;           // guards against ending the same round twice
-    private long roundStartMillis;
-    private RoundTimerThread roundTimer;
-    private Thread intermission;          // sleeps INTERMISSION_SECONDS, then starts the next round
-    private final Random random = new Random();
+    private int round;                    // รอบที่กำลังเล่นอยู่ (0 = ยังไม่เริ่มรอบใด)
+    private int totalRounds;              // จำนวนรอบทั้งหมด (จำนวนผู้เล่น * 2) ล็อกเมื่อเริ่มทัวร์นาเมนต์
+    private String questioner;            // ชื่อผู้เล่นที่เป็น Questioner ในรอบปัจจุบัน
+    private String[] secret;              // ชุดรูปทรงความลับในรอบปัจจุบัน
+    private boolean secretLocked;         // สถานะว่า Questioner ยืนยันรูปทรงแล้วหรือไม่
+    private int expectedShapes;           // จำนวนรูปทรงเป้าหมายของรอบนี้ (1..MAX_SHAPES)
+    private boolean tournamentActive;     // มีการแข่งทัวร์นาเมนต์ดำเนินอยู่หรือไม่ (บล็อกไม่ให้คนใหม่เข้าห้อง)
+    private boolean roundRunning;         // มีรอบการเล่นกำลังดำเนินอยู่หรือไม่
+    private boolean roundEnded;           // ตัวป้องกันไม่ให้จบรอบเดียวกันซ้ำสองครั้ง
+    private long roundStartMillis;        // เวลาที่เริ่มนับรอบ (มิลลิวินาที เมื่อ Questioner กดยืนยัน)
+    private RoundTimerThread roundTimer;  // เธรดนับถอยหลังของรอบ
+    private Thread intermission;          // เธรดนับถอยหลังช่วงพักรอบ (INTERMISSION_SECONDS) แล้วเริ่มรอบใหม่
+    private final Random random = new Random(); // ออบเจกต์สำหรับสุ่ม
 
-    // ===== Questioner rotation: a cycle is one full pass through the players =====
-    private int cycleSize;                // players per cycle, locked at tournament start
-    private int cycleIndex = -1;          // index of the cycle being played, -1 = none yet
-    private int lastCycleShapes;          // shape count of the previous cycle, 0 = none yet
-    private final List<String> cycleOrder = new ArrayList<>();   // who still has to be questioner
+    // ===== การสลับบทบาท Questioner (หนึ่งรอบใหญ่คือทุกคนได้เป็น Questioner ครบคนละครั้ง) =====
+    private int cycleSize;                // จำนวนผู้เล่นต่อหนึ่งรอบใหญ่ (Cycle)
+    private int cycleIndex = -1;          // ดัชนีรอบใหญ่ปัจจุบัน (-1 = ยังไม่เริ่ม)
+    private int lastCycleShapes;          // จำนวนรูปทรงที่ใช้ในรอบใหญ่ก่อนหน้า
+    private final List<String> cycleOrder = new ArrayList<>(); // ลำดับผู้เล่นที่รอเป็น Questioner ในรอบใหญ่นี้
 
     public GameServer(int port) {
         this.port = port;
     }
 
     // =====================================================================
-    //  Lifecycle
+    //  วงจรการทำงานของเซิร์ฟเวอร์ (Lifecycle)
     // =====================================================================
 
-    /** Binds the port and starts the accept loop; throws IOException when the port is busy. */
+    /**
+     * ผูกพอร์ตและเริ่มเธรดรอรับการเชื่อมต่อ (Accept loop)
+     * หากพอร์ตถูกโปรแกรมอื่นใช้งานอยู่จะส่ง IOException ออกไป
+     */
     public void start() throws IOException {
         serverSocket = new ServerSocket(port);
         running = true;
@@ -151,11 +157,14 @@ public class GameServer {
         acceptThread.start();
     }
 
+    // ตรวจสอบว่าเซิร์ฟเวอร์กำลังทำงานอยู่หรือไม่
     public boolean isRunning() {
         return running;
     }
 
-    /** Closes the room: tells every client, then releases the port and all threads. */
+    /**
+     * ปิดห้องเซิร์ฟเวอร์: ส่งข้อความแจ้งเตือนผู้เล่นทุกคน ปิดพอร์ต และหยุดเธรดทั้งหมด
+     */
     public void shutdown() {
         if (!running) {
             return;
@@ -170,7 +179,7 @@ public class GameServer {
                 serverSocket.close();
             }
         } catch (IOException ignored) {
-            // the port is already gone
+            // ปิดเรียบร้อยแล้ว
         }
 
         List<ClientHandler> snapshot;
@@ -186,6 +195,9 @@ public class GameServer {
         }
     }
 
+    /**
+     * ลูปสำหรับรอรับการเชื่อมต่อจาก Client เข้ามาอย่างต่อเนื่อง
+     */
     private void acceptLoop() {
         while (running) {
             try {
@@ -201,19 +213,25 @@ public class GameServer {
     }
 
     // =====================================================================
-    //  Broadcasting: take the snapshot under the lock, send outside it
+    //  การกระจายข้อความ (Broadcasting)
     // =====================================================================
 
     private void broadcast(String type, String... args) {
         broadcast(new Message(type, args));
     }
 
+    /**
+     * ส่งข้อความไปยัง Client ทุกคนที่อยู่ในห้อง
+     */
     private void broadcast(Message message) {
         for (ClientHandler client : clientsSnapshot()) {
             client.send(message);
         }
     }
 
+    /**
+     * กระจายรายชื่อผู้เล่นและสถานะความพร้อมไปยังทุกคนในห้อง
+     */
     private void broadcastPlayerList() {
         String[] payload;
         synchronized (lock) {
@@ -222,13 +240,17 @@ public class GameServer {
         broadcast(new Message(PLAYER_LIST, payload));
     }
 
+    // ดึง Snapshot ของรายการ Client เพื่อใช้ส่งข้อมูลนอกบล็อกล็อก
     private List<ClientHandler> clientsSnapshot() {
         synchronized (lock) {
             return new ArrayList<>(clients);
         }
     }
 
-    /** [count, name, ready, host] repeated for every player. Caller must hold the lock. */
+    /**
+     * สร้างชุดข้อมูลรายชื่อผู้เล่น: [จำนวนคน, ชื่อ, สถานะพร้อม, เป็นโฮสต์หรือไม่, ...]
+     * ผู้เรียกต้องถือล็อก lock อยู่
+     */
     private String[] buildPlayerListPayload() {
         var out = new ArrayList<String>();
         out.add(String.valueOf(clients.size()));
@@ -241,7 +263,7 @@ public class GameServer {
         return out.toArray(new String[0]);
     }
 
-    /** Caller must hold the lock. */
+    /** คืนค่าชื่อโฮสต์ (ผู้เล่นคนแรกในลิสต์) ผู้เรียกต้องถือล็อก lock อยู่ */
     private String hostNameLocked() {
         return clients.isEmpty() ? "" : clients.get(0).playerName;
     }
@@ -253,10 +275,10 @@ public class GameServer {
     }
 
     // =====================================================================
-    //  Join and leave
+    //  การจัดการผู้เล่นเข้าและออกจากห้อง (Join and Leave)
     // =====================================================================
 
-    /** Caller must hold the lock. */
+    /** ค้นหา ClientHandler ตามชื่อผู้เล่น (ผู้เรียกต้องถือล็อก lock อยู่) */
     private ClientHandler findByNameLocked(String name) {
         for (ClientHandler client : clients) {
             if (client.playerName != null && client.playerName.equalsIgnoreCase(name)) {
@@ -266,7 +288,10 @@ public class GameServer {
         return null;
     }
 
-    /** Canonical-cased copy of the shape names, or null when any name is unknown or repeated. */
+    /**
+     * ตรวจสอบและแปลงชื่อรูปทรงให้เป็นตัวพิมพ์มาตรฐาน
+     * คืนค่า null หากชื่อไม่ถูกต้อง หรือมีรูปทรงซ้ำกัน
+     */
     private static String[] normalizeShapes(String[] raw, int expectedCount) {
         if (raw == null || raw.length != expectedCount) {
             return null;
@@ -281,11 +306,11 @@ public class GameServer {
                 }
             }
             if (match == null) {
-                return null;   // unknown shape name
+                return null;   // ไม่พบชื่อรูปทรงที่ถูกต้อง
             }
             for (int j = 0; j < i; j++) {
                 if (canonical[j].equals(match)) {
-                    return null;   // the same shape twice
+                    return null;   // มีรูปทรงซ้ำกัน
                 }
             }
             canonical[i] = match;
@@ -293,6 +318,9 @@ public class GameServer {
         return canonical;
     }
 
+    /**
+     * ดำเนินการเมื่อมีคำขอเข้าร่วมห้อง (JOIN) จากผู้เล่น
+     */
     private void handleJoin(ClientHandler handler, String rawName) {
         String name = (rawName == null) ? "" : rawName.trim();
         if (name.isEmpty()) {
@@ -306,13 +334,14 @@ public class GameServer {
 
         boolean isHost;
         synchronized (lock) {
+            // ตรวจสอบชื่อซ้ำ
             if (findByNameLocked(name) != null) {
                 handler.send(JOIN_FAILED, "That name is already taken in this room.");
                 handler.closeQuietly();
                 return;
             }
+            // ตรวจสอบว่ากำลังแข่งทัวร์นาเมนต์อยู่หรือไม่
             if (tournamentActive) {
-                // Rounds are only paused between games, so a whole tournament blocks new players.
                 handler.send(JOIN_FAILED, "A tournament is in progress. Please wait until it finishes.");
                 handler.closeQuietly();
                 return;
@@ -329,6 +358,9 @@ public class GameServer {
         broadcast(SYSTEM, name + " joined the room.");
     }
 
+    /**
+     * ดำเนินการเมื่อผู้เล่นหลุดการเชื่อมต่อหรือออกจากห้อง
+     */
     private void handleDisconnect(ClientHandler handler) {
         boolean wasJoined;
         boolean wasHost;
@@ -352,24 +384,26 @@ public class GameServer {
             return;
         }
 
+        // หากโฮสต์ออกจากห้อง ให้ปิดห้องทันที
         if (wasHost) {
             broadcast(SYSTEM, name + " (host) closed the room.");
             shutdown();
             return;
         }
 
+        // ตรวจสอบสถานะการแข่งขันเมื่อมีคนออกจากห้องระหว่างเล่น
         boolean finishTournament = false, restartRound = false, endRoundNow = false;
         synchronized (lock) {
             if (tournamentActive) {
                 if (clients.size() < MIN_PLAYERS) {
-                    finishTournament = true;
+                    finishTournament = true; // ผู้เล่นเหลือน้อยกว่าขั้นต่ำ ให้จบทัวร์นาเมนต์
                 } else if (roundRunning) {
                     if (name != null && name.equals(questioner)) {
-                        restartRound = true;   // replay this round with the next questioner
+                        restartRound = true;   // ถ้าคนตั้งโจทย์ออก ให้เริ่มรอบนี้ใหม่ด้วย Questioner คนใหม่
                     } else if (countGuessersLocked() == 0) {
                         finishTournament = true;
                     } else if (countSubmittedLocked() >= countGuessersLocked()) {
-                        endRoundNow = true;
+                        endRoundNow = true;    // ถ้าทุกคนที่เหลือส่งคำตอบครบแล้ว ให้จบรอบทันที
                     }
                 }
             }
@@ -389,9 +423,12 @@ public class GameServer {
     }
 
     // =====================================================================
-    //  Game flow
+    //  ขั้นตอนการดำเนินเกม (Game flow)
     // =====================================================================
 
+    /**
+     * ดำเนินการเมื่อโฮสต์กดเริ่มเกม (START_GAME)
+     */
     private void handleStartGame(ClientHandler requester) {
         boolean newTournament;
         synchronized (lock) {
@@ -411,7 +448,6 @@ public class GameServer {
                 requester.send(ERROR, "All other players must press READY before you can start.");
                 return;
             }
-            // Inside a running tournament this starts the next round, otherwise it is a new game.
             newTournament = !tournamentActive;
             if (newTournament) {
                 totalRounds = clients.size() * ROUNDS_PER_PLAYER;
@@ -427,7 +463,9 @@ public class GameServer {
         nextRound();
     }
 
-    /** NEW_GAME is the "start a fresh tournament" request from the final scoreboard. */
+    /**
+     * คำขอเริ่มทัวร์นาเมนต์ใหม่ (NEW_GAME) จากหน้าจอสุดท้าย
+     */
     private void handleNewGame(ClientHandler requester) {
         synchronized (lock) {
             if (clients.isEmpty() || clients.get(0) != requester) {
@@ -453,7 +491,7 @@ public class GameServer {
         broadcastPlayerList();
     }
 
-    /** Every non-host player must be ready; the host starts the round, so the host need not be. */
+    /** ตรวจสอบว่าผู้เล่นคนอื่นทุกคนกดพร้อมแล้วหรือไม่ (โฮสต์ไม่ต้องกด) */
     private boolean othersReadyLocked(ClientHandler host) {
         for (ClientHandler client : clients) {
             if (client != host && !Boolean.TRUE.equals(ready.get(client.playerName))) {
@@ -463,6 +501,7 @@ public class GameServer {
         return true;
     }
 
+    // รีเซ็ตคะแนนและสถานะรอบทั้งหมด
     private void resetScoresLocked() {
         round = 0;
         for (ClientHandler client : clients) {
@@ -473,7 +512,6 @@ public class GameServer {
         secret = null;
         secretLocked = false;
         expectedShapes = 0;
-        // A fresh tournament draws its own shape counts and order too.
         cycleSize = 0;
         cycleIndex = -1;
         lastCycleShapes = 0;
@@ -484,6 +522,9 @@ public class GameServer {
         bonusFlags.clear();
     }
 
+    /**
+     * เริ่มต้นรอบถัดไป: สุ่มจำนวนรูปทรง สลับคนเป็น Questioner และแจ้งเตือนทุกคน
+     */
     private void nextRound() {
         stopIntermission();
         stopRoundTimer();
@@ -505,20 +546,18 @@ public class GameServer {
             deltas.clear();
             correctCounts.clear();
             bonusFlags.clear();
-            // roundStartMillis is stamped when the secret is locked: that is when guessing begins.
 
-            // Every round of a cycle shares the shape count drawn for that cycle; cycleSize was locked
-            // at tournament start, so (round-1)/cycleSize stays a stable boundary even if somebody leaves.
+            // ตรวจสอบว่าขึ้นรอบใหญ่ (Cycle) ใหม่หรือไม่
             int cycle = (cycleSize > 0) ? (round - 1) / cycleSize : 0;
             if (cycle != cycleIndex) {
                 startNewCycleLocked(cycle);
             }
             expectedShapes = lastCycleShapes;
 
-            // Questioners are kept by name, so a player leaving simply drops out of the order.
+            // ดึง Questioner คนถัดไปจากลำดับที่สุ่มไว้
             selectedQuestioner = takeNextQuestionerLocked();
             if (selectedQuestioner == null) {
-                tournamentActive = false;   // nobody left to ask: stop the tournament cleanly
+                tournamentActive = false;
                 roundRunning = false;
                 return;
             }
@@ -530,14 +569,13 @@ public class GameServer {
                 ready.put(client.playerName, Boolean.FALSE);
             }
         }
-        // The shape count is announced now, but no clock runs until the secret is locked.
+        // ประกาศข้อมูลรอบใหม่ไปยังทุกคน (นาฬิกาจะยังไม่เริ่มนับจนกว่า Questioner จะล็อกรูป)
         broadcast(ROUND_INFO, String.valueOf(currentRound), String.valueOf(lockedTotal),
                 selectedQuestioner, String.valueOf(shapesThisRound));
     }
 
     /**
-     * Starts a new cycle: draws a shape count (never the same as the previous cycle) and builds a
-     * freshly shuffled questioner order from the players in the room. Caller must hold the lock.
+     * เริ่มต้นรอบใหญ่ใหม่: สุ่มจำนวนรูปทรงที่ไม่ซ้ำกับรอบใหญ่ก่อนหน้า และสับเปลี่ยนลำดับ Questioner
      */
     private void startNewCycleLocked(int cycle) {
         cycleIndex = cycle;
@@ -551,11 +589,11 @@ public class GameServer {
         cycleOrder.addAll(names);
     }
 
-    /** A count in [MIN_SHAPES, MAX_SHAPES] that differs from the previous cycle when possible. */
+    /** สุ่มจำนวนรูปทรงระหว่าง MIN_SHAPES ถึง MAX_SHAPES โดยไม่ให้ซ้ำกับรอบก่อนหน้า */
     private int drawCycleShapeCountLocked() {
         int range = MAX_SHAPES - MIN_SHAPES + 1;
         if (range < 2) {
-            return MIN_SHAPES;   // not enough distinct values to avoid a repeat, never crash
+            return MIN_SHAPES;
         }
         int count = MIN_SHAPES + random.nextInt(range);
         if (count == lastCycleShapes) {
@@ -566,10 +604,7 @@ public class GameServer {
         return count;
     }
 
-    /**
-     * Pops the next questioner from this cycle's shuffled order, skipping players who have left; it
-     * falls back to any present player so a round can always start. Caller must hold the lock.
-     */
+    /** ดึง Questioner คนถัดไปจากลำดับที่เรียงไว้ */
     private String takeNextQuestionerLocked() {
         while (!cycleOrder.isEmpty()) {
             String candidate = cycleOrder.remove(0);
@@ -580,13 +615,13 @@ public class GameServer {
         return clients.isEmpty() ? null : clients.get(0).playerName;
     }
 
-    /** The questioner left while enough players remain: replay the round with the next questioner. */
+    /** เริ่มรอบใหม่เมื่อ Questioner คนเดิมออกจากห้องไป */
     private void restartRoundAfterQuestionerLeft() {
         boolean restart;
         synchronized (lock) {
             restart = tournamentActive && clients.size() >= MIN_PLAYERS;
             if (restart) {
-                round--;   // the abandoned round is not consumed
+                round--;   // คืนรอบเดิม
                 roundRunning = false;
             }
         }
@@ -597,13 +632,12 @@ public class GameServer {
     }
 
     // =====================================================================
-    //  Round timer: one daemon thread per round
+    //  เธรดนับถอยหลังของรอบ (Round timer thread)
     // =====================================================================
 
     /**
-     * Counts a round down to zero and broadcasts TICK(round, remaining) every whole second. The
-     * deadline comes from System.nanoTime() so the interval cannot drift, and requestStop() makes the
-     * thread exit deterministically when the round ends, is aborted or the server shuts down.
+     * เธรดนับถอยหลังของรอบ ส่งข้อความ TICK(round, remaining) ทุกๆ 1 วินาที
+     * ใช้ System.nanoTime() เพื่อให้เวลาแม่นยำไม่คลาดเคลื่อน
      */
     private class RoundTimerThread extends Thread {
         private final int roundNumber;
@@ -628,7 +662,7 @@ public class GameServer {
                 int remaining = remainingSeconds();
                 broadcast(TICK, String.valueOf(roundNumber), String.valueOf(remaining));
                 if (remaining <= 0) {
-                    endRound("time");
+                    endRound("time"); // หมดเวลา
                     return;
                 }
                 long sleepyMillis = millisToNextWholeSecond();
@@ -636,7 +670,7 @@ public class GameServer {
                     Thread.sleep(sleepyMillis <= 0 ? 50 : sleepyMillis);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    return;   // stopped by a new round, by endRound or by the shutdown
+                    return;
                 }
             }
         }
@@ -646,7 +680,7 @@ public class GameServer {
             return (nanos <= 0) ? 0 : (int) ((nanos + 999_999_999L) / 1_000_000_000L);
         }
 
-        /** Milliseconds until the displayed second changes, so ticks land on whole seconds. */
+        // คำนวณมิลลิวินาทีจนกว่าจะครบวินาทีถัดไป เพื่อให้ส่ง TICK ตรงวินาทีพอดี
         private long millisToNextWholeSecond() {
             long nanos = deadlineNanos - System.nanoTime();
             if (nanos <= 0) {
@@ -666,7 +700,6 @@ public class GameServer {
         timer.start();
     }
 
-    /** Stops the running timer and waits briefly for it to die, so timers never stack up. */
     private void stopRoundTimer() {
         RoundTimerThread timer;
         synchronized (lock) {
@@ -678,7 +711,7 @@ public class GameServer {
         }
         timer.requestStop();
         if (timer == Thread.currentThread()) {
-            return;   // called from the timer itself (endRound): nothing to join
+            return;
         }
         try {
             timer.join(300);
@@ -688,9 +721,12 @@ public class GameServer {
     }
 
     // =====================================================================
-    //  Round actions
+    //  การกระทำในรอบการเล่น (Round actions)
     // =====================================================================
 
+    /**
+     * ดำเนินการเมื่อ Questioner ส่งชุดรูปทรงความลับ (SECRET)
+     */
     private void handleSecret(ClientHandler sender, String[] shapes) {
         String[] canonical;
         int count, currentRound;
@@ -721,7 +757,7 @@ public class GameServer {
             secretLocked = true;
             count = canonical.length;
             currentRound = round;
-            // The guessers' clock opens here, not at ROUND_INFO.
+            // เริ่มนับเวลาของรอบเมื่อล็อกรูปทรงความลับ
             roundStartMillis = System.currentTimeMillis();
         }
         broadcast(SECRET_LOCKED, questioner, String.valueOf(count));
@@ -730,6 +766,9 @@ public class GameServer {
         startRoundTimer(currentRound, ROUND_SECONDS);
     }
 
+    /**
+     * ดำเนินการเมื่อผู้ทายส่งคำตอบ (GUESS)
+     */
     private void handleGuess(ClientHandler sender, String[] shapes) {
         int submitted;
         int totalGuessers;
@@ -768,12 +807,13 @@ public class GameServer {
         }
         sender.send(GUESS_ACCEPTED);
         broadcast(GUESS_SUBMITTED, sender.playerName, String.valueOf(submitted), String.valueOf(totalGuessers));
+        // หากผู้ทายทุกคนส่งคำตอบครบแล้ว ให้จบรอบทันที
         if (submitted >= totalGuessers) {
             endRound("all");
         }
     }
 
-    /** Caller must hold the lock. */
+    /** นับจำนวนผู้เล่นที่ทำหน้าที่ทายทั้งหมด (ยกเว้น Questioner) */
     private int countGuessersLocked() {
         int count = 0;
         for (ClientHandler client : clients) {
@@ -784,7 +824,7 @@ public class GameServer {
         return count;
     }
 
-    /** Caller must hold the lock. */
+    /** นับจำนวนผู้เล่นที่ส่งคำตอบทายเข้ามาแล้ว */
     private int countSubmittedLocked() {
         int count = 0;
         for (String name : guesses.keySet()) {
@@ -795,6 +835,9 @@ public class GameServer {
         return count;
     }
 
+    /**
+     * จบรอบการเล่น คำนวณคะแนน และส่งผล ROUND_RESULT ไปยังทุกคน
+     */
     private void endRound(String reason) {
         String[] payload;
         boolean isFinal;
@@ -816,12 +859,13 @@ public class GameServer {
         if (isFinal) {
             broadcast(SYSTEM, "That was the last round. Final results are ready.");
         }
-        // The server owns what happens next: after a short countdown it either starts the next round
-        // or opens the final scoreboard, so every client stays in step.
+        // เริ่มนับถอยหลังช่วงพักรอบ (Intermission) ก่อนเริ่มรอบถัดไปหรือเปิดหน้าสรุปคะแนนสุดท้าย
         startIntermission(isFinal);
     }
 
-    /** Ends the tournament early (too few players left) and shows the final scoreboard. */
+    /**
+     * จบทัวร์นาเมนต์ก่อนกำหนด (เช่น ผู้เล่นเหลือน้อยกว่า 2 คน)
+     */
     private void finishTournament(String reason) {
         String[] payload;
         synchronized (lock) {
@@ -840,13 +884,12 @@ public class GameServer {
     }
 
     // =====================================================================
-    //  Intermission: the gap between two rounds
+    //  การพักระหว่างรอบ (Intermission)
     // =====================================================================
 
     /**
-     * Waits INTERMISSION_SECONDS so every round-result countdown runs together, then either starts the
-     * next round or tells everyone to open the final scoreboard. The lobby is never re-entered in the
-     * middle of a tournament.
+     * หน่วงเวลา INTERMISSION_SECONDS (10 วินาที) เพื่อแสดงผลสรุปของรอบ
+     * จากนั้นจะเริ่มรอบถัดไปหรือสั่งเปิดหน้าตารางคะแนนสุดท้าย
      */
     private void startIntermission(boolean isFinal) {
         stopIntermission();
@@ -855,15 +898,15 @@ public class GameServer {
                 Thread.sleep(INTERMISSION_SECONDS * 1000L);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                return;   // a new round or a shutdown replaced this intermission
+                return;
             }
             if (!running) {
                 return;
             }
             if (isFinal) {
-                broadcast(SHOW_SCOREBOARD);
+                broadcast(SHOW_SCOREBOARD); // เปิดหน้าสกอร์บอร์ดสุดท้าย
             } else {
-                nextRound();
+                nextRound(); // เริ่มรอบถัดไป
             }
         }, "GameServer-Intermission");
         thread.setDaemon(true);
@@ -873,7 +916,6 @@ public class GameServer {
         thread.start();
     }
 
-    /** Stops a pending intermission so it cannot start a round that is no longer wanted. */
     private void stopIntermission() {
         Thread thread;
         synchronized (lock) {
@@ -886,10 +928,14 @@ public class GameServer {
     }
 
     // =====================================================================
-    //  Scoring
+    //  การคำนวณคะแนน (Scoring)
     // =====================================================================
 
-    /** Server-side scoring: the only place a score is ever produced. Caller must hold the lock. */
+    /**
+     * คำนวณคะแนนที่ได้ในรอบนี้ (ทำงานฝั่งเซิร์ฟเวอร์เท่านั้น):
+     * +1 ต่อรูปที่ทายถูก, +2 โบนัสพิเศษหากทายถูกทั้งหมดภายใน 10 วินาทีแรก
+     * Questioner จะไม่ได้คะแนน
+     */
     private void computeScoresLocked() {
         deltas.clear();
         correctCounts.clear();
@@ -909,14 +955,14 @@ public class GameServer {
                 long elapsedSeconds = (submittedAt == null) ? 0 : (submittedAt.longValue() - roundStartMillis) / 1000;
                 bonus = (correct == expected && elapsedSeconds <= BONUS_WINDOW_SECONDS);
                 if (bonus) {
-                    delta += 2;
+                    delta += 2; // เพิ่มโบนัสความเร็ว
                 }
             }
             deltas.put(name, Integer.valueOf(delta));
             correctCounts.put(name, Integer.valueOf(correct));
             bonusFlags.put(name, Boolean.valueOf(bonus));
-            // The questioner scores nothing at all: a wrong guess or a timeout must never pay them.
         }
+        // รวมคะแนนรอบนี้เข้ากับคะแนนสะสม
         for (Map.Entry<String, Integer> entry : deltas.entrySet()) {
             Integer current = scores.get(entry.getKey());
             scores.put(entry.getKey(), Integer.valueOf((current == null ? 0 : current.intValue())
@@ -924,6 +970,7 @@ public class GameServer {
         }
     }
 
+    // นับจำนวนรูปทรงที่ตรงกัน
     private int countMatching(String[] target, String[] guess) {
         int matches = 0;
         for (String wanted : target) {
@@ -938,9 +985,9 @@ public class GameServer {
     }
 
     /**
+     * สร้างชุดข้อมูลผลสรุปของรอบ ROUND_RESULT:
      * [round, totalRounds, isFinal, secretCsv, reason, questioner, playerCount,
-     * (name, delta, total, guessCsv, correctCount, bonus) * playerCount]. Caller holds the lock;
-     * guessCsv is "" when the player did not submit, and bonus is 0 or 1.
+     * (name, delta, total, guessCsv, correctCount, bonus) * playerCount]
      */
     private String[] buildRoundResultPayload(int roundNumber, boolean isFinal, String reason) {
         var out = new ArrayList<String>();
@@ -968,7 +1015,7 @@ public class GameServer {
     }
 
     // =====================================================================
-    //  Chat
+    //  ระบบข้อความแชต (Chat)
     // =====================================================================
 
     private void handleChat(ClientHandler sender, String text) {
@@ -983,9 +1030,12 @@ public class GameServer {
     }
 
     // =====================================================================
-    //  Per-client handler: one reader thread per accepted socket
+    //  คลาสจัดการการเชื่อมต่อของผู้เล่นแต่ละคน (Per-client handler)
     // =====================================================================
 
+    /**
+     * เธรดอ่านข้อมูลสำหรับแต่ละ Socket ที่เชื่อมต่อเข้ามา
+     */
     private class ClientHandler extends Thread {
         private final Socket socket;
         private final Object writeLock = new Object();
@@ -1009,7 +1059,7 @@ public class GameServer {
                     dispatch(Message.readFrom(in));
                 }
             } catch (EOFException | SocketException e) {
-                // the client closed the stream cleanly, or the connection was reset
+                // ไคลเอนต์ปิดการเชื่อมต่อตามปกติหรือเน็ตเวิร์กหลุด
             } catch (IOException e) {
                 if (running) {
                     System.out.println("[server] connection error: " + e.getMessage());
@@ -1019,6 +1069,9 @@ public class GameServer {
             }
         }
 
+        /**
+         * กระจายข้อความที่ได้รับจาก Client ไปยังเมธอดที่เกี่ยวข้อง
+         */
         private void dispatch(Message message) {
             if (!joined) {
                 if (JOIN.equals(message.type)) {
@@ -1045,7 +1098,7 @@ public class GameServer {
             } else if (CHAT.equals(message.type)) {
                 handleChat(this, message.arg(0));
             } else if (LEAVE_ROOM.equals(message.type)) {
-                closeQuietly();   // the finally block in run() performs the clean removal
+                closeQuietly();
             } else if (JOIN.equals(message.type)) {
                 send(ERROR, "You already joined the room.");
             } else {
@@ -1076,16 +1129,18 @@ public class GameServer {
                     socket.close();
                 }
             } catch (IOException ignored) {
-                // already closed
+                // ปิดเรียบร้อยแล้ว
             }
         }
     }
 
     // =====================================================================
-    //  Network helpers, used by JoinScreen to show a reachable address
+    //  ฟังก์ชันช่วยค้นหาที่อยู่ IP ในเครือข่าย LAN (Network helpers)
     // =====================================================================
 
-    /** Every non-loopback IPv4 address this machine can be reached on over LAN / Wi-Fi. */
+    /**
+     * ค้นหาที่อยู่ IPv4 ในวง LAN / Wi-Fi ทั้งหมดของเครื่องนี้ที่ไม่ใช่ Loopback
+     */
     public static List<String> getLanAddresses() {
         var ranks = new LinkedHashMap<String, Integer>();
         try {
@@ -1108,10 +1163,10 @@ public class GameServer {
                 }
             }
         } catch (SocketException e) {
-            // no interfaces available
+            // ไม่สามารถดึงรายชื่อการ์ดเครือข่ายได้
         }
         var result = new ArrayList<>(ranks.keySet());
-        // Best address first; equal ranks fall back to plain text order, so the result is stable.
+        // เรียงลำดับที่อยู่ IP ที่เหมาะสมที่สุดขึ้นก่อน
         result.sort((a, b) -> {
             int byRank = ranks.get(a).compareTo(ranks.get(b));
             return (byRank != 0) ? byRank : a.compareTo(b);
@@ -1120,9 +1175,8 @@ public class GameServer {
     }
 
     /**
-     * Lower is better: home and office LAN ranges come first (192.168, then 10, then 172.16-31), while
-     * adapters of VirtualBox, VMware, WSL, Docker and VPNs are pushed to the back, because other
-     * machines on the Wi-Fi cannot reach those addresses.
+     * จัดลำดับความเหมาะสมของ IP (ค่าน้อยคือเหมาะสมกว่า):
+     * ให้ความสำคัญกับวง 192.168.x.x และ 10.x.x.x ก่อน และลดความสำคัญของ Virtual Adapter (เช่น VirtualBox, VMware, Docker)
      */
     private static int addressRank(String ip, String interfaceLabel) {
         int rank;
@@ -1142,21 +1196,21 @@ public class GameServer {
             rank = 3;
         }
         
-        // Host-only ranges used by VirtualBox (192.168.56.x) and similar tools.
+        // วง Host-only ที่มักใช้โดย VirtualBox (192.168.56.x)
         if (ip.startsWith("192.168.56.") || ip.startsWith("192.168.99.")) {
             rank += 10;
         }
         return rank;
     }
 
-    /** Best-guess LAN address for the "others connect here" hint, or "" when there is none. */
+    /** ดึงที่อยู่ IP วง LAN ที่ดีที่สุดสำหรับแสดงแนะนำให้เพื่อนเชื่อมต่อ */
     public static String getPreferredLanAddress() {
         List<String> addresses = getLanAddresses();
         return addresses.isEmpty() ? "" : addresses.get(0);
     }
 
     // =====================================================================
-    //  Standalone server entry point (the host normally starts it from the UI)
+    //  จุดเริ่มต้นการทำงานของเซิร์ฟเวอร์แบบ Standalone (Main method)
     // =====================================================================
 
     public static void main(String[] args) {

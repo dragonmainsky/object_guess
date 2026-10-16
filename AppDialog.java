@@ -26,45 +26,57 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 
 /**
- * AppDialog: the shared look of the whole game (palette, fonts, small component factories) and the
- * alert / confirmation dialogs every screen shows, so all of them stay visually identical.
+ * AppDialog: คลาสศูนย์กลางสำหรับจัดการรูปลักษณ์ของเกม (ชุดสี, ฟอนต์, คอมโพเนนต์ UI สำเร็จรูป)
+ * และกล่องข้อความแจ้งเตือน/ยืนยัน (Alert & Confirmation Dialogs)
+ * เพื่อให้ทุกหน้าจอมีดีไซน์และธีมที่เป็นมาตรฐานเดียวกันทั้งแอปพลิเคชัน
  */
 public final class AppDialog {
 
-    // ===== Palette =====
+    // ===== ชุดสีหลักของระบบ (Palette) =====
+    // สีพื้นหลังทั่วไปและการ์ด
     static final Color BG_LIGHT = new Color(241, 245, 249), CARD_BG = Color.WHITE;
     static final Color CARD_BORDER = new Color(226, 232, 240), ROW_BG = new Color(248, 250, 252);
     static final Color SLOT_BORDER = new Color(203, 213, 225), PLACEHOLDER_BG = new Color(220, 230, 242);
 
+    // สีน้ำเงินโทนหลัก (Primary Blue) สำหรับปุ่มและการไฮไลต์
     static final Color PRIMARY_BLUE = new Color(37, 99, 235), PRIMARY_HOVER = new Color(29, 78, 216);
     static final Color PRIMARY_PRESS = new Color(30, 64, 175);
     static final Color BLUE_LIGHT_BG = new Color(239, 246, 255), BLUE_BORDER = new Color(191, 219, 254);
 
+    // สีเขียวแสดงสถานะสำเร็จ (Success)
     static final Color SUCCESS_BG = new Color(220, 252, 231), SUCCESS_TEXT = new Color(22, 101, 52);
     static final Color SUCCESS_BORDER = new Color(187, 247, 208);
+
+    // สีเหลืองแสดงสถานะเตือน (Warning)
     static final Color WARNING_BG = new Color(254, 249, 195), WARNING_TEXT = new Color(133, 77, 14);
     static final Color WARNING_BORDER = new Color(254, 240, 138);
+
+    // สีแดงแสดงสถานะผิดพลาด/อันตราย (Danger/Error)
     static final Color DANGER_BG = new Color(254, 226, 226), DANGER_TEXT = new Color(153, 27, 27);
     static final Color DANGER_BORDER = new Color(254, 202, 202);
+
+    // สีทอง/ส้ม สำหรับโบนัสและคะแนนพิเศษ (Gold)
     static final Color GOLD_BG = new Color(254, 243, 199), GOLD_TEXT = new Color(180, 83, 9);
     static final Color GOLD_BORDER = new Color(253, 230, 138);
 
+    // สีของข้อความในระดับต่างๆ
     static final Color TEXT_DARK = new Color(15, 23, 42), TEXT_MUTED = new Color(100, 116, 139);
     static final Color TEXT_LIGHT = new Color(148, 163, 184);
 
-    /** Avatar colours, cycled by the player's order in the room. */
+    /** สีประจำตัวของผู้เล่น (Avatar colours) วนใช้ตามลำดับที่ผู้เล่นเข้าร่วมห้อง */
     private static final Color[] AVATARS = {
         new Color(37, 99, 235), new Color(139, 92, 246), new Color(236, 72, 153), new Color(16, 185, 129),
         new Color(245, 158, 11), new Color(14, 165, 233), new Color(244, 63, 94), new Color(99, 102, 241)
     };
 
-    /** Dialog colours and badge sizes that only the dialogs use. */
+    /** ค่าคงที่สำหรับหน้าต่าง Dialog โดยเฉพาะ */
     private static final Color ERROR_ACCENT = new Color(185, 28, 28);
     private static final Font DIALOG_TITLE = new Font("Tahoma", Font.BOLD, 17);
     private static final int BADGE_SIZE = 44, BODY_WIDTH = 380, CARD_ARC = 16, ACCENT_HEIGHT = 6;
     private static final int TYPE_INFO = 0, TYPE_WARNING = 1, TYPE_ERROR = 2, TYPE_CONFIRM = 3;
 
-    // ===== Fonts =====
+    // ===== ฟอนต์มาตรฐานของเกม (Fonts) =====
+    // ฟังก์ชันช่วยสร้างฟอนต์ Tahoma ตามรูปแบบและขนาดที่ต้องการ
     static Font f(int style, int size) {
         return new Font("Tahoma", style, size);
     }
@@ -75,36 +87,47 @@ public final class AppDialog {
     static final Font SCREEN_SUB = f(Font.PLAIN, 15), PLAIN_14 = f(Font.PLAIN, 14), BODY = f(Font.PLAIN, 13);
     static final Font SMALL_12 = f(Font.PLAIN, 12), SMALL = f(Font.PLAIN, 11);
 
+    // ป้องกันการสร้างออบเจกต์ (Utility Class)
     private AppDialog() {
     }
 
     // =====================================================================
-    //  Alerts and confirmation (drop-in replacement for the old pop-ups)
+    //  หน้าต่างแจ้งเตือนและยืนยัน (Alerts and Confirmation)
     // =====================================================================
 
-    /** Blue information alert with a single OK button. */
+    /**
+     * แสดงหน้าต่างแจ้งข้อมูลทั่วไป (สีฟ้า) พร้อมปุ่ม OK
+     */
     public static void showInfo(Container parent, String title, String message) {
         show(TYPE_INFO, parent, title, message, null);
     }
 
-    /** Amber warning alert with a single OK button. */
+    /**
+     * แสดงหน้าต่างแจ้งเตือนข้อควรระวัง (สีเหลือง) พร้อมปุ่ม OK
+     */
     public static void showWarning(Container parent, String title, String message) {
         show(TYPE_WARNING, parent, title, message, null);
     }
 
-    /** Red error alert with a single OK button. */
+    /**
+     * แสดงหน้าต่างแจ้งข้อผิดพลาด (สีแดง) พร้อมปุ่ม OK
+     */
     public static void showError(Container parent, String title, String message) {
         show(TYPE_ERROR, parent, title, message, null);
     }
 
-    /** Blue Yes/No confirmation; true only when the primary (Yes) button is chosen. */
+    /**
+     * แสดงหน้าต่างยืนยัน Yes/No คืนค่า true เมื่อผู้เล่นกดปุ่มยืนยัน (Yes)
+     */
     public static boolean showConfirm(Container parent, String title, String message, String yesText, String noText) {
         return show(TYPE_CONFIRM, parent, title, message, new String[] {yesText, noText});
     }
 
-    /** Builds one modal card, shows it and blocks until the player answers. */
+    /**
+     * ฟังก์ชันหลักในการสร้าง Modal Dialog รูปแบบการ์ด แสดงผลและหยุดรอจนกว่าผู้เล่นจะกดตอบรับ
+     */
     private static boolean show(int type, Container parent, String title, String message, String[] confirmText) {
-        var answer = new boolean[1];
+        var answer = new boolean[1]; // เก็บผลลัพธ์การตอบของผู้เล่น
         var dialog = new JDialog(ownerOf(parent), text(title), JDialog.ModalityType.APPLICATION_MODAL);
         dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         dialog.setResizable(false);
@@ -119,6 +142,7 @@ public final class AppDialog {
 
         var row = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         row.setOpaque(false);
+        // หากเป็นการยืนยัน ให้เพิ่มปุ่ม No เข้าไปด้วย
         if (confirmText != null) {
             var no = new RoundedButton(text(confirmText[1]), CARD_BG, BG_LIGHT, CARD_BORDER, TEXT_DARK, CARD_BORDER);
             no.addActionListener(event -> {
@@ -135,7 +159,7 @@ public final class AppDialog {
         root.add(card, BorderLayout.CENTER);
         dialog.setContentPane(root);
 
-        // ENTER answers yes and ESC answers no, whatever holds the focus inside the dialog.
+        // รองรับการกดปุ่มบนคีย์บอร์ด: ENTER คือตกลง, ESC คือยกเลิก
         var manager = KeyboardFocusManager.getCurrentKeyboardFocusManager();
         KeyEventDispatcher keys = event -> {
             if (event.getID() != KeyEvent.KEY_PRESSED) {
@@ -157,18 +181,20 @@ public final class AppDialog {
         dialog.addWindowListener(new WindowAdapter() {
             @Override
             public void windowOpened(WindowEvent event) {
-                yes.requestFocusInWindow();   // focus lands on the primary button
+                yes.requestFocusInWindow();   // โฟกัสเริ่มต้นที่ปุ่มหลัก
             }
         });
 
         dialog.pack();
         dialog.setLocationRelativeTo(parent);
-        dialog.setVisible(true);   // modal: blocks here until the player answers
+        dialog.setVisible(true);   // แบบ Modal: จะค้างบรรทัดนี้จนกว่า Dialog จะถูกปิด
         manager.removeKeyEventDispatcher(keys);
         return answer[0];
     }
 
-    /** Nearest window above the component that opened the dialog, or null for an unowned dialog. */
+    /**
+     * ค้นหาหน้าต่างแม่ (Window) ที่ครอบคอมโพเนนต์นี้อยู่ เพื่อใช้ผูก Modal Dialog
+     */
     private static Window ownerOf(Container parent) {
         for (Container c = parent; c != null; c = c.getParent()) {
             if (c instanceof Window) {
@@ -179,13 +205,16 @@ public final class AppDialog {
     }
 
     // =====================================================================
-    //  Card content
+    //  การประกอบการ์ดกล่องข้อความ (Card content)
     // =====================================================================
 
+    /**
+     * สร้างการ์ดมุมมนที่บรรจุไอคอนประเภท ข้อความหัวเรื่อง และเนื้อหา
+     */
     private static RoundedCard buildCard(int type, String title, String message) {
         var card = new RoundedCard(accentOf(type), borderOf(type));
         card.setLayout(new BorderLayout(0, 16));
-        // The extra top padding leaves room for the accent bar along the top edge.
+        // เว้นระยะขอบด้านบนเผื่อพื้นที่สำหรับแถบสีด้านบนการ์ด
         card.setBorder(new EmptyBorder(ACCENT_HEIGHT + 18, 24, 20, 24));
 
         var header = panel();
@@ -194,7 +223,7 @@ public final class AppDialog {
         header.add(label(title, DIALOG_TITLE, TEXT_DARK), BorderLayout.CENTER);
         card.add(header, BorderLayout.NORTH);
 
-        // The body is indented past the badge column so it lines up with the title.
+        // ย่อหน้าเนื้อหาให้อยู่ในแนวเดียวกับชื่อเรื่อง (ตรงกับหัวข้อ ไม่ทับคอลัมน์ไอคอน)
         var bodyHolder = panel();
         bodyHolder.setLayout(new BorderLayout());
         bodyHolder.setBorder(new EmptyBorder(0, BADGE_SIZE + 14, 0, 0));
@@ -203,7 +232,9 @@ public final class AppDialog {
         return card;
     }
 
-    /** Non-editable text area that wraps long messages instead of stretching the dialog. */
+    /**
+     * สร้างพื้นที่ข้อความ (JTextArea) ที่ตัดบรรทัดอัตโนมัติ ไม่สามารถแก้ไขได้
+     */
     private static JTextArea wrappedBody(String message) {
         var body = new JTextArea(message);
         body.setFont(PLAIN_14);
@@ -214,7 +245,7 @@ public final class AppDialog {
         body.setLineWrap(true);
         body.setWrapStyleWord(true);
         body.setBorder(null);
-        // Measure at the maximum width first, then keep the height that wrapping produced.
+        // กำหนดความกว้างสูงสุดเพื่อให้คำนวณความสูงตามการตัดคำ
         body.setSize(new Dimension(BODY_WIDTH, Short.MAX_VALUE));
         var wrapped = body.getPreferredSize();
         body.setPreferredSize(wrapped);
@@ -222,34 +253,38 @@ public final class AppDialog {
         return body;
     }
 
+    // ดึงสีเด่นตามประเภท Dialog
     private static Color accentOf(int type) {
         return type == TYPE_WARNING ? WARNING_TEXT : (type == TYPE_ERROR ? ERROR_ACCENT : PRIMARY_BLUE);
     }
 
+    // ดึงสีกรอบตามประเภท Dialog
     private static Color borderOf(int type) {
         return type == TYPE_WARNING ? WARNING_BORDER : (type == TYPE_ERROR ? DANGER_BORDER : BLUE_BORDER);
     }
 
+    // ดึงตัวอักษรสัญลักษณ์ตามประเภท Dialog
     private static String letterOf(int type) {
         return type == TYPE_WARNING ? "!" : (type == TYPE_ERROR ? "x" : (type == TYPE_CONFIRM ? "?" : "i"));
     }
 
+    // ฟังก์ชันตรวจสอบค่า null ของข้อความ
     private static String text(String value) {
         return value == null ? "" : value;
     }
 
     // =====================================================================
-    //  Small factories shared by the screens
+    //  คอมโพเนนต์สำเร็จรูปที่ใช้งานร่วมกันในหลายหน้าจอ (Small factories)
     // =====================================================================
 
-    /** Transparent panel; the caller sets the layout straight afterwards. */
+    /** สร้าง JPanel โปร่งแสง (Opaque = false) */
     static JPanel panel() {
         var p = new JPanel();
         p.setOpaque(false);
         return p;
     }
 
-    /** White card with a thin border and 16px padding; the caller sets the layout afterwards. */
+    /** สร้าง JPanel สีขาวลักษณะเป็นการ์ด มีขอบบางและระยะเว้น 16px */
     static JPanel card() {
         var card = new JPanel();
         card.setBackground(CARD_BG);
@@ -257,21 +292,22 @@ public final class AppDialog {
         return card;
     }
 
-    /** A 1px line border plus inner padding, in one call. */
+    /** สร้างขอบเส้น 1px พร้อมระยะเว้นด้านใน (Padding) */
     static CompoundBorder box(Color line, int thickness, int padV, int padH) {
         return new CompoundBorder(new LineBorder(line, thickness), new EmptyBorder(padV, padH, padV, padH));
     }
 
-    /** Fixed-height transparent filler for a vertical BoxLayout stack. */
+    /** สร้างช่องว่างคงที่แนวตั้งสำหรับ BoxLayout */
     static JPanel strut(int height) {
         return filler(0, height, height);
     }
 
-    /** Transparent filler that soaks up the leftover BoxLayout space. */
+    /** สร้างช่องว่างยืดหยุ่นที่กินพื้นที่ที่เหลือใน BoxLayout */
     static JPanel glue() {
         return filler(0, 0, Integer.MAX_VALUE);
     }
 
+    // ฟังก์ชันสร้างพื้นที่เติมเต็ม
     private static JPanel filler(int width, int height, int maxHeight) {
         var filler = panel();
         var fixed = new Dimension(width, height);
@@ -281,13 +317,13 @@ public final class AppDialog {
         return filler;
     }
 
-    /** Gives a panel a BoxLayout that stacks its children top to bottom. */
+    /** กำหนด BoxLayout แนวตั้งให้พาเนล (เรียงจากบนลงล่าง) */
     static JPanel stack(JPanel panel) {
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         return panel;
     }
 
-    /** Transparent panel that keeps c at its natural size at the given edge (NORTH or SOUTH). */
+    /** ตรึงคอมโพเนนต์ไว้ที่ขอบด้านใดด้านหนึ่ง (เช่น NORTH หรือ SOUTH) โดยคงขนาดเดิมไว้ */
     static JPanel pin(Container c, String edge) {
         var holder = panel();
         holder.setLayout(new BorderLayout());
@@ -295,10 +331,12 @@ public final class AppDialog {
         return holder;
     }
 
+    // สร้าง JLabel ทั่วไป
     static JLabel label(String text, Font font, Color color) {
         return label(text, font, color, JLabel.LEADING);
     }
 
+    // สร้าง JLabel พร้อมกำหนดการจัดตำแหน่งข้อความ
     static JLabel label(String text, Font font, Color color, int align) {
         var label = new JLabel(text, align);
         label.setFont(font);
@@ -306,12 +344,12 @@ public final class AppDialog {
         return label;
     }
 
-    /** Small label with a fill and a border; line may be null for "no border". */
+    /** สร้างป้ายข้อความ (Badge) ขนาดเล็กที่มีสีพื้นและเส้นขอบ */
     static JLabel badge(String text, Color bg, Color fg, Color line, int padV, int padH) {
         return paintBadge(new JLabel(text, JLabel.CENTER), text, bg, fg, line, padV, padH);
     }
 
-    /** Re-colours an existing badge in place; the padding stays, so the badge keeps its size. */
+    /** อัปเดตสีและข้อความของป้ายเดิมโดยคงขนาดไว้ */
     static JLabel paintBadge(JLabel badge, String text, Color bg, Color fg, Color line, int padV, int padH) {
         badge.setText(text);
         badge.setFont(SMALL_BOLD);
@@ -324,12 +362,12 @@ public final class AppDialog {
         return badge;
     }
 
-    /** Header badge of the four game screens; strong = the bigger countdown badge. */
+    /** สร้างป้ายส่วนหัวขนาดใหญ่ (Header badge) ของหน้าจอเกม */
     static JLabel topBadge(String text, Color bg, Color fg, Color line, boolean strong) {
         return paintTopBadge(new JLabel(text, JLabel.CENTER), text, bg, fg, line, strong);
     }
 
-    /** Re-colours a header badge in place; the padding stays at its own size, so it never shrinks. */
+    /** อัปเดตสีและข้อความของป้ายส่วนหัว */
     static JLabel paintTopBadge(JLabel badge, String text, Color bg, Color fg, Color line, boolean strong) {
         badge.setText(text);
         badge.setFont(strong ? STRONG : SUBTITLE);
@@ -341,7 +379,7 @@ public final class AppDialog {
         return badge;
     }
 
-    /** Square avatar tile with a letter or number, locked to size x size. */
+    /** สร้างป้ายสี่เหลี่ยมสำหรับ Avatar แสดงตัวอักษรหรือตัวเลข */
     static JLabel avatar(String text, Color bg, int size) {
         var tile = label(text, f(Font.BOLD, size / 2), Color.WHITE, JLabel.CENTER);
         tile.setOpaque(true);
@@ -353,7 +391,7 @@ public final class AppDialog {
         return tile;
     }
 
-    /** Small keycap-looking label (for the ENTER hint). */
+    /** สร้างป้ายสไตล์ปุ่มคีย์บอร์ด (เช่น แนะนำให้กด ENTER) */
     static JLabel keyCap(String text) {
         var key = label(text, KEYCAP, new Color(51, 65, 85), JLabel.CENTER);
         key.setOpaque(true);
@@ -362,7 +400,7 @@ public final class AppDialog {
         return key;
     }
 
-    /** Two-line card header: title, optional muted sub line, optional widget pinned right of the title. */
+    /** สร้างส่วนหัวการ์ด 2 บรรทัด (ชื่อหลัก, คำอธิบายย่อย, วิดเจ็ตฝั่งขวา) */
     static JPanel header(String title, Font titleFont, String sub, Font subFont, JLabel right) {
         var titleRow = panel();
         titleRow.setLayout(new BorderLayout());
@@ -382,13 +420,13 @@ public final class AppDialog {
         return header;
     }
 
-    /** Flat button whose fill follows hover and press; line == null means "no border at all". */
+    /** สร้างปุ่มสไตล์ Flat พร้อมระบบเปลี่ยนสีเมื่อเมาส์ชี้และกด */
     static JButton button(String text, Color bg, Color hover, Color pressed, Color fg, Color line, int padV, int padH) {
         var button = new JButton(text);
         button.setFont(BODY_BOLD);
         button.setForeground(fg);
         button.setBackground(bg);
-        button.setContentAreaFilled(false);   // call this first: some look and feels reset opaque when it changes
+        button.setContentAreaFilled(false);   // ต้องปิดก่อนเพื่อไม่ให้ Look and Feel รีเซ็ตค่าสี
         button.setOpaque(true);
         button.setBorderPainted(line != null);
         button.setBorder(line == null ? new EmptyBorder(padV, padH, padV, padH) : box(line, 1, padV, padH));
@@ -398,23 +436,23 @@ public final class AppDialog {
         return button;
     }
 
-    /** First letter of a player name, shown on the avatars. */
+    /** ดึงตัวอักษรตัวแรกของชื่อผู้เล่นสำหรับแสดงบน Avatar */
     static String initialOf(String name) {
         return (name == null || name.isEmpty()) ? "?" : name.substring(0, 1).toUpperCase();
     }
 
-    /** Avatar colour of the player at this position in the room. */
+    /** ดึงสีประจำตัว Avatar ของผู้เล่นตามลำดับ */
     static Color avatarColor(int index) {
         return AVATARS[Math.abs(index) % AVATARS.length];
     }
 
-    /** "Time: mm:ss" for the shared countdown badge, never below zero. */
+    /** แปลงวินาทีเป็นรูปแบบข้อความนับถอยหลัง "Time: mm:ss" */
     static String timeText(int seconds) {
         int safe = Math.max(0, seconds);
         return String.format("Time: %02d:%02d", safe / 60, safe % 60);
     }
 
-    /** "Target: N Shapes" for the header badge of both game screens. */
+    /** สร้างข้อความเป้าหมายจำนวนรูปทรง เช่น "Target: N Shapes" */
     static String targetText(int shapes) {
         if (shapes <= 0) {
             return "Target: ?";
@@ -422,7 +460,9 @@ public final class AppDialog {
         return "Target: " + shapes + (shapes == 1 ? " Shape" : " Shapes");
     }
 
-    /** Colours a button from mouse events: hover (mouse inside) and pressed. Disabled buttons are left alone. */
+    /**
+     * คลาสตรวจจับการเลื่อนเมาส์บนปุ่ม เพื่อสลับสีสถานะปกติ (normal), ชี้ (hover) และกด (pressed)
+     */
     static class ButtonHover extends MouseAdapter {
         private final JButton button;
         private final Color normal;
@@ -467,13 +507,15 @@ public final class AppDialog {
     }
 
     // =====================================================================
-    //  Custom painted parts (rounded card, circle badge, rounded button)
+    //  คอมโพเนนต์วาดพิเศษ (Rounded Card, Circle Badge, Rounded Button)
     // =====================================================================
 
-    /** White card with rounded corners, a thin border and a coloured accent bar along the top. */
+    /**
+     * การ์ดสีขาวมุมมน พร้อมแถบสีเด่น (accent) พาดที่ขอบด้านบน
+     */
     private static class RoundedCard extends JPanel {
-        private final Color accent;
-        private final Color edge;
+        private final Color accent; // สีของแถบด้านบน
+        private final Color edge;   // สีของเส้นขอบการ์ด
 
         RoundedCard(Color accent, Color edge) {
             this.accent = accent;
@@ -489,7 +531,7 @@ public final class AppDialog {
             g.setColor(CARD_BG);
             g.fillRoundRect(0, 0, w - 1, h - 1, CARD_ARC, CARD_ARC);
 
-            // The accent bar is clipped to the rounded card so it follows the top corners.
+            // ตัดพื้นที่เพื่อวาดแถบสีตามแนวโค้งมนของขอบการ์ดด้านบน
             var clip = g.getClip();
             g.setClip(new RoundRectangle2D.Float(0, 0, w - 1, h - 1, CARD_ARC, CARD_ARC));
             g.setColor(accent);
@@ -501,9 +543,11 @@ public final class AppDialog {
         }
     }
 
-    /** Round coloured badge with a plain white letter (no picture files, no emoji). */
+    /**
+     * ป้ายวงกลมแสดงตัวอักษรสีขาวตรงกลาง (เช่น เครื่องหมาย !, ?, x, i)
+     */
     private static class CircleBadge extends JLabel {
-        private final Color fill;
+        private final Color fill; // สีพื้นหลังวงกลม
 
         CircleBadge(String letter, Color fill) {
             super(letter, JLabel.CENTER);
@@ -525,9 +569,11 @@ public final class AppDialog {
         }
     }
 
-    /** Flat rounded button whose fill follows hover and pressed states. */
+    /**
+     * ปุ่มมุมมนสไตล์โมเดิร์น มีเอฟเฟกต์สีตามการ hover และกด
+     */
     private static class RoundedButton extends JButton {
-        private static final int ARC = 12;
+        private static final int ARC = 12; // รัศมีความโค้งมนของปุ่ม
 
         private final Color normal;
         private final Color hover;

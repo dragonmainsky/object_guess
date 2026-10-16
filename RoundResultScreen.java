@@ -12,35 +12,39 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 
 /**
- * RoundResultScreen: the scoreboard of ONE round, shown between rounds. It is built from the
- * ROUND_RESULT payload only, so every machine shows the same secret shapes and the same numbers.
+ * RoundResultScreen: หน้าจอแสดงผลคะแนนและเฉลยของแต่ละรอบ (หน้าจอคั่นระหว่างรอบ)
+ * สร้างขึ้นจากข้อมูล ROUND_RESULT ที่ได้รับจากเซิร์ฟเวอร์เท่านั้น
+ * ทำให้ทุกเครื่องในห้องแสดงผลรูปทรงเฉลยความลับและตัวเลขคะแนนตรงกันทั้งหมด
  */
 public class RoundResultScreen extends JPanel {
 
-    private static final Color SUCCESS_LINE = new Color(22, 163, 74);
-    private static final Color DANGER_LINE = new Color(220, 38, 38);
-    private static final int SECRET_ICON = 110;
-    private static final int SECRET_GAP = 16;
-    private static final int GUESS_ICON = 42;
-    private static final int AVATAR_SIZE = 34;
-    private static final int ROW_GAP = 6;
-    private static final int COUNTDOWN_SECONDS = GameServer.INTERMISSION_SECONDS;
+    private static final Color SUCCESS_LINE = new Color(22, 163, 74);  // สีกรอบสีเขียวสำหรับรูปทรงที่ทายถูก
+    private static final Color DANGER_LINE = new Color(220, 38, 38);   // สีกรอบสีแดงสำหรับรูปทรงที่ทายผิด
+    private static final int SECRET_ICON = 110;                        // ขนาดรูปทรงเฉลยความลับ
+    private static final int SECRET_GAP = 16;                          // ระยะห่างระหว่างรูปทรงเฉลย
+    private static final int GUESS_ICON = 42;                          // ขนาดรูปทรงที่ผู้เล่นแต่ละคนทาย
+    private static final int AVATAR_SIZE = 34;                         // ขนาดอวาตาร์ของผู้เล่น
+    private static final int ROW_GAP = 6;                              // ระยะห่างระหว่างแถวผู้เล่น
+    private static final int COUNTDOWN_SECONDS = GameServer.INTERMISSION_SECONDS; // เวลานับถอยหลังช่วงพักรอบ (10 วินาที)
 
-    private JLabel tagLabel;
-    private JLabel titleLabel;
-    private JLabel questionerLabel;
-    private JLabel reasonBadge;
-    private JLabel secretTitleLabel;
-    private JLabel secretSubLabel;
-    private JPanel secretRow;
-    private JLabel resultsTitleLabel;
-    private JLabel resultsBadge;
-    private JPanel rowsPanel;
-    private JLabel countdownLabel;
+    private JLabel tagLabel;            // ป้ายประเภทการสรุปผล (ROUND SUMMARY หรือ FINAL ROUND SUMMARY)
+    private JLabel titleLabel;          // ป้ายบอกหมายเลขรอบ เช่น "Round 1 of 4"
+    private JLabel questionerLabel;     // ป้ายบอกชื่อผู้ตั้งโจทย์ (Questioner)
+    private JLabel reasonBadge;         // ป้ายบอกเหตุผลที่จบรอบ (เช่น หมดเวลา หรือทายครบทุกคน)
+    private JLabel secretTitleLabel;    // ป้ายหัวข้อรูปทรงเฉลย
+    private JLabel secretSubLabel;      // ป้ายบอกว่าใครเป็นคนเลือกรูปทรงเฉลย
+    private JPanel secretRow;           // แถวแสดงรายการรูปทรงเฉลย
+    private JLabel resultsTitleLabel;   // ป้ายหัวข้อตารางคะแนนรอบ
+    private JLabel resultsBadge;        // ป้ายแสดงจำนวนผู้เล่นในรอบ
+    private JPanel rowsPanel;           // พาเนลรายการแถวผลคะแนนของผู้เล่นแต่ละคน
+    private JLabel countdownLabel;      // ป้ายนับถอยหลังก่อนเข้ารอบถัดไป
 
-    private Thread countdown;          // one thread per round, replaced when the next round starts
-    private volatile int secondsLeft;
+    private Thread countdown;           // เธรดนับถอยหลัง 1 เธรดต่อรอบ จะหยุดเมื่อเริ่มรอบใหม่
+    private volatile int secondsLeft;   // จำนวนวินาทีที่เหลือก่อนเปลี่ยนหน้าจอ
 
+    /**
+     * คอนสตรักเตอร์สร้างหน้าจอสรุปผลของรอบ แบ่งเป็น ส่วนหัว (Header), เนื้อหา (Body), และส่วนท้าย (Footer)
+     */
     public RoundResultScreen() {
         setLayout(new BorderLayout());
         setBackground(AppDialog.BG_LIGHT);
@@ -55,9 +59,12 @@ public class RoundResultScreen extends JPanel {
     }
 
     // =====================================================================
-    //  Header
+    //  ส่วนหัว (Header)
     // =====================================================================
 
+    /**
+     * สร้างส่วนหัวด้านบน: แสดงหมายเลขรอบ, ชื่อ Questioner และป้ายเหตุผลที่จบรอบ
+     */
     private JPanel buildHeader() {
         var header = AppDialog.panel();
         header.setLayout(new BorderLayout());
@@ -83,7 +90,7 @@ public class RoundResultScreen extends JPanel {
     }
 
     // =====================================================================
-    //  Body: the secret shapes on top, the round table under them
+    //  ส่วนเนื้อหา: รูปทรงเฉลยความลับด้านบน และตารางผลคะแนนด้านล่าง (Body)
     // =====================================================================
 
     private JPanel buildBody() {
@@ -94,6 +101,9 @@ public class RoundResultScreen extends JPanel {
         return body;
     }
 
+    /**
+     * การ์ดแสดงรูปทรงเฉลยความลับของรอบนี้
+     */
     private JPanel buildSecretCard() {
         var card = roundCard();
         card.setLayout(new BorderLayout(0, 14));
@@ -106,14 +116,16 @@ public class RoundResultScreen extends JPanel {
         titles.add(secretSubLabel);
         card.add(titles, BorderLayout.NORTH);
 
-        // One centred row: five pictures plus four gaps still fit the narrowest supported window.
+        // แถวแสดงรูปทรงเฉลยเรียงกึ่งกลางแนวนอน
         secretRow = AppDialog.panel();
         secretRow.setLayout(new FlowLayout(FlowLayout.CENTER, SECRET_GAP, 8));
         card.add(secretRow, BorderLayout.CENTER);
         return card;
     }
 
-    /** One secret shape: the picture with the shape name in small text underneath. */
+    /**
+     * แสดงแต่ละรูปทรงเฉลย: รูปภาพพร้อมชื่อรูปทรงตัวอักษรเล็กด้านล่าง
+     */
     private JPanel buildSecretItem(String shapeName) {
         var item = AppDialog.panel();
         item.setLayout(new BorderLayout(0, 6));
@@ -122,6 +134,9 @@ public class RoundResultScreen extends JPanel {
         return item;
     }
 
+    /**
+     * การ์ดตารางแสดงคะแนนของผู้เล่นทุกคนในรอบนี้
+     */
     private JPanel buildResultsCard() {
         var card = roundCard();
         card.setLayout(new BorderLayout(0, 14));
@@ -137,7 +152,7 @@ public class RoundResultScreen extends JPanel {
         titles.add(badgeHolder, BorderLayout.EAST);
         card.add(titles, BorderLayout.NORTH);
 
-        // The rows keep their natural height and scroll when many players are in the room.
+        // แถวคะแนนของผู้เล่น รองรับการเลื่อน (Scroll) เมื่อมีผู้เล่นหลายคน
         rowsPanel = AppDialog.panel();
         rowsPanel.setLayout(new BoxLayout(rowsPanel, BoxLayout.Y_AXIS));
         var scroll = new JScrollPane(rowsPanel);
@@ -153,10 +168,12 @@ public class RoundResultScreen extends JPanel {
         return card;
     }
 
+    /**
+     * ส่วนหัวของตาราง: คอลัมน์ PLAYER, GUESSED, ROUND, TOTAL
+     */
     private JPanel buildTableHeader() {
         var header = AppDialog.panel();
         header.setLayout(new BorderLayout(10, 0));
-        // 15 px matches a row's border (1) plus padding (14), so the headers line up with the columns.
         header.setBorder(new EmptyBorder(0, 15, 0, 15));
         header.add(columnTitle("PLAYER", 0), BorderLayout.WEST);
         header.add(columnTitle("GUESSED", 0), BorderLayout.CENTER);
@@ -179,7 +196,7 @@ public class RoundResultScreen extends JPanel {
     }
 
     // =====================================================================
-    //  Footer: the countdown that replaces the old Continue button
+    //  ส่วนท้าย: เวลานับถอยหลังก่อนเริ่มรอบต่อไป (Footer)
     // =====================================================================
 
     private JPanel buildFooter() {
@@ -197,12 +214,12 @@ public class RoundResultScreen extends JPanel {
     }
 
     // =====================================================================
-    //  Public API used by MainApp
+    //  เมธอดแสดงผลข้อมูลที่เรียกโดย MainApp
     // =====================================================================
 
     /**
-     * Draws the whole screen from one ROUND_RESULT. The arrays are parallel and hold one entry per
-     * player; guesses[i] is empty when that player did not submit. Players keep the order of names[].
+     * วาดเนื้อหาทั้งหมดของหน้าจอจากชุดข้อมูล ROUND_RESULT ที่ได้รับจากเซิร์ฟเวอร์
+     * ข้อมูลทุกอาเรย์มีความยาวเท่ากัน โดยแต่ละดัชนีแทนผู้เล่น 1 คน
      */
     public void showResult(int round, int totalRounds, boolean isFinal, String[] secret, String reason,
                            String questioner, String[] names, int[] deltas, int[] totals,
@@ -212,6 +229,7 @@ public class RoundResultScreen extends JPanel {
         questionerLabel.setText("Questioner: " + (questionerName.isEmpty() ? "-" : questionerName));
         tagLabel.setText(isFinal ? "FINAL ROUND SUMMARY" : "ROUND SUMMARY");
 
+        // ปรับข้อความและสีของป้ายเหตุผลที่จบรอบ
         if ("time".equals(reason)) {
             AppDialog.paintBadge(reasonBadge, "Time is up", AppDialog.DANGER_BG, AppDialog.DANGER_TEXT,
                     DANGER_LINE, 8, 16);
@@ -223,6 +241,7 @@ public class RoundResultScreen extends JPanel {
                     SUCCESS_LINE, 8, 16);
         }
 
+        // แสดงรูปทรงเฉลยความลับ
         secretSubLabel.setText("Chosen by " + (questionerName.isEmpty() ? "-" : questionerName));
         secretRow.removeAll();
         if (secret != null && secret.length > 0) {
@@ -240,6 +259,7 @@ public class RoundResultScreen extends JPanel {
 
         resultsBadge.setText(names.length + (names.length == 1 ? " player" : " players"));
 
+        // สร้างแถวแสดงผลสำหรับผู้เล่นแต่ละคน
         rowsPanel.removeAll();
         for (int i = 0; i < names.length; i++) {
             int delta = (i < deltas.length) ? deltas[i] : 0;
@@ -249,7 +269,6 @@ public class RoundResultScreen extends JPanel {
             boolean bonus = (i < bonuses.length) && bonuses[i];
             var row = buildPlayerRow(i, names[i], delta, total, guess, correct, bonus,
                     names[i].equals(questionerName), secret);
-            // BoxLayout only stretches up to the maximum size, so the height is locked to the row's own.
             row.setAlignmentX(JPanel.LEFT_ALIGNMENT);
             row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
             rowsPanel.add(row);
@@ -260,16 +279,19 @@ public class RoundResultScreen extends JPanel {
         rowsPanel.revalidate();
         rowsPanel.repaint();
 
+        // เริ่มเวลานับถอยหลังก่อนเปิดรอบใหม่หรือหน้าตารางคะแนนสุดท้าย
         startCountdown(isFinal);
         revalidate();
         repaint();
     }
 
     // =====================================================================
-    //  Countdown from INTERMISSION_SECONDS down to zero (its own thread, one per round)
+    //  การนับถอยหลังระหว่างพักรอบ (Countdown)
     // =====================================================================
 
-    /** Restarts the countdown for the round just shown; the server owns the real clock. */
+    /**
+     * เริ่มนับถอยหลังจาก INTERMISSION_SECONDS ลงไปจนถึง 0
+     */
     private void startCountdown(boolean isFinal) {
         stopCountdown();
         secondsLeft = COUNTDOWN_SECONDS;
@@ -279,7 +301,7 @@ public class RoundResultScreen extends JPanel {
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException e) {
-                    return;   // a new round, the scoreboard or the shutdown ended this countdown
+                    return;   // เธรดถูกยกเลิกเมื่อเริ่มรอบใหม่หรือปิดเซิร์ฟเวอร์
                 }
                 if (countdown != Thread.currentThread()) {
                     return;
@@ -302,7 +324,9 @@ public class RoundResultScreen extends JPanel {
         countdownLabel.setText((isFinal ? "Final scoreboard in " : "Next round in ") + secondsLeft + "s...");
     }
 
-    /** Stops the countdown; safe to call when none is running. */
+    /**
+     * สั่งหยุดการนับถอยหลัง
+     */
     public void stopCountdown() {
         if (countdown != null) {
             countdown.interrupt();
@@ -311,15 +335,19 @@ public class RoundResultScreen extends JPanel {
     }
 
     // =====================================================================
-    //  Rows and small factories
+    //  การสร้างแถวผู้เล่นและคอมโพเนนต์ย่อย (Rows and Small Factories)
     // =====================================================================
 
+    /**
+     * สร้างแถวผลงานของผู้เล่นแต่ละคน: แสดง Avatar, คำตอบที่ทาย (สีกรอบเขียวถ้าถูก, แดงถ้าผิด), โบนัส, คะแนนรอบนี้ และคะแนนรวม
+     */
     private JPanel buildPlayerRow(int index, String name, int delta, int total, String[] guess, int correct,
                                   boolean bonus, boolean isQuestioner, String[] secret) {
         var row = new JPanel(new BorderLayout(10, 0));
         row.setBackground(AppDialog.ROW_BG);
         row.setBorder(new CompoundBorder(new LineBorder(AppDialog.ROW_BG, 1), new EmptyBorder(10, 14, 10, 14)));
 
+        // ข้อมูลผู้เล่นฝั่งซ้าย (Avatar, ชื่อ, ป้าย Questioner)
         var who = AppDialog.panel();
         who.setLayout(new FlowLayout(FlowLayout.LEFT, 8, 0));
         who.add(AppDialog.avatar(AppDialog.initialOf(name), AppDialog.avatarColor(index), AVATAR_SIZE));
@@ -330,6 +358,7 @@ public class RoundResultScreen extends JPanel {
         }
         row.add(who, BorderLayout.WEST);
 
+        // ส่วนแสดงรูปทรงที่ผู้เล่นทายตรงกลาง (พร้อมสีกรอบเขียว/แดง)
         var guessed = AppDialog.panel();
         guessed.setLayout(new FlowLayout(FlowLayout.LEFT, 8, 0));
         if (isQuestioner) {
@@ -345,6 +374,7 @@ public class RoundResultScreen extends JPanel {
         }
         row.add(guessed, BorderLayout.CENTER);
 
+        // ส่วนแสดงคะแนนฝั่งขวา (ป้ายโบนัส, คะแนนที่ได้เพิ่มในรอบนี้, คะแนนรวม)
         var score = AppDialog.panel();
         score.setLayout(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         if (bonus) {
@@ -364,6 +394,7 @@ public class RoundResultScreen extends JPanel {
         return row;
     }
 
+    /** ตรวจสอบว่ารูปทรงที่ระบุมีอยู่ในชุดเฉลยหรือไม่ */
     private static boolean containsShape(String[] shapes, String wanted) {
         if (shapes == null || wanted == null) {
             return false;
@@ -376,7 +407,7 @@ public class RoundResultScreen extends JPanel {
         return false;
     }
 
-    /** White card with a thin border and 18/20px padding, as used by both cards on this screen. */
+    /** สร้างการ์ดสีขาวมุมมนพร้อมขอบและระยะเว้น */
     private static JPanel roundCard() {
         var card = new JPanel();
         card.setBackground(AppDialog.CARD_BG);
@@ -388,7 +419,7 @@ public class RoundResultScreen extends JPanel {
         return AppDialog.label(text, AppDialog.SMALL, AppDialog.TEXT_MUTED);
     }
 
-    /** One shape picture with a coloured border; a grey named box stands in when the file is missing. */
+    /** สร้างรูปภาพรูปทรงพร้อมใส่สีกรอบตามที่กำหนด */
     private static JPanel shapeIcon(String shapeName, int size, Color line, int width) {
         var picture = ShapeImages.shape(shapeName, size);
         picture.setToolTipText(shapeName);

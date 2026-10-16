@@ -10,67 +10,88 @@ import java.net.SocketException;
 import java.util.List;
 
 /**
- * GameClient: the networking half of one player's screen. It owns a single socket to the host and one
- * background reader thread that hands every server message to a {@link Listener}. Nothing here touches
- * Swing, so callers may run connect() off the event thread.
+ * GameClient: คลาสจัดการระบบเครือข่ายฝั่ง Client สำหรับผู้เล่นแต่ละคน
+ * ดูแลการเชื่อมต่อผ่าน TCP Socket ไปยังเครื่องโฮสต์ (GameServer)
+ * มีเธรดทำงานเบื้องหลัง (Background Reader Thread) เพื่อรอรับข้อความจากเซิร์ฟเวอร์
+ * แล้วส่งต่อให้กับ {@link Listener} โดยส่วนนี้จะไม่ยุ่งเกี่ยวกับ Swing UI โดยตรง
  */
 public class GameClient {
 
-    /** Receives everything the server sends. Implementations must be fast and must not block. */
+    /**
+     * อินเตอร์เฟสสำหรับรับข้อความและการแจ้งเตือนเมื่อการเชื่อมต่อสิ้นสุด
+     * เมธอดที่ทำงานในนี้ต้องทำงานอย่างรวดเร็วและไม่บล็อกการทำงานของเธรด
+     */
     public interface Listener {
+        // ทำงานเมื่อได้รับข้อความใหม่จากเซิร์ฟเวอร์
         void onMessage(String type, String[] args);
 
+        // ทำงานเมื่อการเชื่อมต่อหลุดหรือสิ้นสุดลง
         void onDisconnected(String reason);
     }
 
+    // เวลาจำกัดในการพยายามเชื่อมต่อเซิร์ฟเวอร์ (5 วินาที)
     private static final int CONNECT_TIMEOUT_MS = 5000;
 
-    private final String host;
-    private final int port;
-    private final Listener listener;
-    private final Object writeLock = new Object();
+    private final String host;              // ไอพีหรือที่อยู่ของเครื่องโฮสต์
+    private final int port;                 // พอร์ตที่เซิร์ฟเวอร์เปิดให้บริการ
+    private final Listener listener;        // ตัวรับเหตุการณ์เครือข่าย
+    private final Object writeLock = new Object(); // ล็อกสำหรับการส่งข้อมูลแบบเธรดปลอดภัย (Thread-safe)
 
-    private Socket socket;
-    private DataInputStream in;
-    private DataOutputStream out;
-    private volatile boolean connected;
-    private volatile boolean closing;
+    private Socket socket;                  // ซ็อกเก็ตการเชื่อมต่อ
+    private DataInputStream in;             // สตรีมสำหรับอ่านข้อมูลแบบมีโครงสร้าง
+    private DataOutputStream out;           // สตรีมสำหรับเขียนข้อมูลแบบมีโครงสร้าง
+    private volatile boolean connected;     // สถานะการเชื่อมต่อ (เชื่อมต่ออยู่หรือไม่)
+    private volatile boolean closing;       // สถานะว่ากำลังอยู่ในกระบวนการปิดหรือไม่
 
+    /**
+     * คอนสตรักเตอร์สำหรับสร้าง GameClient กำหนดที่อยู่โฮสต์ พอร์ต และ Listener
+     */
     public GameClient(String host, int port, Listener listener) {
         this.host = host;
         this.port = port;
         this.listener = listener;
     }
 
+    /**
+     * ตรวจสอบว่าขณะนี้กำลังเชื่อมต่อกับเซิร์ฟเวอร์อยู่หรือไม่
+     */
     public boolean isConnected() {
         return connected;
     }
 
-    /** Opens the socket and starts the reader thread; blocks for at most CONNECT_TIMEOUT_MS. */
+    /**
+     * เปิดการเชื่อมต่อ Socket และเริ่มเธรดสำหรับอ่านข้อมูล
+     * จะบล็อกการทำงานไม่เกิน CONNECT_TIMEOUT_MS
+     */
     public void connect() throws IOException {
         var newSocket = new Socket();
         try {
+            // เชื่อมต่อไปยัง IP และ Port ที่ระบุ พร้อมกำหนด Timeout
             newSocket.connect(new InetSocketAddress(host, port), CONNECT_TIMEOUT_MS);
-            newSocket.setTcpNoDelay(true);
+            newSocket.setTcpNoDelay(true); // ปิด Nagle's algorithm เพื่อให้ส่งแพ็กเก็ตทันทีโดยไม่หน่วง
             in = new DataInputStream(new BufferedInputStream(newSocket.getInputStream()));
             out = new DataOutputStream(new BufferedOutputStream(newSocket.getOutputStream()));
         } catch (IOException e) {
             closeQuietly(newSocket);
-            throw e;   // unknown host, refused or timed out: the caller explains it
+            throw e;   // หากหาโฮสต์ไม่เจอ ถูกปฏิเสธ หรือหมดเวลา จะส่ง Exception ให้ผู้เรียกจัดการ
         }
         socket = newSocket;
         connected = true;
         closing = false;
 
+        // เริ่มเธรดเบื้องหลังสำหรับรอรับข้อมูลจากเซิร์ฟเวอร์ตลอดเวลา
         var reader = new Thread(this::readLoop, "GameClient-Reader");
         reader.setDaemon(true);
         reader.start();
     }
 
-    /** Reads whole messages off the socket until the connection ends, then reports it once. */
+    /**
+     * ลูปอ่านข้อความจาก Socket ต่อเนื่องจนกว่าการเชื่อมต่อจะสิ้นสุด แล้วแจ้งเตือนเมื่อหลุด
+     */
     private void readLoop() {
         try {
             while (connected) {
+                // อ่านข้อความตามโครงสร้าง Protocol
                 var message = GameServer.Message.readFrom(in);
                 if (listener != null) {
                     listener.onMessage(message.type, message.args);
@@ -91,6 +112,9 @@ public class GameClient {
         }
     }
 
+    /**
+     * แจ้งเตือนไปยัง Listener เมื่อการเชื่อมต่อสิ้นสุดลง (ป้องกันการแจ้งซ้ำ)
+     */
     private void notifyDisconnected(String reason) {
         if (!closing) {
             closing = true;
@@ -100,7 +124,9 @@ public class GameClient {
         }
     }
 
-    /** Sends one protocol message; thread-safe, because several screens may call it at once. */
+    /**
+     * ส่งข้อความ Protocol ไปยังเซิร์ฟเวอร์ มีการป้องกันการเขียนข้อมูลพร้อมกัน (Thread-safe)
+     */
     public void send(String type, String... args) {
         if (!connected || out == null) {
             return;
@@ -114,43 +140,56 @@ public class GameClient {
         }
     }
 
-    // ===== Request shortcuts, so the screens never spell out a protocol string =====
+    // =====================================================================
+    //  เมธอดสำเร็จรูปสำหรับส่งคำสั่งต่างๆ (Request shortcuts)
+    // =====================================================================
 
+    /** ส่งคำขอเข้าร่วมห้องพร้อมระบุชื่อผู้เล่น */
     public void join(String playerName) {
         send(GameServer.JOIN, playerName);
     }
 
+    /** ส่งสถานะความพร้อมของผู้เล่น (พร้อม = "1", ไม่พร้อม = "0") */
     public void setReady(boolean ready) {
         send(GameServer.READY, ready ? "1" : "0");
     }
 
+    /** ส่งคำขอเริ่มเกม (สำหรับโฮสต์) */
     public void requestStartGame() {
         send(GameServer.START_GAME);
     }
 
+    /** ส่งคำขอเริ่มเกมใหม่หลังจากจบเกม */
     public void requestNewGame() {
         send(GameServer.NEW_GAME);
     }
 
-    /** Sends the questioner's secret; the exact count was drawn by the server for this round. */
+    /**
+     * ส่งชุดรูปทรงความลับที่ผู้ตั้งโจทย์ (Questioner) เลือก
+     */
     public void submitSecret(List<String> shapes) {
         if (shapes != null && shapes.size() >= GameServer.MIN_SHAPES && shapes.size() <= GameServer.MAX_SHAPES) {
             send(GameServer.SECRET, shapes.toArray(new String[0]));
         }
     }
 
-    /** Sends the full guess; its count must equal the count the server announced. */
+    /**
+     * ส่งชุดรูปทรงที่ผู้ทาย (Guesser) ทาย
+     */
     public void submitGuess(List<String> shapes) {
         if (shapes != null && !shapes.isEmpty() && shapes.size() <= GameServer.MAX_SHAPES) {
             send(GameServer.GUESS, shapes.toArray(new String[0]));
         }
     }
 
+    /** ส่งข้อความแชตไปยังห้อง */
     public void sendChat(String text) {
         send(GameServer.CHAT, text);
     }
 
-    /** Tells the server we are leaving, then drops the socket. Safe to call twice. */
+    /**
+     * แจ้งเตือนเซิร์ฟเวอร์ว่ากำลังออกจากห้อง แล้วปิด Socket
+     */
     public void leave() {
         closing = true;
         if (connected) {
@@ -159,20 +198,25 @@ public class GameClient {
         close();
     }
 
-    /** Closes the socket without waiting for a reply. Safe to call from any thread. */
+    /**
+     * ปิดการเชื่อมต่อ Socket ทันที ปลอดภัยต่อการเรียกจากทุกเธรด
+     */
     public void close() {
         closing = true;
         connected = false;
         closeQuietly(socket);
     }
 
+    /**
+     * ฟังก์ชันช่วยปิด Socket โดยดักจับและละเว้น Exception
+     */
     private static void closeQuietly(Socket socket) {
         try {
             if (socket != null && !socket.isClosed()) {
                 socket.close();
             }
         } catch (IOException ignored) {
-            // already closed
+            // ซ็อกเก็ตปิดอยู่แล้ว ไม่ต้องดำเนินการใดๆ
         }
     }
 }

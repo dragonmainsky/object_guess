@@ -13,34 +13,39 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 
 /**
- * ScoreboardScreen: screen 5 - the standings after the last round. MainApp fills it in through
- * setResults(); the values below are only the preview defaults used when the screen stands alone.
+ * ScoreboardScreen: หน้าจอตารางคะแนนรวมสุดท้าย (หน้าจอที่ 5)
+ * แสดงอันดับและผลคะแนนรวมทั้งหมดเมื่อจบทัวร์นาเมนต์หรือจบรอบ
+ * MainApp จะส่งข้อมูลคะแนนเข้ามาผ่านเมธอด setResults()
  */
 public class ScoreboardScreen extends JPanel {
 
-    private static final Color BG_DARK_HEADER = new Color(24, 34, 53);
-    private static final Color GOLD_BADGE_BG = new Color(254, 240, 138);
-    private static final Color DANGER_AVATAR = new Color(244, 63, 94);
+    private static final Color BG_DARK_HEADER = new Color(24, 34, 53); // สีกรมท่าเข้มสำหรับป้าย GAME OVER
+    private static final Color GOLD_BADGE_BG = new Color(254, 240, 138); // สีพื้นหลังป้ายทอง WINNER
+    private static final Color DANGER_AVATAR = new Color(244, 63, 94);   // สีอวาตาร์เริ่มต้นสำหรับอันดับทั่วไป
 
-    private final ActionListener onNewGameAction;
-    private final ActionListener onQuitAction;
+    private final ActionListener onNewGameAction; // ตัวจัดการเมื่อกดปุ่มเริ่มเกมใหม่
+    private final ActionListener onQuitAction;    // ตัวจัดการเมื่อกดปุ่มออกจากห้อง
 
+    // ข้อมูลเริ่มต้นสำหรับทดสอบพรีวิว
     private String[] playerNames = {"Aim", "Player 2", "Player 3", "Player 4"};
     private int[] playerScores = {8, 6, 4, 3};
-    private int roundsPlayed;
-    private int totalRounds;             // players x 2, filled in by setResults()
-    private boolean finalRound = true;
+    private int roundsPlayed;            // จำนวนรอบที่เล่นไปแล้ว
+    private int totalRounds;             // จำนวนรอบทั้งหมด (จำนวนผู้เล่น x 2)
+    private boolean finalRound = true;   // เป็นรอบสุดท้ายของทัวร์นาเมนต์หรือไม่
 
-    private JLabel congratsLabel;
-    private JLabel gameOverBadge;
-    private JLabel completeBadge;
-    private JLabel finalScoreValue;
-    private JPanel rowsPanel;
-    private JLabel roundsValue;
-    private JLabel playersValue;
-    private JLabel targetValue;
-    private JButton nextBtn;
+    private JLabel congratsLabel;        // ป้ายแสดงความยินดีกับผู้ชนะ
+    private JLabel gameOverBadge;        // ป้ายบอกสถานะ GAME OVER หรือ ROUND SUMMARY
+    private JLabel completeBadge;        // ป้ายบอกสถานะการจบทัวร์นาเมนต์
+    private JLabel finalScoreValue;      // ป้ายแสดงตัวเลขคะแนนของผู้ชนะ
+    private JPanel rowsPanel;            // พาเนลแสดงรายการตารางอันดับ
+    private JLabel roundsValue;          // ป้ายแสดงจำนวนรอบที่เล่นไป
+    private JLabel playersValue;         // ป้ายแสดงจำนวนผู้เล่น
+    private JLabel targetValue;          // ป้ายแสดงจำนวนรูปทรงเป้าหมาย
+    private JButton nextBtn;             // ปุ่มเริ่มเกมใหม่หรือเล่นต่อ
 
+    /**
+     * คอนสตรักเตอร์สร้างหน้าจอสกอร์บอร์ด จัดวางแบบ 2 คอลัมน์ (ซ้าย: ถ้วยรางวัลและผู้ชนะ, ขวา: ตารางอันดับ)
+     */
     public ScoreboardScreen(ActionListener onNewGameAction, ActionListener onQuitAction) {
         this.onNewGameAction = onNewGameAction;
         this.onQuitAction = onQuitAction;
@@ -60,13 +65,15 @@ public class ScoreboardScreen extends JPanel {
     }
 
     // =====================================================================
-    //  Results coming from the server
+    //  การรับข้อมูลผลการแข่งขันจากเซิร์ฟเวอร์ (Results from Server)
     // =====================================================================
 
-    /** Takes the latest scores from the server, sorts them best first and rebuilds the whole screen. */
+    /**
+     * รับข้อมูลคะแนนล่าสุดจากเซิร์ฟเวอร์ จัดเรียงคะแนนจากมากไปน้อย (Insertion Sort) แล้วรีเฟรชหน้าจอ
+     */
     public void setResults(String[] names, int[] scores, int rounds, int totalRounds, boolean isFinal) {
         if (names != null && scores != null && names.length > 0) {
-            // Insertion sort, so equal scores keep the order the server sent them in.
+            // ใช้ Insertion Sort เพื่อให้ผู้เล่นที่คะแนนเท่ากันคงลำดับเดิมตามที่เซิร์ฟเวอร์ส่งมา
             String[] sortedNames = new String[names.length];
             int[] sortedScores = new int[names.length];
             for (int i = 0; i < names.length; i++) {
@@ -94,7 +101,9 @@ public class ScoreboardScreen extends JPanel {
         refresh();
     }
 
-    /** The continue / new game button only works for the host. */
+    /**
+     * เปิด/ปิดการทำงานของปุ่ม NEW GAME / CONTINUE (เฉพาะโฮสต์เท่านั้นที่สามารถกดได้)
+     */
     public void setNextEnabled(boolean enabled) {
         nextBtn.setEnabled(enabled);
         nextBtn.setToolTipText(enabled
@@ -102,7 +111,9 @@ public class ScoreboardScreen extends JPanel {
                 : "Only the host can continue or start a new game.");
     }
 
-    /** Redraws everything that depends on the scores or on the round state. */
+    /**
+     * วาดเนื้อหาทั้งหมดใหม่ตามคะแนนและสถานะรอบล่าสุด
+     */
     private void refresh() {
         if (playerNames.length > 0) {
             congratsLabel.setText("Congratulations, " + playerNames[0] + "!");
@@ -133,13 +144,12 @@ public class ScoreboardScreen extends JPanel {
     }
 
     // =====================================================================
-    //  Left column: trophy, GAME OVER badge, the winner and the final score
+    //  คอลัมน์ซ้าย: ถ้วยรางวัล, ผู้ชนะ และคะแนนสูงสุด (Left Column)
     // =====================================================================
 
     private JPanel buildLeftColumn() {
         var left = AppDialog.panel();
         left.setLayout(new BorderLayout());
-        // Pushes the content down from the top edge instead of centering it vertically.
         left.setBorder(new EmptyBorder(40, 0, 0, 0));
 
         gameOverBadge = AppDialog.badge("GAME OVER", BG_DARK_HEADER, Color.WHITE, null, 4, 14);
@@ -159,7 +169,7 @@ public class ScoreboardScreen extends JPanel {
         return left;
     }
 
-    /** Light yellow square with the trophy picture, or with plain text when the file is missing. */
+    /** กล่องสีทองแสดงรูปถ้วยรางวัล (Trophy) */
     private JPanel buildTrophyPanel() {
         var trophy = new JPanel(new BorderLayout());
         trophy.setBackground(AppDialog.GOLD_BG);
@@ -169,7 +179,7 @@ public class ScoreboardScreen extends JPanel {
         return trophy;
     }
 
-    /** Blue card with the winner's total score. */
+    /** การ์ดสีฟ้าแสดงคะแนนรวมของผู้ชนะ */
     private JPanel buildScoreCard() {
         var card = new JPanel(new GridLayout(3, 1, 0, 0));
         card.setBackground(AppDialog.PRIMARY_BLUE);
@@ -185,7 +195,7 @@ public class ScoreboardScreen extends JPanel {
     }
 
     // =====================================================================
-    //  Right column: the standings table
+    //  คอลัมน์ขวา: ตารางอันดับและสถิติ (Right Column)
     // =====================================================================
 
     private JPanel buildRightColumn() {
@@ -213,6 +223,7 @@ public class ScoreboardScreen extends JPanel {
         card.add(stackItems(new JPanel[] {buildTableHeader(), buildRowsPanel(), buildDivider(), buildStatsRow()}, 12),
                 BorderLayout.CENTER);
 
+        // ปุ่ม NEW GAME สำหรับเริ่มทัวร์นาเมนต์ใหม่
         nextBtn = AppDialog.button("NEW GAME", AppDialog.PRIMARY_BLUE, AppDialog.PRIMARY_HOVER, AppDialog.PRIMARY_PRESS,
                 Color.WHITE, AppDialog.PRIMARY_BLUE, 10, 18);
         nextBtn.setPreferredSize(new Dimension(160, 44));
@@ -220,6 +231,7 @@ public class ScoreboardScreen extends JPanel {
             nextBtn.addActionListener(onNewGameAction);
         }
 
+        // ปุ่ม QUIT สำหรับออกจากห้องกลับไปหน้าแรก
         var quitBtn = AppDialog.button("QUIT", Color.WHITE, AppDialog.BG_LIGHT, AppDialog.CARD_BORDER,
                 AppDialog.TEXT_DARK, AppDialog.CARD_BORDER, 10, 18);
         quitBtn.setPreferredSize(new Dimension(160, 44));
@@ -235,7 +247,7 @@ public class ScoreboardScreen extends JPanel {
         return card;
     }
 
-    /** RANK / PLAYER / SCORE header, sized to line up with the player rows. */
+    /** ส่วนหัวตาราง: RANK, PLAYER, SCORE */
     private JPanel buildTableHeader() {
         var header = AppDialog.panel();
         header.setLayout(new BorderLayout(10, 0));
@@ -264,7 +276,9 @@ public class ScoreboardScreen extends JPanel {
         return rowsPanel;
     }
 
-    /** One row: rank, avatar, name (with a WINNER badge) and the score. */
+    /**
+     * สร้างแถวอันดับแต่ละแถว: อันดับ, Avatar, ชื่อผู้เล่น (มีป้าย WINNER หากเป็นอันดับ 1) และคะแนนรวม
+     */
     private JPanel buildLeaderboardRow(int rank, String name, int score) {
         boolean winner = rank == 1;
         Color rowBg = winner ? AppDialog.GOLD_BG : AppDialog.ROW_BG;
@@ -295,7 +309,7 @@ public class ScoreboardScreen extends JPanel {
         return row;
     }
 
-    /** Avatar colour picked by rank; the podium places get their own colours. */
+    /** กำหนดสีของอวาตาร์ตามลำดับอันดับ (1: ทอง, 2: ฟ้า, 3: ม่วง) */
     private static Color rankColor(int rank) {
         if (rank == 1) {
             return new Color(234, 179, 8);
@@ -306,7 +320,7 @@ public class ScoreboardScreen extends JPanel {
         return rank == 3 ? new Color(139, 92, 246) : DANGER_AVATAR;
     }
 
-    /** The three statistics under the divider, all of them real game numbers. */
+    /** สร้างแถวแสดงสถิติสรุป: จำนวนรอบที่เล่น, จำนวนผู้เล่น, จำนวนรูปทรงเป้าหมาย */
     private JPanel buildStatsRow() {
         roundsValue = AppDialog.label("", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
         playersValue = AppDialog.label("", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
@@ -328,7 +342,7 @@ public class ScoreboardScreen extends JPanel {
         return item;
     }
 
-    /** 1px horizontal divider. */
+    /** เส้นคั่นแนวนอน 1px */
     private static JPanel buildDivider() {
         var line = new JPanel();
         line.setBackground(AppDialog.CARD_BORDER);
@@ -336,7 +350,7 @@ public class ScoreboardScreen extends JPanel {
         return line;
     }
 
-    /** Stacks blocks top-aligned, each at its own height, with the given gap between them. */
+    /** ซ้อนคอมโพเนนต์เรียงจากบนลงล่างตามระยะห่างที่กำหนด */
     private static JPanel stackItems(JPanel[] items, int gap) {
         var root = AppDialog.panel();
         root.setLayout(new BorderLayout(0, gap));
@@ -353,7 +367,7 @@ public class ScoreboardScreen extends JPanel {
         return root;
     }
 
-    /** Centers one block horizontally, with an optional vertical padding around it. */
+    /** จัดวางคอมโพเนนต์ให้อยู่ตรงกลางแนวนอน */
     private static JPanel centered(JPanel inner, int padV) {
         var holder = AppDialog.panel();
         holder.setLayout(new FlowLayout(FlowLayout.CENTER, 0, padV));
