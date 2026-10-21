@@ -6,14 +6,8 @@ import java.awt.GridLayout;
 import java.awt.event.ActionListener;
 import java.util.*;
 import java.util.function.Consumer;
-import javax.swing.JButton;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTextField;
-import javax.swing.border.CompoundBorder;
-import javax.swing.border.EmptyBorder;
-import javax.swing.border.LineBorder;
+import javax.swing.*;
+import javax.swing.border.*;
 
 /**
  * LobbyScreen: หน้าจอห้องพักคอย (หน้าจอที่ 2)
