@@ -3,17 +3,10 @@ import java.awt.Dimension;
 import java.awt.Insets;
 import java.awt.Toolkit;
 import java.io.IOException;
-import java.net.ConnectException;
-import java.net.SocketTimeoutException;
-import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import javax.swing.JFrame;
-import javax.swing.JPanel;
+import java.net.*;
+import java.util.*;
+import java.util.concurrent.*;
+import javax.swing.*;
 
 /**
  * MainApp: หน้าต่างหลักของแอปพลิเคชัน (Master window)
