@@ -1,22 +1,8 @@
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Container;
-import java.awt.Cursor;
-import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.Font;
-import java.awt.Graphics;
-import java.awt.GridLayout;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
+import java.awt.*;
+import java.awt.event.*;
 import java.util.List;
-import javax.swing.JButton;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JTextField;
-import javax.swing.border.EmptyBorder;
-import javax.swing.border.LineBorder;
-
+import javax.swing.*;
+import javax.swing.border.*;
 /**
  * JoinScreen: หน้าจอแรก (หน้าจอที่ 1) ของเกม
  * ใช้สำหรับสร้างห้อง (Host) บนเครื่องนี้ หรือเข้าร่วมห้อง (Join) ของเพื่อนผ่านเครือข่าย LAN เดียวกัน
