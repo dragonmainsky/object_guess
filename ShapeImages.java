@@ -326,7 +326,7 @@ public final class ShapeImages {
         }
 
         /**
-         * วาดรูปทรงโปร่งแสงที่ลอยตามเคอร์เซอร์เมาส์ขณะกำลังลาก
+         * วาดรูปทรงที่ลอยตามเคอร์เซอร์เมาส์ขณะกำลังลาก
          */
         public void paintGhost(Graphics g) {
             if (shape != null) {
@@ -335,17 +335,17 @@ public final class ShapeImages {
         }
 
         /**
-         * คำนวณพิกัดและสั่ง repaint พื้นที่เดิมและพื้นที่ใหม่เพื่อให้รูปเคลื่อนที่ตามเมาส์
+         * คำนวณพิกัดใหม่และ repaint ทั้งหน้าจอเพื่อล้าง ghost ตำแหน่งเดิม
          */
         private void moveGhost(int screenX, int screenY) {
             if (!host.isShowing()) {
                 return;
             }
             var origin = host.getLocationOnScreen();
-            host.repaint(ghostX, ghostY, ghost, ghost);   // ลบภาพที่ตำแหน่งเดิม
             ghostX = screenX - origin.x - ghost / 2;
             ghostY = screenY - origin.y - ghost / 2;
-            host.repaint(ghostX, ghostY, ghost, ghost);   // วาดภาพที่ตำแหน่งใหม่
+            // Repaint ทั้งหน้าจอเพื่อล้าง ghost ตำแหน่งเดิมให้หมดก่อนวาดตำแหน่งใหม่
+            host.repaint();
         }
 
         /**
@@ -357,7 +357,8 @@ public final class ShapeImages {
                 motion = null;
             }
             shape = null;
-            host.repaint(ghostX, ghostY, ghost, ghost);
+            // ล้าง ghost ตำแหน่งสุดท้ายด้วยการ repaint ทั้งหน้าจอ
+            host.repaint();
         }
 
         /**

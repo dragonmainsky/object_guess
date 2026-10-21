@@ -43,8 +43,7 @@ public class ScoreboardScreen extends JPanel {
         setLayout(new BorderLayout());
         setBackground(AppDialog.BG_LIGHT);
 
-        var mainContent = AppDialog.panel();
-        mainContent.setLayout(new BorderLayout(32, 0));
+        var mainContent = AppDialog.panel(new BorderLayout(32, 0));
         mainContent.setBorder(new EmptyBorder(30, 40, 30, 40));
 
         var leftColumn = buildLeftColumn();
@@ -139,8 +138,7 @@ public class ScoreboardScreen extends JPanel {
     // =====================================================================
 
     private JPanel buildLeftColumn() {
-        var left = AppDialog.panel();
-        left.setLayout(new BorderLayout());
+        var left = AppDialog.panel(new BorderLayout());
         left.setBorder(new EmptyBorder(40, 0, 0, 0));
 
         gameOverBadge = AppDialog.badge("GAME OVER", BG_DARK_HEADER, Color.WHITE, null, 4, 14);
@@ -150,11 +148,11 @@ public class ScoreboardScreen extends JPanel {
                 AppDialog.BODY, AppDialog.TEXT_MUTED, JLabel.CENTER);
 
         var items = new JPanel[] {
-            centered(buildTrophyPanel(), 0),
-            centered(gameOverBadge, 0),
-            centered(congratsLabel),
-            centered(sub),
-            centered(buildScoreCard(), 8)
+            AppDialog.centerFlow(buildTrophyPanel(), 0),
+            AppDialog.centerFlow(gameOverBadge, 0),
+            AppDialog.centerFlow(congratsLabel, 0),
+            AppDialog.centerFlow(sub, 0),
+            AppDialog.centerFlow(buildScoreCard(), 8)
         };
         left.add(stackItems(items, 12), BorderLayout.CENTER);
         return left;
@@ -190,25 +188,17 @@ public class ScoreboardScreen extends JPanel {
     // =====================================================================
 
     private JPanel buildRightColumn() {
-        var card = new JPanel(new BorderLayout(0, 16));
-        card.setBackground(AppDialog.CARD_BG);
-        card.setBorder(new CompoundBorder(new LineBorder(AppDialog.CARD_BORDER, 1), new EmptyBorder(24, 28, 24, 28)));
+        var card = AppDialog.card(new BorderLayout(0, 16), 24, 28);
 
-        var titles = AppDialog.panel();
-        titles.setLayout(new GridLayout(2, 1, 0, 2));
-        titles.add(AppDialog.label("FINAL RESULTS", AppDialog.SMALL_BOLD, AppDialog.PRIMARY_BLUE));
-        titles.add(AppDialog.label("Scoreboard", AppDialog.TITLE_24, AppDialog.TEXT_DARK));
+        var titles = AppDialog.titleStack(2,
+                AppDialog.label("FINAL RESULTS", AppDialog.SMALL_BOLD, AppDialog.PRIMARY_BLUE),
+                AppDialog.label("Scoreboard", AppDialog.TITLE_24, AppDialog.TEXT_DARK));
 
         completeBadge = AppDialog.badge("TOURNAMENT COMPLETE", AppDialog.SUCCESS_BG, AppDialog.SUCCESS_TEXT,
                 AppDialog.SUCCESS_BORDER, 6, 14);
-        var badgeHolder = AppDialog.panel();
-        badgeHolder.setLayout(new FlowLayout(FlowLayout.RIGHT, 0, 6));
-        badgeHolder.add(completeBadge);
+        var badgeHolder = AppDialog.group(FlowLayout.RIGHT, 0, 6, completeBadge);
 
-        var cardHeader = AppDialog.panel();
-        cardHeader.setLayout(new BorderLayout());
-        cardHeader.add(titles, BorderLayout.WEST);
-        cardHeader.add(badgeHolder, BorderLayout.EAST);
+        var cardHeader = AppDialog.pageHeader(titles, badgeHolder, BorderLayout.EAST, 0, 0, 0, 0);
         card.add(cardHeader, BorderLayout.NORTH);
 
         card.add(stackItems(new JPanel[] {buildTableHeader(), buildRowsPanel(), buildDivider(), buildStatsRow()}, 12),
@@ -230,8 +220,7 @@ public class ScoreboardScreen extends JPanel {
             quitBtn.addActionListener(onQuitAction);
         }
 
-        var buttonRow = AppDialog.panel();
-        buttonRow.setLayout(new GridLayout(1, 2, 12, 0));
+        var buttonRow = AppDialog.panel(new GridLayout(1, 2, 12, 0));
         buttonRow.add(nextBtn);
         buttonRow.add(quitBtn);
         card.add(buttonRow, BorderLayout.SOUTH);
@@ -240,27 +229,17 @@ public class ScoreboardScreen extends JPanel {
 
     /** ส่วนหัวตาราง: RANK, PLAYER, SCORE */
     private JPanel buildTableHeader() {
-        var header = AppDialog.panel();
-        header.setLayout(new BorderLayout(10, 0));
+        var header = AppDialog.panel(new BorderLayout(10, 0));
         header.setBorder(new EmptyBorder(0, 13, 0, 13));
 
-        header.add(tableTitle("RANK", 36, JLabel.LEFT), BorderLayout.WEST);
-        header.add(tableTitle("PLAYER", 0, JLabel.LEADING), BorderLayout.CENTER);
-        header.add(tableTitle("SCORE", 50, JLabel.RIGHT), BorderLayout.EAST);
+        header.add(AppDialog.tableTitle("RANK", 36, 20, JLabel.LEFT), BorderLayout.WEST);
+        header.add(AppDialog.tableTitle("PLAYER", 0, 20, JLabel.LEADING), BorderLayout.CENTER);
+        header.add(AppDialog.tableTitle("SCORE", 50, 20, JLabel.RIGHT), BorderLayout.EAST);
         return header;
     }
 
-    private static JLabel tableTitle(String text, int width, int align) {
-        var label = AppDialog.label(text, AppDialog.SMALL_BOLD, AppDialog.TEXT_LIGHT, align);
-        if (width > 0) {
-            label.setPreferredSize(new Dimension(width, 20));
-        }
-        return label;
-    }
-
     private JPanel buildRowsPanel() {
-        rowsPanel = AppDialog.panel();
-        rowsPanel.setLayout(new GridLayout(Math.max(1, playerNames.length), 1, 0, 6));
+        rowsPanel = AppDialog.panel(new GridLayout(Math.max(1, playerNames.length), 1, 0, 6));
         for (int i = 0; i < playerNames.length; i++) {
             rowsPanel.add(buildLeaderboardRow(i + 1, playerNames[i], playerScores[i]));
         }
@@ -285,14 +264,11 @@ public class ScoreboardScreen extends JPanel {
         rankLabel.setPreferredSize(new Dimension(36, 26));
         row.add(rankLabel, BorderLayout.WEST);
 
-        var playerPart = AppDialog.panel();
-        playerPart.setLayout(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        playerPart.add(AppDialog.avatar(name.substring(0, 1), rankColor(rank), 28));
-        playerPart.add(AppDialog.label(name, AppDialog.BODY_BOLD, AppDialog.TEXT_DARK));
-        if (winner) {
-            playerPart.add(AppDialog.badge("WINNER", GOLD_BADGE_BG, AppDialog.GOLD_TEXT, null, 2, 8));
-        }
-        row.add(playerPart, BorderLayout.CENTER);
+        var winnerBadge = winner
+                ? AppDialog.badge("WINNER", GOLD_BADGE_BG, AppDialog.GOLD_TEXT, null, 2, 8)
+                : null;
+        row.add(AppDialog.playerWho(name.substring(0, 1), rankColor(rank), name, 28, 10, winnerBadge),
+                BorderLayout.CENTER);
 
         var scoreLabel = AppDialog.label(String.valueOf(score), AppDialog.TITLE, scoreColor, JLabel.RIGHT);
         scoreLabel.setPreferredSize(new Dimension(50, 26));
@@ -317,8 +293,7 @@ public class ScoreboardScreen extends JPanel {
         playersValue = AppDialog.label("", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
         targetValue = AppDialog.label("", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
 
-        var stats = AppDialog.panel();
-        stats.setLayout(new GridLayout(1, 3, 10, 0));
+        var stats = AppDialog.panel(new GridLayout(1, 3, 10, 0));
         stats.add(statItem("Rounds played", roundsValue));
         stats.add(statItem("Players", playersValue));
         stats.add(statItem("Secret shapes", targetValue));
@@ -326,8 +301,7 @@ public class ScoreboardScreen extends JPanel {
     }
 
     private static JPanel statItem(String title, JLabel value) {
-        var item = AppDialog.panel();
-        item.setLayout(new GridLayout(2, 1, 0, 2));
+        var item = AppDialog.panel(new GridLayout(2, 1, 0, 2));
         item.add(AppDialog.label(title, AppDialog.SMALL, AppDialog.TEXT_LIGHT));
         item.add(value);
         return item;
@@ -343,14 +317,12 @@ public class ScoreboardScreen extends JPanel {
 
     /** ซ้อนคอมโพเนนต์เรียงจากบนลงล่างตามระยะห่างที่กำหนด */
     private static JPanel stackItems(JPanel[] items, int gap) {
-        var root = AppDialog.panel();
-        root.setLayout(new BorderLayout(0, gap));
+        var root = AppDialog.panel(new BorderLayout(0, gap));
         var current = root;
         for (int i = 0; i < items.length; i++) {
             current.add(items[i], BorderLayout.NORTH);
             if (i < items.length - 1) {
-                var next = AppDialog.panel();
-                next.setLayout(new BorderLayout(0, gap));
+                var next = AppDialog.panel(new BorderLayout(0, gap));
                 current.add(next, BorderLayout.CENTER);
                 current = next;
             }
@@ -358,22 +330,4 @@ public class ScoreboardScreen extends JPanel {
         return root;
     }
 
-    /** จัดวางคอมโพเนนต์ให้อยู่ตรงกลางแนวนอน */
-    private static JPanel centered(JPanel inner, int padV) {
-        var holder = AppDialog.panel();
-        holder.setLayout(new FlowLayout(FlowLayout.CENTER, 0, padV));
-        holder.add(inner);
-        return holder;
-    }
-
-    private static JPanel centered(JLabel inner) {
-        return centered(inner, 0);
-    }
-
-    private static JPanel centered(JLabel inner, int padV) {
-        var holder = AppDialog.panel();
-        holder.setLayout(new FlowLayout(FlowLayout.CENTER, 0, padV));
-        holder.add(inner);
-        return holder;
-    }
 }

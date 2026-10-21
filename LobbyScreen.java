@@ -59,8 +59,7 @@ public class LobbyScreen extends JPanel {
         setLayout(new BorderLayout());
         setBackground(AppDialog.BG_LIGHT);
 
-        var mainContent = AppDialog.panel();
-        mainContent.setLayout(new BorderLayout(14, 14));
+        var mainContent = AppDialog.panel(new BorderLayout(14, 14));
         mainContent.setBorder(new EmptyBorder(18, 24, 16, 24));
         mainContent.add(createSubHeader(), BorderLayout.NORTH);
 
@@ -70,8 +69,7 @@ public class LobbyScreen extends JPanel {
         var right = createRightPanel();
         right.setPreferredSize(new Dimension(SIDE_WIDTH, 0));
 
-        var columns = AppDialog.panel();
-        columns.setLayout(new BorderLayout(16, 0));
+        var columns = AppDialog.panel(new BorderLayout(16, 0));
         columns.add(left, BorderLayout.WEST);
         columns.add(createCenterPanel(), BorderLayout.CENTER);
         columns.add(right, BorderLayout.EAST);
@@ -89,16 +87,11 @@ public class LobbyScreen extends JPanel {
      * สร้างส่วนหัวด้านบน: แสดงชื่อล็อบบี้ คำอธิบายสถานะ และป้ายพอร์ตของห้อง
      */
     private JPanel createSubHeader() {
-        var subHeader = AppDialog.panel();
-        subHeader.setLayout(new BorderLayout());
-
-        var titles = AppDialog.panel();
-        titles.setLayout(new GridLayout(3, 1, 0, 2));
-        titles.add(AppDialog.label("GAME LOBBY", AppDialog.SUBTITLE, AppDialog.PRIMARY_BLUE));
-        titles.add(AppDialog.label("Room", AppDialog.TITLE_LARGE, AppDialog.TEXT_DARK));
         subHeaderStatusLabel = AppDialog.label("Waiting for players to join...", AppDialog.SCREEN_SUB, AppDialog.TEXT_MUTED);
-        titles.add(subHeaderStatusLabel);
-        subHeader.add(titles, BorderLayout.WEST);
+        var titles = AppDialog.titleStack(2,
+                AppDialog.label("GAME LOBBY", AppDialog.SUBTITLE, AppDialog.PRIMARY_BLUE),
+                AppDialog.label("Room", AppDialog.TITLE_LARGE, AppDialog.TEXT_DARK),
+                subHeaderStatusLabel);
 
         // ป้ายแสดงพอร์ตของห้อง (กรอบสี่เหลี่ยมสีฟ้า)
         var roomCode = new JPanel(new GridLayout(2, 1, 0, 0));
@@ -108,36 +101,28 @@ public class LobbyScreen extends JPanel {
         roomCodeValueLabel = AppDialog.label("----", AppDialog.SUBTITLE, AppDialog.PRIMARY_BLUE, JLabel.CENTER);
         roomCode.add(roomCodeValueLabel);
 
-        var codeSlot = AppDialog.panel();
-        codeSlot.setLayout(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        codeSlot.add(roomCode);
-        subHeader.add(codeSlot, BorderLayout.EAST);
-        return subHeader;
+        var codeSlot = AppDialog.group(FlowLayout.RIGHT, 0, 0, roomCode);
+        return AppDialog.pageHeader(titles, codeSlot, BorderLayout.EAST, 0, 0, 0, 0);
     }
 
     /**
      * คอลัมน์ฝั่งซ้าย: แสดงรายชื่อผู้เล่นและข้อมูลเกี่ยวกับเซิร์ฟเวอร์
      */
     private JPanel createLeftPanel() {
-        var playersCard = AppDialog.card();
-        playersCard.setLayout(new BorderLayout(0, 12));
+        var playersCard = AppDialog.card(new BorderLayout(0, 12));
         playersCountLabel = AppDialog.label("Players in room: 0", AppDialog.SUBTITLE, AppDialog.TEXT_DARK);
         playersCard.add(playersCountLabel, BorderLayout.NORTH);
 
-        playerRowsPanel = new JPanel(new GridLayout(0, 1, 0, 8));
-        playerRowsPanel.setOpaque(false);
-        var playersBody = AppDialog.panel();
-        playersBody.setLayout(new BorderLayout(0, 8));
+        playerRowsPanel = AppDialog.panel(new GridLayout(0, 1, 0, 8));
+        var playersBody = AppDialog.panel(new BorderLayout(0, 8));
         playersBody.add(playerRowsPanel, BorderLayout.NORTH);
         playersBody.add(createEmptySlot(), BorderLayout.CENTER);
         playersCard.add(playersBody, BorderLayout.CENTER);
 
-        var serverCard = AppDialog.card();
-        serverCard.setLayout(new BorderLayout(0, 10));
+        var serverCard = AppDialog.card(new BorderLayout(0, 10));
         serverCard.add(AppDialog.label("Server information", AppDialog.SUBTITLE, AppDialog.TEXT_DARK), BorderLayout.NORTH);
 
-        var serverRows = AppDialog.panel();
-        serverRows.setLayout(new GridLayout(0, 1, 0, 6));
+        var serverRows = AppDialog.panel(new GridLayout(0, 1, 0, 6));
         addressValueLabel = AppDialog.label("-", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
         hostValueLabel = AppDialog.label("-", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
         playersValueLabel = AppDialog.label("-", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
@@ -145,8 +130,7 @@ public class LobbyScreen extends JPanel {
         serverRows.add(createInfoRow("Host", hostValueLabel));
         serverRows.add(createInfoRow("Players", playersValueLabel));
 
-        var serverBody = AppDialog.panel();
-        serverBody.setLayout(new BorderLayout(0, 12));
+        var serverBody = AppDialog.panel(new BorderLayout(0, 12));
         serverBody.add(serverRows, BorderLayout.NORTH);
         minPlayersBadge = AppDialog.badge("Waiting for players", AppDialog.WARNING_BG, AppDialog.WARNING_TEXT,
                 AppDialog.WARNING_BORDER, 4, 10);
@@ -154,8 +138,7 @@ public class LobbyScreen extends JPanel {
         serverCard.add(serverBody, BorderLayout.CENTER);
 
         // รวมการ์ดผู้เล่นและการ์ดข้อมูลเซิร์ฟเวอร์เข้าด้วยกัน
-        var left = AppDialog.panel();
-        left.setLayout(new BorderLayout(0, 12));
+        var left = AppDialog.panel(new BorderLayout(0, 12));
         left.add(playersCard, BorderLayout.NORTH);
         left.add(AppDialog.pin(serverCard, BorderLayout.NORTH), BorderLayout.CENTER);
         return left;
@@ -165,11 +148,9 @@ public class LobbyScreen extends JPanel {
      * คอลัมน์ตรงกลาง: แสดงรูปภาพพรีวิวตัวอย่าง หลอดแสดงความพร้อม และปุ่ม READY / START GAME
      */
     private JPanel createCenterPanel() {
-        var center = AppDialog.panel();
-        center.setLayout(new BorderLayout(0, 14));
+        var center = AppDialog.panel(new BorderLayout(0, 14));
 
-        var previewCard = AppDialog.card();
-        previewCard.setLayout(new BorderLayout(0, 20));
+        var previewCard = AppDialog.card(new BorderLayout(0, 20));
 
         var canvas = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 30));
         canvas.setBackground(AppDialog.BLUE_LIGHT_BG);
@@ -179,15 +160,13 @@ public class LobbyScreen extends JPanel {
         }
         previewCard.add(canvas, BorderLayout.NORTH);
 
-        var headings = AppDialog.panel();
-        headings.setLayout(new GridLayout(3, 1, 0, 4));
-        headings.add(AppDialog.label("Almost ready!", AppDialog.TITLE, AppDialog.TEXT_DARK, JLabel.CENTER));
-        headings.add(AppDialog.label("Every player must press READY", AppDialog.BODY, AppDialog.TEXT_MUTED, JLabel.CENTER));
-        headings.add(AppDialog.label("before the host can start the game.", AppDialog.BODY, AppDialog.TEXT_MUTED, JLabel.CENTER));
+        var headings = AppDialog.titleStack(4,
+                AppDialog.label("Almost ready!", AppDialog.TITLE, AppDialog.TEXT_DARK, JLabel.CENTER),
+                AppDialog.label("Every player must press READY", AppDialog.BODY, AppDialog.TEXT_MUTED, JLabel.CENTER),
+                AppDialog.label("before the host can start the game.", AppDialog.BODY, AppDialog.TEXT_MUTED, JLabel.CENTER));
 
         // หลอดแสดงความพร้อม: แถวข้อความด้านบนและแท่งแสดงสถานะผู้เล่น
-        var progressHeader = AppDialog.panel();
-        progressHeader.setLayout(new BorderLayout());
+        var progressHeader = AppDialog.panel(new BorderLayout());
         progressHeader.add(AppDialog.label("Players ready", AppDialog.SMALL_BOLD, AppDialog.TEXT_DARK), BorderLayout.WEST);
         readyCountLabel = AppDialog.label("0 of 0", AppDialog.SMALL_BOLD, AppDialog.PRIMARY_BLUE);
         progressHeader.add(readyCountLabel, BorderLayout.EAST);
@@ -195,22 +174,18 @@ public class LobbyScreen extends JPanel {
         trackPanel = new JPanel(new GridLayout(1, 1, 0, 0));
         trackPanel.setBackground(AppDialog.CARD_BORDER);
         trackPanel.setPreferredSize(new Dimension(0, 8));
-        var trackSlot = AppDialog.panel();
-        trackSlot.setLayout(new BorderLayout());
+        var trackSlot = AppDialog.panel(new BorderLayout());
         trackSlot.add(trackPanel, BorderLayout.NORTH);
 
-        var progress = AppDialog.panel();
-        progress.setLayout(new BorderLayout(0, 6));
+        var progress = AppDialog.panel(new BorderLayout(0, 6));
         progress.add(progressHeader, BorderLayout.NORTH);
         progress.add(trackSlot, BorderLayout.CENTER);
 
-        var info = AppDialog.panel();
-        info.setLayout(new BorderLayout(0, 18));
+        var info = AppDialog.panel(new BorderLayout(0, 18));
         info.add(headings, BorderLayout.NORTH);
         info.add(progress, BorderLayout.CENTER);
 
-        var infoSlot = AppDialog.panel();
-        infoSlot.setLayout(new BorderLayout());
+        var infoSlot = AppDialog.panel(new BorderLayout());
         infoSlot.add(info, BorderLayout.NORTH);
         previewCard.add(infoSlot, BorderLayout.CENTER);
         center.add(previewCard, BorderLayout.CENTER);
@@ -234,8 +209,7 @@ public class LobbyScreen extends JPanel {
             startBtn.addActionListener(onStartGameAction);
         }
 
-        var buttonRow = AppDialog.panel();
-        buttonRow.setLayout(new GridLayout(1, 2, 12, 0));
+        var buttonRow = AppDialog.panel(new GridLayout(1, 2, 12, 0));
         buttonRow.add(readyBtn);
         buttonRow.add(startBtn);
         center.add(buttonRow, BorderLayout.SOUTH);
@@ -246,17 +220,13 @@ public class LobbyScreen extends JPanel {
      * คอลัมน์ฝั่งขวา: ระบบแชต ข้อมูลกติกาของรอบ และปุ่มออกจากห้อง
      */
     private JPanel createRightPanel() {
-        var right = AppDialog.panel();
-        right.setLayout(new BorderLayout(0, 12));
+        var right = AppDialog.panel(new BorderLayout(0, 12));
 
-        var chatCard = AppDialog.card();
-        chatCard.setLayout(new BorderLayout(0, 10));
+        var chatCard = AppDialog.card(new BorderLayout(0, 10));
         chatCard.add(AppDialog.label("Chat", AppDialog.SUBTITLE, AppDialog.TEXT_DARK), BorderLayout.NORTH);
 
-        chatListPanel = new JPanel(new GridLayout(0, 1, 0, 6));
-        chatListPanel.setOpaque(false);
-        var chatSlot = AppDialog.panel();
-        chatSlot.setLayout(new BorderLayout());
+        chatListPanel = AppDialog.panel(new GridLayout(0, 1, 0, 6));
+        var chatSlot = AppDialog.panel(new BorderLayout());
         chatSlot.add(chatListPanel, BorderLayout.NORTH);
 
         var scroll = new JScrollPane(chatSlot);
@@ -281,18 +251,15 @@ public class LobbyScreen extends JPanel {
         sendBtn.addActionListener(sendChat);
         chatField.addActionListener(sendChat);
 
-        var inputRow = AppDialog.panel();
-        inputRow.setLayout(new BorderLayout(6, 0));
+        var inputRow = AppDialog.panel(new BorderLayout(6, 0));
         inputRow.add(chatField, BorderLayout.CENTER);
         inputRow.add(sendBtn, BorderLayout.EAST);
         chatCard.add(inputRow, BorderLayout.SOUTH);
 
         // การตั้งค่าของแต่ละรอบ อ่านมาจากค่าคงที่ของ GameServer
-        var settingsCard = AppDialog.card();
-        settingsCard.setLayout(new BorderLayout(0, 10));
+        var settingsCard = AppDialog.card(new BorderLayout(0, 10));
         settingsCard.add(AppDialog.label("Round settings", AppDialog.SUBTITLE, AppDialog.TEXT_DARK), BorderLayout.NORTH);
-        var settingRows = AppDialog.panel();
-        settingRows.setLayout(new GridLayout(0, 1, 0, 6));
+        var settingRows = AppDialog.panel(new GridLayout(0, 1, 0, 6));
         settingRows.add(createInfoRow("Target", GameServer.MIN_SHAPES + "-" + GameServer.MAX_SHAPES + " shapes"));
         settingRows.add(createInfoRow("Round time", GameServer.ROUND_SECONDS + " sec"));
         settingRows.add(createInfoRow("Rounds", "players x " + GameServer.ROUNDS_PER_PLAYER));
@@ -304,8 +271,7 @@ public class LobbyScreen extends JPanel {
             leaveBtn.addActionListener(onLeaveAction);
         }
 
-        var rest = AppDialog.panel();
-        rest.setLayout(new BorderLayout(0, 12));
+        var rest = AppDialog.panel(new BorderLayout(0, 12));
         rest.add(settingsCard, BorderLayout.NORTH);
         rest.add(AppDialog.pin(leaveBtn, BorderLayout.NORTH), BorderLayout.CENTER);
 
@@ -411,13 +377,9 @@ public class LobbyScreen extends JPanel {
                 border = AppDialog.WARNING_BORDER;
             }
             String display = myName.equals(name) ? name + " (you)" : name;
-            var row = AppDialog.panel();
-            row.setLayout(new BorderLayout(8, 0));
-            var who = AppDialog.panel();
-            who.setLayout(new FlowLayout(FlowLayout.LEFT, 8, 0));
-            who.add(AppDialog.avatar(AppDialog.initialOf(name), AppDialog.avatarColor(i), 26));
-            who.add(AppDialog.label(display, AppDialog.BODY_BOLD, AppDialog.TEXT_DARK));
-            row.add(who, BorderLayout.WEST);
+            var row = AppDialog.panel(new BorderLayout(8, 0));
+            row.add(AppDialog.playerWho(AppDialog.initialOf(name), AppDialog.avatarColor(i), display, 26, 8, null),
+                    BorderLayout.WEST);
             row.add(AppDialog.badge(status, bg, fg, border, 4, 10), BorderLayout.EAST);
             playerRowsPanel.add(row);
         }
@@ -504,8 +466,7 @@ public class LobbyScreen extends JPanel {
         boolean isSystem = "System".equalsIgnoreCase(sender);
         Color senderColor = isUser ? AppDialog.PRIMARY_BLUE : (isSystem ? AppDialog.WARNING_TEXT : AppDialog.TEXT_MUTED);
 
-        var message = AppDialog.panel();
-        message.setLayout(new GridLayout(2, 1, 0, 0));
+        var message = AppDialog.panel(new GridLayout(2, 1, 0, 0));
         message.add(AppDialog.label(sender, AppDialog.SMALL_BOLD, senderColor));
         message.add(AppDialog.label(text, AppDialog.SMALL, AppDialog.TEXT_DARK));
         chatListPanel.add(message);
@@ -532,8 +493,7 @@ public class LobbyScreen extends JPanel {
     }
 
     private JPanel createInfoRow(String label, JLabel valueLabel) {
-        var row = AppDialog.panel();
-        row.setLayout(new BorderLayout());
+        var row = AppDialog.panel(new BorderLayout());
         row.add(AppDialog.label(label, AppDialog.BODY, AppDialog.TEXT_MUTED), BorderLayout.WEST);
         row.add(valueLabel, BorderLayout.EAST);
         return row;

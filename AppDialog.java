@@ -263,11 +263,68 @@ public final class AppDialog {
         return p;
     }
 
+    /** สร้าง JPanel โปร่งแสงพร้อม BorderLayout */
+    static JPanel panel(BorderLayout layout) {
+        var p = panel();
+        p.setLayout(layout);
+        return p;
+    }
+
+    /** สร้าง JPanel โปร่งแสงพร้อม FlowLayout */
+    static JPanel panel(FlowLayout layout) {
+        var p = panel();
+        p.setLayout(layout);
+        return p;
+    }
+
+    /** สร้าง JPanel โปร่งแสงพร้อม GridLayout */
+    static JPanel panel(GridLayout layout) {
+        var p = panel();
+        p.setLayout(layout);
+        return p;
+    }
+
     /** สร้าง JPanel สีขาวลักษณะเป็นการ์ด มีขอบบางและระยะเว้น 16px */
     static JPanel card() {
         var card = new JPanel();
         card.setBackground(CARD_BG);
         card.setBorder(box(CARD_BORDER, 1, 16, 16));
+        return card;
+    }
+
+    /** สร้างการ์ดพร้อม BorderLayout */
+    static JPanel card(BorderLayout layout) {
+        var card = card();
+        card.setLayout(layout);
+        return card;
+    }
+
+    /** สร้างการ์ดพร้อม FlowLayout */
+    static JPanel card(FlowLayout layout) {
+        var card = card();
+        card.setLayout(layout);
+        return card;
+    }
+
+    /** สร้างการ์ดพร้อม GridLayout */
+    static JPanel card(GridLayout layout) {
+        var card = card();
+        card.setLayout(layout);
+        return card;
+    }
+
+    /** สร้างการ์ดที่มีระยะเว้นด้านในตามที่กำหนด */
+    static JPanel card(int padV, int padH) {
+        var card = new JPanel();
+        card.setBackground(CARD_BG);
+        card.setBorder(box(CARD_BORDER, 1, padV, padH));
+        return card;
+    }
+
+    /** สร้างการ์ดพร้อม BorderLayout และระยะเว้นด้านในตามที่กำหนด */
+    static JPanel card(BorderLayout layout, int padV, int padH) {
+        var card = card(padV, padH);
+        card.setLayout(layout);
         return card;
     }
 
@@ -397,6 +454,111 @@ public final class AppDialog {
             header.add(label(sub, subFont, TEXT_MUTED), BorderLayout.CENTER);
         }
         return header;
+    }
+
+    /** สร้างกลุ่ม label/panel แนวเดียวตามการจัดตำแหน่งและระยะห่างที่กำหนด */
+    static JPanel group(int align, int hgap, int vgap, Container... items) {
+        var group = panel(new FlowLayout(align, hgap, vgap));
+        for (Container item : items) {
+            group.add(item);
+        }
+        return group;
+    }
+
+    /** สร้างหัวคอลัมน์ของตาราง พร้อมความกว้างและความสูงตามที่กำหนด */
+    static JLabel tableTitle(String text, int width, int height, int align) {
+        var label = label(text, SMALL_BOLD, TEXT_LIGHT, align);
+        if (width > 0) {
+            label.setPreferredSize(new Dimension(width, height));
+        }
+        return label;
+    }
+
+    /** สร้างกลุ่มหัวข้อแนวตั้งจาก label หลายบรรทัด */
+    static JPanel titleStack(int gap, JLabel... labels) {
+        var titles = panel(new GridLayout(labels.length, 1, 0, gap));
+        for (JLabel label : labels) {
+            titles.add(label);
+        }
+        return titles;
+    }
+
+    /** สร้างแถบหัวเรื่องที่มีกลุ่มหัวข้อด้านซ้ายและ actions ตามขอบที่กำหนด */
+    static JPanel pageHeader(JPanel titles, Container actions, String actionsEdge,
+                             int top, int left, int bottom, int right) {
+        var header = panel(new BorderLayout());
+        header.setBorder(new EmptyBorder(top, left, bottom, right));
+        header.add(titles, BorderLayout.WEST);
+        if (actions != null) {
+            header.add(actions, actionsEdge);
+        }
+        return header;
+    }
+
+    /** สร้างกลุ่มข้อมูลผู้เล่น: avatar, ชื่อ และ badge ที่ไม่บังคับ */
+    static JPanel playerWho(String avatarText, Color avatarColor, String name, int avatarSize,
+                            int hgap, JLabel badge) {
+        var who = panel(new FlowLayout(FlowLayout.LEFT, hgap, 0));
+        who.add(avatar(avatarText, avatarColor, avatarSize));
+        who.add(label(name, BODY_BOLD, TEXT_DARK));
+        if (badge != null) {
+            who.add(badge);
+        }
+        return who;
+    }
+
+    /**
+     * สร้างแถวคะแนนสดสำหรับ Questioner/Guesser
+     * maxHeight = 0 หมายถึงไม่ล็อกความสูงของแถว
+     */
+    static JPanel scoreRow(String name, int index, int score, boolean highlight,
+                           int padV, int padH, boolean fixedScoreWidth, int maxHeight) {
+        var row = panel(new BorderLayout());
+        if (maxHeight > 0) {
+            row.setAlignmentX(JPanel.LEFT_ALIGNMENT);
+            row.setMaximumSize(new Dimension(Integer.MAX_VALUE, maxHeight));
+        }
+        row.setOpaque(highlight);
+        row.setBackground(BLUE_LIGHT_BG);
+        row.setBorder(highlight ? box(BLUE_BORDER, 1, 4, 8) : new EmptyBorder(padV, padH, padV, padH));
+
+        row.add(playerWho(initialOf(name), avatarColor(index), name, 24, 8, null), BorderLayout.WEST);
+        var scoreLabel = label(String.valueOf(score), BODY_BOLD, TEXT_DARK, JLabel.RIGHT);
+        if (fixedScoreWidth) {
+            scoreLabel.setPreferredSize(new Dimension(24, 24));
+        }
+        row.add(scoreLabel, BorderLayout.EAST);
+        return row;
+    }
+
+    /** อัปเดตป้ายเวลานับถอยหลังและเปลี่ยนเป็นสีแดงในช่วงท้าย */
+    static void setTimeLeft(JLabel badge, int seconds) {
+        boolean hurry = seconds <= GameServer.BONUS_WINDOW_SECONDS;
+        paintTopBadge(badge, timeText(seconds),
+                hurry ? DANGER_BG : WARNING_BG,
+                hurry ? DANGER_TEXT : WARNING_TEXT,
+                hurry ? DANGER_BORDER : WARNING_BORDER, true);
+    }
+
+    /** แสดงสถานะรอก่อนเริ่มนับเวลา */
+    static void showWaitingTime(JLabel badge) {
+        paintTopBadge(badge, "Time: --:--", WARNING_BG, WARNING_TEXT, WARNING_BORDER, true);
+    }
+
+    /** จัดคอมโพเนนต์ไว้กลางแนวนอนด้วย FlowLayout */
+    static JPanel centerFlow(Container inner, int padV) {
+        var holder = panel(new FlowLayout(FlowLayout.CENTER, 0, padV));
+        holder.add(inner);
+        return holder;
+    }
+
+    /** จัด label ไว้กลางแนวตั้งด้วย BoxLayout */
+    static JPanel centerVertical(JLabel label) {
+        var wrapper = stack(panel());
+        wrapper.add(glue());
+        wrapper.add(label);
+        wrapper.add(glue());
+        return wrapper;
     }
 
     /** สร้างปุ่มสไตล์ Flat พร้อมระบบเปลี่ยนสีเมื่อเมาส์ชี้และกด */
