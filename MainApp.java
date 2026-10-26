@@ -1,31 +1,14 @@
-import java.awt.BorderLayout;
-import java.awt.Dimension;
-import java.awt.Insets;
-import java.awt.Toolkit;
 import java.io.IOException;
 import java.net.*;
 import java.util.*;
 import java.util.concurrent.*;
-import javax.swing.*;
 
 /**
  * MainApp: หน้าต่างหลักของแอปพลิเคชัน (Master window)
  * ทำหน้าที่เป็นศูนย์กลางถือครองหน้าจอทั้ง 6 หน้าจอ (screens), วัตถุด้านเครือข่าย (GameClient, GameServer)
  * และเป็นจุดเดียวที่จัดการแปลงข้อความที่ได้รับจากเซิร์ฟเวอร์เพื่อสลับหรืออัปเดตหน้าจอ UI
  */
-public class MainApp extends JFrame implements JoinScreen.JoinListener {
-
-    // ตัวระบุชื่อของแต่ละหน้าจอ
-    public static final String SCREEN_JOIN = "JOIN";
-    public static final String SCREEN_LOBBY = "LOBBY";
-    public static final String SCREEN_QUESTIONER = "QUESTIONER";
-    public static final String SCREEN_GUESSER = "GUESSER";
-    public static final String SCREEN_SCOREBOARD = "SCOREBOARD";
-    public static final String SCREEN_ROUND_RESULT = "ROUND_RESULT";
-
-    /** พื้นที่แสดงผลสำหรับสลับหน้าจอพาเนลต่างๆ ด้วยเมธอด showScreen() */
-    private final JPanel screenHost = new JPanel(new BorderLayout());
-    private final Map<String, JPanel> screens = new LinkedHashMap<>();
+public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
 
     // วัตถุหน้าจอทั้ง 6 หน้าจอ
     private final JoinScreen joinScreen;
@@ -48,7 +31,6 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     private boolean isHost;             // สถานะว่าเป็นโฮสต์ของห้องหรือไม่
     private String connectAddress = ""; // ที่อยู่ IP:Port ที่ใช้เชื่อมต่อ
     private boolean intentionalLeave;   // สถานะว่าเป็นการกดออกจากห้องเองโดยเจตนาหรือไม่
-    private String currentScreen = SCREEN_JOIN; // หน้าจอปัจจุบันที่กำลังแสดงอยู่
 
     /** ระยะเวลาที่รอการตอบรับ JOIN_SUCCESS / JOIN_FAILED จากโฮสต์ ก่อนจะหมดเวลา (8 วินาที) */
     private static final int JOIN_REPLY_TIMEOUT_MS = 8000;
@@ -67,17 +49,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
      * คอนสตรักเตอร์เริ่มต้น MainApp: กำหนดขนาดหน้าต่าง สร้างหน้าจอทั้ง 6 และแสดงหน้าจอแรก (JoinScreen)
      */
     public MainApp() {
-        setTitle("Guess What It Looks Like? - Multiplayer Party Game (LAN)");
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        // ปรับขนาดหน้าต่างให้เหมาะสมกับหน้าจอที่ใช้งานได้ เพื่อไม่ให้ปุ่มด้านล่างตกขอบจอ
-        var toolkit = Toolkit.getDefaultToolkit();
-        Insets usable = toolkit.getScreenInsets(getGraphicsConfiguration());
-        Dimension screen = toolkit.getScreenSize();
-        int width = Math.min(1360, screen.width - usable.left - usable.right);
-        int height = Math.min(800, screen.height - usable.top - usable.bottom);
-        setSize(width, height);
-        setLocationRelativeTo(null);
-        setLayout(new BorderLayout());
+        super();
 
         // หน้าจอที่ 1: หน้าจอสร้าง/เข้าร่วมห้อง
         joinScreen = new JoinScreen(this);
@@ -101,32 +73,20 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         roundResultScreen = new RoundResultScreen();
 
         // บันทึกหน้าจอทั้งหมดลงใน Map
-        screens.put(SCREEN_JOIN, joinScreen);
-        screens.put(SCREEN_LOBBY, lobbyScreen);
-        screens.put(SCREEN_QUESTIONER, questionerScreen);
-        screens.put(SCREEN_GUESSER, guesserScreen);
-        screens.put(SCREEN_ROUND_RESULT, roundResultScreen);
-        screens.put(SCREEN_SCOREBOARD, scoreboardScreen);
+        registerScreen(SCREEN_JOIN, joinScreen);
+        registerScreen(SCREEN_LOBBY, lobbyScreen);
+        registerScreen(SCREEN_QUESTIONER, questionerScreen);
+        registerScreen(SCREEN_GUESSER, guesserScreen);
+        registerScreen(SCREEN_ROUND_RESULT, roundResultScreen);
+        registerScreen(SCREEN_SCOREBOARD, scoreboardScreen);
 
-        add(screenHost, BorderLayout.CENTER);
         showScreen(SCREEN_JOIN);
         setVisible(true);
     }
 
-    /**
-     * สลับพาเนลหน้าจอที่กำลังแสดงอยู่ตามชื่อที่ระบุ
-     */
-    public void showScreen(String name) {
-        currentScreen = name;
-        screenHost.removeAll();
-        screenHost.add(screens.get(name), BorderLayout.CENTER);
-        screenHost.revalidate();
-        screenHost.repaint();
-    }
-
     /** ตรวจสอบว่าหน้าจอปัจจุบันคือหน้าจอ JoinScreen แล้วหรือไม่ */
     private boolean alreadyAtJoinScreen() {
-        return SCREEN_JOIN.equals(currentScreen);
+        return SCREEN_JOIN.equals(getCurrentScreen());
     }
 
     // =====================================================================
