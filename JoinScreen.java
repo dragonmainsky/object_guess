@@ -27,8 +27,6 @@ public class JoinScreen extends JPanel {
     private static final Color TEXT_MUTED = new Color(107, 114, 128), DANGER_HOVER = new Color(220, 38, 38);
     private static final Color WARNING_BG = new Color(255, 247, 230), WARNING_TEXT = new Color(146, 84, 0);
     private static final Color WARNING_BORDER = new Color(250, 219, 150);
-    private static final Color NAVY = new Color(15, 28, 55), BRAND_TEXT = new Color(186, 203, 236);
-    private static final Color BRAND_FOOT = new Color(147, 171, 217);
 
     // พอร์ตเริ่มต้นที่ใช้เชื่อมต่อ
     private static final int DEFAULT_PORT = GameServer.DEFAULT_PORT;
@@ -46,24 +44,6 @@ public class JoinScreen extends JPanel {
     private JPanel statusBanner;            // แถบกล่องแสดงสถานะ
 
     /**
-     * พาเนลฝั่งซ้ายพื้นหลังสีกรมท่าเข้ม ตกแต่งด้วยลายวงกลมโปร่งแสง
-     */
-    private static class BrandPanel extends JPanel {
-        BrandPanel() {
-            super(new BorderLayout());
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            g.setColor(NAVY);
-            g.fillRect(0, 0, getWidth(), getHeight());
-            int circle = (int) (getHeight() * 1.6);
-            g.setColor(new Color(255, 255, 255, 8)); // วงกลมโปร่งแสงตกแต่ง
-            g.fillOval(getWidth() - circle / 2, -circle / 4, circle, circle);
-        }
-    }
-
-    /**
      * คอนสตรักเตอร์สำหรับสร้างหน้าจอ JoinScreen แบ่งการจัดวางออกเป็น 2 ฝั่ง (ซ้าย-ขวา)
      */
     public JoinScreen(JoinListener listener) {
@@ -79,34 +59,27 @@ public class JoinScreen extends JPanel {
     }
 
     /**
-     * สร้างส่วนแสดงผลฝั่งซ้าย: โลโก้เกม, ชื่อเกม, คำอธิบาย และ IP แนะนำของเครื่องนี้
+     * สร้างส่วนแสดงผลฝั่งซ้าย: IP แนะนำของเครื่องนี้, โลโก้เกม และชื่อเกม
      */
     private JPanel buildLeftPanel() {
-        var brand = new BrandPanel();
+        var brand = new JPanel(new BorderLayout());
+        brand.setBackground(BG_LIGHT);
         brand.setBorder(new EmptyBorder(30, 40, 40, 40));
 
-        hostInfoLabel = AppDialog.label("", AppDialog.SMALL_12, BRAND_TEXT);
+        hostInfoLabel = AppDialog.label("", AppDialog.SMALL_12, TEXT_MUTED);
         var header = AppDialog.group(FlowLayout.LEFT, 0, 0, hostInfoLabel);
         refreshHostInfo(DEFAULT_PORT);
         brand.add(header, BorderLayout.NORTH);
 
-        // จัดกลุ่มข้อความให้อยู่ตรงกลางตามแนวตั้ง
-        var center = AppDialog.panel(new GridLayout(5, 1, 0, 8));
-        var title = AppDialog.label("<html>Guess What<br>It Looks Like?</html>", AppDialog.f(Font.BOLD, 36), Color.WHITE);
-        var desc = AppDialog.label("Pick the shapes. Read your friends. Win the round.", AppDialog.SCREEN_SUB, BRAND_TEXT);
+        // จัดกลุ่มโลโก้และชื่อเกมให้อยู่ตรงกลางตามแนวตั้ง
+        var center = AppDialog.panel(new GridLayout(4, 1, 0, 8));
+        var title = AppDialog.label("<html>Guess What<br>It Looks Like?</html>", AppDialog.f(Font.BOLD, 36), TEXT_DARK);
         center.add(AppDialog.panel());
         center.add(AppDialog.group(FlowLayout.LEFT, 0, 0, ShapeImages.shape("logo", 100)));
         center.add(AppDialog.group(FlowLayout.LEFT, 0, 0, title));
-        center.add(AppDialog.group(FlowLayout.LEFT, 0, 0, desc));
         center.add(AppDialog.panel());
         brand.add(center, BorderLayout.CENTER);
 
-        var footer = AppDialog.panel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        for (String name : new String[] {"Triangle", "Circle", ShapeImages.NAMES[2]}) {
-            footer.add(ShapeImages.shape(name, 22));
-        }
-        footer.add(AppDialog.label("A quick LAN party game for 2-8 players on one Wi-Fi", AppDialog.SMALL_12, BRAND_FOOT));
-        brand.add(footer, BorderLayout.SOUTH);
         return brand;
     }
 

@@ -76,7 +76,6 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         int width = Math.min(1360, screen.width - usable.left - usable.right);
         int height = Math.min(800, screen.height - usable.top - usable.bottom);
         setSize(width, height);
-        setMinimumSize(new Dimension(Math.min(1100, width), Math.min(680, height)));
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
 
@@ -377,7 +376,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         else if (GameServer.GUESS_ACCEPTED.equals(type)) { guesserScreen.markSubmitted(); }
         else if (GameServer.GUESS_SUBMITTED.equals(type)) { handleGuessSubmitted(args); }
         else if (GameServer.ROUND_RESULT.equals(type)) { handleRoundResult(args); }
-        else if (GameServer.TO_LOBBY.equals(type)) { handleToLobby(args); }
+        else if (GameServer.TO_LOBBY.equals(type)) { handleToLobby(); }
         else if (GameServer.SHOW_SCOREBOARD.equals(type)) { handleShowScoreboard(); }
         else if (GameServer.TICK.equals(type)) { handleTick(args); }
         else if (GameServer.CHAT.equals(type)) { lobbyScreen.addChatMessage(args.length > 0 ? args[0] : "?", arg(args, 1)); }
@@ -402,13 +401,6 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
 
         if (!connectAddress.isEmpty()) {
             lobbyScreen.setAddress(connectAddress);
-            int colon = connectAddress.lastIndexOf(':');
-            if (colon > 0) {
-                try {
-                    lobbyScreen.setPort(Integer.parseInt(connectAddress.substring(colon + 1)));
-                } catch (NumberFormatException ignored) {
-                }
-            }
         }
 
         joinScreen.setBusy(false);
@@ -548,7 +540,7 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
         pushScoreboards();
 
         // อัปเดตข้อมูลตารางคะแนนสุดท้ายเตรียมไว้
-        scoreboardScreen.setResults(names, totals, round, total, isFinal);
+        scoreboardScreen.setResults(names, totals, round, total);
         scoreboardScreen.setNextEnabled(isHost);
 
         // แสดงผลสรุปของรอบนี้
@@ -563,13 +555,8 @@ public class MainApp extends JFrame implements JoinScreen.JoinListener {
     }
 
     /** กลับไปยังหน้าห้องพักคอย (TO_LOBBY) */
-    private void handleToLobby(String[] args) {
-        String reason = arg(args, 1);
+    private void handleToLobby() {
         roundInProgress = false;
-        if (!reason.isEmpty()) {
-            lobbyScreen.setStatusText(reason);
-            showInfo(reason, "Back to the lobby");
-        }
         pushScoreboards();
         showScreen(SCREEN_LOBBY);
     }

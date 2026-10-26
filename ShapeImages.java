@@ -42,7 +42,7 @@ public final class ShapeImages {
      * ค้นหาชื่อไฟล์รูปภาพที่ตรงกับชื่อรูปทรง
      * หากไม่มีรูปภาพตรงกับชื่อ จะใช้รูปทรงแรกเป็นค่าเริ่มต้น (fallback)
      */
-    public static String fileNameFor(String name) {
+    private static String fileNameFor(String name) {
         // วนลูปตรวจสอบกับชื่อรูปทรงหลักของเกม
         for (String shape : NAMES) {
             if (shape.equalsIgnoreCase(name)) {

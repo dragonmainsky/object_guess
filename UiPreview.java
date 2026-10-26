@@ -222,7 +222,6 @@ public class UiPreview extends JFrame {
         screen.setMyName("Mhee");
         screen.setHost(true);
         screen.setAddress("192.168.1.24:5000");
-        screen.setPort(5000);
         screen.setPlayers(Arrays.asList(SAMPLE_NAMES), ready, "Mhee");
         screen.setStatusText("Get ready while the host prepares the round.");
         screen.setReadyAction(event -> {
@@ -290,7 +289,7 @@ public class UiPreview extends JFrame {
         var screen = new ScoreboardScreen(event -> {
         }, event -> {
         });
-        screen.setResults(SAMPLE_NAMES, SAMPLE_SCORES, 8, 8, true);
+        screen.setResults(SAMPLE_NAMES, SAMPLE_SCORES, 8, 8);
         screen.setNextEnabled(true);
         return screen;
     }

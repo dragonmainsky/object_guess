@@ -39,11 +39,8 @@ public class LobbyScreen extends JPanel {
     private JLabel playersCountLabel;               // ป้ายแสดงจำนวนผู้เล่นในห้อง
     private JLabel addressValueLabel;               // ป้ายแสดง IP ที่อยู่ของห้อง
     private JLabel hostValueLabel;                  // ป้ายแสดงชื่อโฮสต์
-    private JLabel playersValueLabel;               // ป้ายแสดงตัวเลขจำนวนผู้เล่น
-    private JLabel minPlayersBadge;                 // ป้ายสถานะจำนวนผู้เล่นขั้นต่ำ
     private JLabel readyCountLabel;                 // ป้ายแสดงจำนวนคนที่พร้อม (เช่น "2 of 3")
     private JPanel trackPanel;                      // แถบหลอดความพร้อมของผู้เล่น
-    private JLabel roomCodeValueLabel;              // ป้ายแสดงพอร์ตของห้อง
     private JLabel subHeaderStatusLabel;            // ป้ายข้อความสถานะย่อย
     private JPanel chatListPanel;                   // พาเนลแสดงรายการข้อความแชต
     private JTextField chatField;                   // ช่องพิมพ์ข้อความแชต
@@ -84,7 +81,7 @@ public class LobbyScreen extends JPanel {
     // =====================================================================
 
     /**
-     * สร้างส่วนหัวด้านบน: แสดงชื่อล็อบบี้ คำอธิบายสถานะ และป้ายพอร์ตของห้อง
+     * สร้างส่วนหัวด้านบน: แสดงชื่อล็อบบี้และคำอธิบายสถานะ
      */
     private JPanel createSubHeader() {
         subHeaderStatusLabel = AppDialog.label("Waiting for players to join...", AppDialog.SCREEN_SUB, AppDialog.TEXT_MUTED);
@@ -92,17 +89,7 @@ public class LobbyScreen extends JPanel {
                 AppDialog.label("GAME LOBBY", AppDialog.SUBTITLE, AppDialog.PRIMARY_BLUE),
                 AppDialog.label("Room", AppDialog.TITLE_LARGE, AppDialog.TEXT_DARK),
                 subHeaderStatusLabel);
-
-        // ป้ายแสดงพอร์ตของห้อง (กรอบสี่เหลี่ยมสีฟ้า)
-        var roomCode = new JPanel(new GridLayout(2, 1, 0, 0));
-        roomCode.setBackground(AppDialog.BLUE_LIGHT_BG);
-        roomCode.setBorder(new CompoundBorder(new LineBorder(AppDialog.BLUE_BORDER, 1), new EmptyBorder(8, 16, 8, 16)));
-        roomCode.add(AppDialog.label("PORT", AppDialog.SUBTITLE, AppDialog.PRIMARY_BLUE, JLabel.CENTER));
-        roomCodeValueLabel = AppDialog.label("----", AppDialog.SUBTITLE, AppDialog.PRIMARY_BLUE, JLabel.CENTER);
-        roomCode.add(roomCodeValueLabel);
-
-        var codeSlot = AppDialog.group(FlowLayout.RIGHT, 0, 0, roomCode);
-        return AppDialog.pageHeader(titles, codeSlot, BorderLayout.EAST, 0, 0, 0, 0);
+        return AppDialog.pageHeader(titles, null, BorderLayout.EAST, 0, 0, 0, 0);
     }
 
     /**
@@ -125,16 +112,11 @@ public class LobbyScreen extends JPanel {
         var serverRows = AppDialog.panel(new GridLayout(0, 1, 0, 6));
         addressValueLabel = AppDialog.label("-", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
         hostValueLabel = AppDialog.label("-", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
-        playersValueLabel = AppDialog.label("-", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
         serverRows.add(createInfoRow("Address", addressValueLabel));
         serverRows.add(createInfoRow("Host", hostValueLabel));
-        serverRows.add(createInfoRow("Players", playersValueLabel));
 
         var serverBody = AppDialog.panel(new BorderLayout(0, 12));
         serverBody.add(serverRows, BorderLayout.NORTH);
-        minPlayersBadge = AppDialog.badge("Waiting for players", AppDialog.WARNING_BG, AppDialog.WARNING_TEXT,
-                AppDialog.WARNING_BORDER, 4, 10);
-        serverBody.add(minPlayersBadge, BorderLayout.SOUTH);
         serverCard.add(serverBody, BorderLayout.CENTER);
 
         // รวมการ์ดผู้เล่นและการ์ดข้อมูลเซิร์ฟเวอร์เข้าด้วยกัน
@@ -205,9 +187,7 @@ public class LobbyScreen extends JPanel {
                 AppDialog.TEXT_DARK, AppDialog.CARD_BORDER, 12, 18);
         startBtn.setPreferredSize(new Dimension(160, 44));
         startBtn.setToolTipText("Only the host can start, once every other player is ready.");
-        if (onStartGameAction != null) {
-            startBtn.addActionListener(onStartGameAction);
-        }
+        startBtn.addActionListener(onStartGameAction);
 
         var buttonRow = AppDialog.panel(new GridLayout(1, 2, 12, 0));
         buttonRow.add(readyBtn);
@@ -267,9 +247,7 @@ public class LobbyScreen extends JPanel {
 
         var leaveBtn = AppDialog.button("LEAVE ROOM", Color.WHITE, AppDialog.BG_LIGHT, AppDialog.CARD_BORDER,
                 AppDialog.TEXT_DARK, AppDialog.CARD_BORDER, 10, 18);
-        if (onLeaveAction != null) {
-            leaveBtn.addActionListener(onLeaveAction);
-        }
+        leaveBtn.addActionListener(onLeaveAction);
 
         var rest = AppDialog.panel(new BorderLayout(0, 12));
         rest.add(settingsCard, BorderLayout.NORTH);
@@ -313,11 +291,6 @@ public class LobbyScreen extends JPanel {
     /** แสดงที่อยู่ IP และพอร์ตของโฮสต์ */
     public void setAddress(String address) {
         addressValueLabel.setText((address == null || address.isEmpty()) ? "-" : address);
-    }
-
-    /** แสดงหมายเลขพอร์ตบนป้ายส่วนหัว */
-    public void setPort(int port) {
-        roomCodeValueLabel.setText(port > 0 ? String.valueOf(port) : "----");
     }
 
     // อัปเดตข้อความสถานะย่อย
@@ -387,7 +360,6 @@ public class LobbyScreen extends JPanel {
         playerRowsPanel.repaint();
 
         playersCountLabel.setText("Players in room: " + total);
-        playersValueLabel.setText(String.valueOf(total));
         hostValueLabel.setText(hostName.isEmpty() ? "-" : hostName);
 
         // นับจำนวนผู้เล่นที่กดพร้อม
@@ -409,15 +381,6 @@ public class LobbyScreen extends JPanel {
         }
         trackPanel.revalidate();
         trackPanel.repaint();
-
-        // ตรวจสอบจำนวนผู้เล่นขั้นต่ำ
-        if (total < GameServer.MIN_PLAYERS) {
-            AppDialog.paintBadge(minPlayersBadge, "Minimum " + GameServer.MIN_PLAYERS + " players needed",
-                    AppDialog.WARNING_BG, AppDialog.WARNING_TEXT, AppDialog.WARNING_BORDER, 4, 10);
-        } else {
-            AppDialog.paintBadge(minPlayersBadge, "Minimum " + GameServer.MIN_PLAYERS + " players reached",
-                    AppDialog.SUCCESS_BG, AppDialog.SUCCESS_TEXT, AppDialog.SUCCESS_BORDER, 4, 10);
-        }
 
         // ตรวจสอบว่าผู้เล่นคนอื่นทุกคนพร้อมแล้วหรือไม่
         boolean allOthersReady = total >= GameServer.MIN_PLAYERS;

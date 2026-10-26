@@ -24,11 +24,9 @@ public class GameServer {
 
     /**
      * ชื่อรูปทรงทั้ง 8 รูป เรียงตามลำดับในเมนูเลือก
-     * รูปที่ 4 แยกเป็นสองส่วนเพื่อเลี่ยงข้อจำกัดคำต้องห้าม แต่ส่งค่าผ่านโปรโตคอลเต็มคำ
      */
-    private static final String SHAPE_FOURTH = "Rect" + "angle";
     public static final String[] SHAPE_NAMES = {
-        "Circle", "Triangle", SHAPE_FOURTH, "Oval", "Hexagon", "Diamond", "Star", "Square"
+        "Circle", "Triangle", "Rectangle", "Oval", "Hexagon", "Diamond", "Star", "Square"
     };
 
     // ===== ประเภทข้อความตามโปรโตคอล (Protocol Message Types) ใช้ร่วมกันระหว่าง Server และ Client =====
@@ -38,7 +36,7 @@ public class GameServer {
     public static final String SECRET_LOCKED = "SECRET_LOCKED", GUESS = "GUESS", GUESS_ACCEPTED = "GUESS_ACCEPTED";
     public static final String GUESS_SUBMITTED = "GUESS_SUBMITTED", ROUND_RESULT = "ROUND_RESULT";
     public static final String NEW_GAME = "NEW_GAME", LEAVE_ROOM = "LEAVE", TO_LOBBY = "TO_LOBBY";
-    public static final String SHOW_SCOREBOARD = "SHOW_SCOREBOARD", PLAYER_LEFT = "PLAYER_LEFT";
+    public static final String SHOW_SCOREBOARD = "SHOW_SCOREBOARD";
     public static final String CHAT = "CHAT", SYSTEM = "SYSTEM";
     public static final String SERVER_CLOSED = "SERVER_CLOSED", ERROR = "ERROR";
 
@@ -254,12 +252,6 @@ public class GameServer {
         return clients.isEmpty() ? "" : clients.get(0).playerName;
     }
 
-    private String hostName() {
-        synchronized (lock) {
-            return hostNameLocked();
-        }
-    }
-
     // =====================================================================
     //  การจัดการผู้เล่นเข้าและออกจากห้อง (Join and Leave)
     // =====================================================================
@@ -395,7 +387,6 @@ public class GameServer {
             }
         }
 
-        broadcast(PLAYER_LEFT, name);
         broadcast(SYSTEM, name + " left the room.");
         broadcastPlayerList();
 
@@ -473,7 +464,7 @@ public class GameServer {
         }
         stopIntermission();
         stopRoundTimer();
-        broadcast(TO_LOBBY, hostName(), "");
+        broadcast(TO_LOBBY);
         broadcastPlayerList();
     }
 
@@ -578,9 +569,6 @@ public class GameServer {
     /** สุ่มจำนวนรูปทรงระหว่าง MIN_SHAPES ถึง MAX_SHAPES โดยไม่ให้ซ้ำกับรอบก่อนหน้า */
     private int drawCycleShapeCountLocked() {
         int range = MAX_SHAPES - MIN_SHAPES + 1;
-        if (range < 2) {
-            return MIN_SHAPES;
-        }
         int count = MIN_SHAPES + random.nextInt(range);
         if (count == lastCycleShapes) {
             int offset = count - MIN_SHAPES;
@@ -1193,31 +1181,5 @@ public class GameServer {
     public static String getPreferredLanAddress() {
         List<String> addresses = getLanAddresses();
         return addresses.isEmpty() ? "" : addresses.get(0);
-    }
-
-    // =====================================================================
-    //  จุดเริ่มต้นการทำงานของเซิร์ฟเวอร์แบบ Standalone (Main method)
-    // =====================================================================
-
-    public static void main(String[] args) {
-        int port = DEFAULT_PORT;
-        if (args.length > 0) {
-            try {
-                port = Integer.parseInt(args[0]);
-            } catch (NumberFormatException e) {
-                System.out.println("Invalid port, using default " + DEFAULT_PORT);
-            }
-        }
-        var server = new GameServer(port);
-        try {
-            server.start();
-        } catch (IOException e) {
-            System.out.println("Could not start server on port " + port + ": " + e.getMessage());
-            return;
-        }
-        System.out.println("Server listening on port " + port);
-        for (String address : getLanAddresses()) {
-            System.out.println("  Others can join at " + address + ":" + port);
-        }
     }
 }

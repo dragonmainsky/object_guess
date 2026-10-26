@@ -22,7 +22,6 @@ public class QuestionerScreen extends JPanel {
     private static final int LEFT_WIDTH = 260;   // ความกว้างของคอลัมน์ซ้าย
     private static final int RIGHT_WIDTH = 330;  // ความกว้างของคอลัมน์ขวา
     private static final Color CANVAS_BG = new Color(250, 252, 255); // สีพื้นหลังของ Canvas
-    private static final String HINT = "Drag a shape to move it, or back to Objects to remove it"; // ข้อความแนะนำ
 
     // ===== ข้อมูลสถานะการเลือกรูปทรง (State) =====
     private final Set<String> selectedShapes = new LinkedHashSet<>();   // เซ็ตเก็บชื่อรูปทรงที่เลือก (เริ่มใหม่ทุกรอบ)
@@ -34,7 +33,6 @@ public class QuestionerScreen extends JPanel {
 
     private DashedCanvas canvas;                         // ผืนผ้าใบแสดงรูปทรงที่มีเส้นประ
     private JLabel selectedCounterLabel;                 // ป้ายนับจำนวนรูปทรงที่เลือก
-    private JLabel readyBadge;                           // ป้ายสถานะความพร้อมในการยืนยัน
     private JPanel scoreRowsPanel;                       // พาเนลแสดงแถบคะแนนผู้เล่น
     private JLabel roundLabel;                           // ป้ายบอกหมายเลขรอบ
     private JLabel hintLabel;                            // ป้ายข้อความแนะนำใต้ Canvas
@@ -150,12 +148,6 @@ public class QuestionerScreen extends JPanel {
         titles.add(AppDialog.label("Your secret set", AppDialog.TITLE, AppDialog.TEXT_DARK));
         titles.add(AppDialog.label("Drag your shapes onto the canvas", AppDialog.BODY, AppDialog.TEXT_MUTED));
 
-        readyBadge = AppDialog.badge("READY TO CONFIRM", AppDialog.SUCCESS_BG, AppDialog.SUCCESS_TEXT,
-                AppDialog.SUCCESS_BORDER, 6, 14);
-        var cardHeader = AppDialog.panel(new BorderLayout());
-        cardHeader.add(titles, BorderLayout.WEST);
-        cardHeader.add(AppDialog.centerVertical(readyBadge), BorderLayout.EAST);
-
         // กำหนด Canvas เป็นพื้นที่รับการวางรูปทรง (Drop zone)
         canvas = new DashedCanvas();
         drag.dropZone(canvas,
@@ -176,9 +168,9 @@ public class QuestionerScreen extends JPanel {
                     refreshUI();
                 });
 
-        hintLabel = AppDialog.label(HINT, AppDialog.SMALL, AppDialog.TEXT_MUTED, JLabel.CENTER);
+        hintLabel = AppDialog.label("", AppDialog.SMALL, AppDialog.TEXT_MUTED, JLabel.CENTER);
         var centerCard = AppDialog.card(new BorderLayout(0, 12));
-        centerCard.add(cardHeader, BorderLayout.NORTH);
+        centerCard.add(titles, BorderLayout.NORTH);
         centerCard.add(canvas, BorderLayout.CENTER);
         centerCard.add(hintLabel, BorderLayout.SOUTH);
         return centerCard;
@@ -304,13 +296,6 @@ public class QuestionerScreen extends JPanel {
 
         int count = selectedShapes.size();
         selectedCounterLabel.setText("Selected: " + count + " / " + requiredShapes);
-        if (count == requiredShapes) {
-            AppDialog.paintBadge(readyBadge, "READY TO CONFIRM", AppDialog.SUCCESS_BG, AppDialog.SUCCESS_TEXT,
-                    AppDialog.SUCCESS_BORDER, 6, 14);
-        } else {
-            AppDialog.paintBadge(readyBadge, "PICK " + requiredShapes + (requiredShapes == 1 ? " SHAPE" : " SHAPES"),
-                    AppDialog.WARNING_BG, AppDialog.WARNING_TEXT, AppDialog.WARNING_BORDER, 6, 14);
-        }
         targetBadge.setText(AppDialog.targetText(requiredShapes));
 
         // อัปเดตสถานะการถูกเลือกของแต่ละช่องในรายการ Objects
@@ -420,11 +405,7 @@ public class QuestionerScreen extends JPanel {
                     + (requiredShapes == 1 ? "" : "s") + " before confirming.");
             return;
         }
-        if (onConfirmAction != null) {
-            onConfirmAction.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "confirm"));
-        } else {
-            lockSelection();   // โหมดทดสอบพรีวิวโดยไม่ต้องต่อเน็ตเวิร์ก
-        }
+        onConfirmAction.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "confirm"));
     }
 
     // =====================================================================

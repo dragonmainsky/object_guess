@@ -5,7 +5,7 @@ import javax.swing.border.*;
 
 /**
  * ScoreboardScreen: หน้าจอตารางคะแนนรวมสุดท้าย (หน้าจอที่ 5)
- * แสดงอันดับและผลคะแนนรวมทั้งหมดเมื่อจบทัวร์นาเมนต์หรือจบรอบ
+ * แสดงอันดับและผลคะแนนรวมทั้งหมดเมื่อจบทัวร์นาเมนต์
  * MainApp จะส่งข้อมูลคะแนนเข้ามาผ่านเมธอด setResults()
  */
 public class ScoreboardScreen extends JPanel {
@@ -17,22 +17,20 @@ public class ScoreboardScreen extends JPanel {
     private final ActionListener onNewGameAction; // ตัวจัดการเมื่อกดปุ่มเริ่มเกมใหม่
     private final ActionListener onQuitAction;    // ตัวจัดการเมื่อกดปุ่มออกจากห้อง
 
-    // ข้อมูลเริ่มต้นสำหรับทดสอบพรีวิว
-    private String[] playerNames = {"Aim", "Player 2", "Player 3", "Player 4"};
-    private int[] playerScores = {8, 6, 4, 3};
+    // ข้อมูลคะแนนที่รับมาจากเซิร์ฟเวอร์
+    private String[] playerNames = new String[0];
+    private int[] playerScores = new int[0];
     private int roundsPlayed;            // จำนวนรอบที่เล่นไปแล้ว
     private int totalRounds;             // จำนวนรอบทั้งหมด (จำนวนผู้เล่น x 2)
-    private boolean finalRound = true;   // เป็นรอบสุดท้ายของทัวร์นาเมนต์หรือไม่
 
     private JLabel congratsLabel;        // ป้ายแสดงความยินดีกับผู้ชนะ
-    private JLabel gameOverBadge;        // ป้ายบอกสถานะ GAME OVER หรือ ROUND SUMMARY
+    private JLabel gameOverBadge;        // ป้ายบอกสถานะ GAME OVER
     private JLabel completeBadge;        // ป้ายบอกสถานะการจบทัวร์นาเมนต์
     private JLabel finalScoreValue;      // ป้ายแสดงตัวเลขคะแนนของผู้ชนะ
     private JPanel rowsPanel;            // พาเนลแสดงรายการตารางอันดับ
     private JLabel roundsValue;          // ป้ายแสดงจำนวนรอบที่เล่นไป
     private JLabel playersValue;         // ป้ายแสดงจำนวนผู้เล่น
-    private JLabel targetValue;          // ป้ายแสดงจำนวนรูปทรงเป้าหมาย
-    private JButton nextBtn;             // ปุ่มเริ่มเกมใหม่หรือเล่นต่อ
+    private JButton nextBtn;             // ปุ่มเริ่มเกมใหม่
 
     /**
      * คอนสตรักเตอร์สร้างหน้าจอสกอร์บอร์ด จัดวางแบบ 2 คอลัมน์ (ซ้าย: ถ้วยรางวัลและผู้ชนะ, ขวา: ตารางอันดับ)
@@ -61,7 +59,7 @@ public class ScoreboardScreen extends JPanel {
     /**
      * รับข้อมูลคะแนนล่าสุดจากเซิร์ฟเวอร์ จัดเรียงคะแนนจากมากไปน้อย (Insertion Sort) แล้วรีเฟรชหน้าจอ
      */
-    public void setResults(String[] names, int[] scores, int rounds, int totalRounds, boolean isFinal) {
+    public void setResults(String[] names, int[] scores, int rounds, int totalRounds) {
         if (names != null && scores != null && names.length > 0) {
             // ใช้ Insertion Sort เพื่อให้ผู้เล่นที่คะแนนเท่ากันคงลำดับเดิมตามที่เซิร์ฟเวอร์ส่งมา
             String[] sortedNames = new String[names.length];
@@ -87,12 +85,11 @@ public class ScoreboardScreen extends JPanel {
         }
         roundsPlayed = rounds;
         this.totalRounds = totalRounds;
-        finalRound = isFinal;
         refresh();
     }
 
     /**
-     * เปิด/ปิดการทำงานของปุ่ม NEW GAME / CONTINUE (เฉพาะโฮสต์เท่านั้นที่สามารถกดได้)
+     * เปิด/ปิดการทำงานของปุ่ม NEW GAME (เฉพาะโฮสต์เท่านั้นที่สามารถกดได้)
      */
     public void setNextEnabled(boolean enabled) {
         nextBtn.setEnabled(enabled);
@@ -113,14 +110,12 @@ public class ScoreboardScreen extends JPanel {
             finalScoreValue.setText("0");
         }
 
-        gameOverBadge.setText(finalRound ? "GAME OVER" : "ROUND SUMMARY");
-        completeBadge.setText(finalRound ? "TOURNAMENT COMPLETE"
-                : "ROUND " + roundsPlayed + " OF " + totalRounds + " COMPLETE");
-        nextBtn.setText(finalRound ? "NEW GAME" : "CONTINUE");
+        gameOverBadge.setText("GAME OVER");
+        completeBadge.setText("TOURNAMENT COMPLETE");
+        nextBtn.setText("NEW GAME");
 
         roundsValue.setText(roundsPlayed + " / " + totalRounds);
         playersValue.setText(String.valueOf(playerNames.length));
-        targetValue.setText(GameServer.MIN_SHAPES + "-" + GameServer.MAX_SHAPES + " each");
 
         rowsPanel.removeAll();
         rowsPanel.setLayout(new GridLayout(Math.max(1, playerNames.length), 1, 0, 6));
@@ -142,16 +137,13 @@ public class ScoreboardScreen extends JPanel {
         left.setBorder(new EmptyBorder(40, 0, 0, 0));
 
         gameOverBadge = AppDialog.badge("GAME OVER", BG_DARK_HEADER, Color.WHITE, null, 4, 14);
-        congratsLabel = AppDialog.label("Congratulations, " + playerNames[0] + "!", AppDialog.TITLE_LARGE,
+        congratsLabel = AppDialog.label("", AppDialog.TITLE_LARGE,
                 AppDialog.TEXT_DARK, JLabel.CENTER);
-        var sub = AppDialog.label("<html><center>You read the room, matched the shapes,<br>and took first place.</center></html>",
-                AppDialog.BODY, AppDialog.TEXT_MUTED, JLabel.CENTER);
 
         var items = new JPanel[] {
             AppDialog.centerFlow(buildTrophyPanel(), 0),
             AppDialog.centerFlow(gameOverBadge, 0),
             AppDialog.centerFlow(congratsLabel, 0),
-            AppDialog.centerFlow(sub, 0),
             AppDialog.centerFlow(buildScoreCard(), 8)
         };
         left.add(stackItems(items, 12), BorderLayout.CENTER);
@@ -175,7 +167,7 @@ public class ScoreboardScreen extends JPanel {
         card.setBorder(new EmptyBorder(14, 10, 14, 10));
         card.setPreferredSize(new Dimension(220, 140));
 
-        finalScoreValue = AppDialog.label(String.valueOf(playerScores[0]), AppDialog.f(Font.BOLD, 36),
+        finalScoreValue = AppDialog.label("0", AppDialog.f(Font.BOLD, 36),
                 Color.WHITE, JLabel.CENTER);
         card.add(AppDialog.label("FINAL SCORE", AppDialog.SMALL_BOLD, AppDialog.BLUE_BORDER, JLabel.CENTER));
         card.add(finalScoreValue);
@@ -208,17 +200,13 @@ public class ScoreboardScreen extends JPanel {
         nextBtn = AppDialog.button("NEW GAME", AppDialog.PRIMARY_BLUE, AppDialog.PRIMARY_HOVER, AppDialog.PRIMARY_PRESS,
                 Color.WHITE, AppDialog.PRIMARY_BLUE, 10, 18);
         nextBtn.setPreferredSize(new Dimension(160, 44));
-        if (onNewGameAction != null) {
-            nextBtn.addActionListener(onNewGameAction);
-        }
+        nextBtn.addActionListener(onNewGameAction);
 
         // ปุ่ม QUIT สำหรับออกจากห้องกลับไปหน้าแรก
         var quitBtn = AppDialog.button("QUIT", Color.WHITE, AppDialog.BG_LIGHT, AppDialog.CARD_BORDER,
                 AppDialog.TEXT_DARK, AppDialog.CARD_BORDER, 10, 18);
         quitBtn.setPreferredSize(new Dimension(160, 44));
-        if (onQuitAction != null) {
-            quitBtn.addActionListener(onQuitAction);
-        }
+        quitBtn.addActionListener(onQuitAction);
 
         var buttonRow = AppDialog.panel(new GridLayout(1, 2, 12, 0));
         buttonRow.add(nextBtn);
@@ -239,10 +227,7 @@ public class ScoreboardScreen extends JPanel {
     }
 
     private JPanel buildRowsPanel() {
-        rowsPanel = AppDialog.panel(new GridLayout(Math.max(1, playerNames.length), 1, 0, 6));
-        for (int i = 0; i < playerNames.length; i++) {
-            rowsPanel.add(buildLeaderboardRow(i + 1, playerNames[i], playerScores[i]));
-        }
+        rowsPanel = AppDialog.panel();
         return rowsPanel;
     }
 
@@ -287,16 +272,14 @@ public class ScoreboardScreen extends JPanel {
         return rank == 3 ? new Color(139, 92, 246) : DANGER_AVATAR;
     }
 
-    /** สร้างแถวแสดงสถิติสรุป: จำนวนรอบที่เล่น, จำนวนผู้เล่น, จำนวนรูปทรงเป้าหมาย */
+    /** สร้างแถวแสดงสถิติสรุป: จำนวนรอบที่เล่น, จำนวนผู้เล่น */
     private JPanel buildStatsRow() {
         roundsValue = AppDialog.label("", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
         playersValue = AppDialog.label("", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
-        targetValue = AppDialog.label("", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
 
-        var stats = AppDialog.panel(new GridLayout(1, 3, 10, 0));
+        var stats = AppDialog.panel(new GridLayout(1, 2, 10, 0));
         stats.add(statItem("Rounds played", roundsValue));
         stats.add(statItem("Players", playersValue));
-        stats.add(statItem("Secret shapes", targetValue));
         return stats;
     }
 

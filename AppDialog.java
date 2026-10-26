@@ -15,7 +15,7 @@ public final class AppDialog {
     // สีพื้นหลังทั่วไปและการ์ด
     static final Color BG_LIGHT = new Color(241, 245, 249), CARD_BG = Color.WHITE;
     static final Color CARD_BORDER = new Color(226, 232, 240), ROW_BG = new Color(248, 250, 252);
-    static final Color SLOT_BORDER = new Color(203, 213, 225), PLACEHOLDER_BG = new Color(220, 230, 242);
+    static final Color SLOT_BORDER = new Color(203, 213, 225);
 
     // สีน้ำเงินโทนหลัก (Primary Blue) สำหรับปุ่มและการไฮไลต์
     static final Color PRIMARY_BLUE = new Color(37, 99, 235), PRIMARY_HOVER = new Color(29, 78, 216);
@@ -299,20 +299,6 @@ public final class AppDialog {
         return card;
     }
 
-    /** สร้างการ์ดพร้อม FlowLayout */
-    static JPanel card(FlowLayout layout) {
-        var card = card();
-        card.setLayout(layout);
-        return card;
-    }
-
-    /** สร้างการ์ดพร้อม GridLayout */
-    static JPanel card(GridLayout layout) {
-        var card = card();
-        card.setLayout(layout);
-        return card;
-    }
-
     /** สร้างการ์ดที่มีระยะเว้นด้านในตามที่กำหนด */
     static JPanel card(int padV, int padH) {
         var card = new JPanel();
@@ -550,15 +536,6 @@ public final class AppDialog {
         var holder = panel(new FlowLayout(FlowLayout.CENTER, 0, padV));
         holder.add(inner);
         return holder;
-    }
-
-    /** จัด label ไว้กลางแนวตั้งด้วย BoxLayout */
-    static JPanel centerVertical(JLabel label) {
-        var wrapper = stack(panel());
-        wrapper.add(glue());
-        wrapper.add(label);
-        wrapper.add(glue());
-        return wrapper;
     }
 
     /** สร้างปุ่มสไตล์ Flat พร้อมระบบเปลี่ยนสีเมื่อเมาส์ชี้และกด */

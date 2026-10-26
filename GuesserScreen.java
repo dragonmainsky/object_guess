@@ -26,7 +26,6 @@ public class GuesserScreen extends JPanel {
     private final ActionListener onSubmitAction;                       // ตัวรับเหตุการณ์เมื่อกดปุ่มส่งคำตอบทาย
 
     private JPanel guessSlotsPanel;     // พาเนลแสดงช่องทายรูปทรง
-    private JLabel selectedBadge;       // ป้ายแสดงจำนวนรูปที่เลือก
     private JLabel pickCounterLabel;    // ป้ายนับจำนวนที่เลือกบนการ์ด Objects
     private JButton submitBtn;          // ปุ่มกดยืนยันส่งคำตอบ (SUBMIT GUESS)
     private int requiredPicks;          // จำนวนรูปทรงที่ต้องทายในรอบนี้ (กำหนดโดย SECRET_LOCKED)
@@ -168,11 +167,9 @@ public class GuesserScreen extends JPanel {
     // =====================================================================
 
     private JPanel createCenterPanel() {
-        selectedBadge = AppDialog.badge(picksText(), AppDialog.BLUE_LIGHT_BG, AppDialog.PRIMARY_BLUE,
-                AppDialog.BLUE_BORDER, 4, 10);
         var centerCard = AppDialog.card(new BorderLayout(0, 12));
         centerCard.add(AppDialog.header("Your guess", AppDialog.TITLE, "Drag shapes here from Objects",
-                AppDialog.BODY, selectedBadge), BorderLayout.NORTH);
+                AppDialog.BODY, null), BorderLayout.NORTH);
         centerCard.add(createStagePanel(), BorderLayout.CENTER);
 
         // แถบคำแนะนำด้านล่างการ์ดทำหน้าที่เป็นป้ายแสดงสถานะรอบด้วย
@@ -189,7 +186,7 @@ public class GuesserScreen extends JPanel {
     }
 
     /**
-     * สเตจ 3 ชั้น: แบนเนอร์วิธีเล่น, แถวช่องวางรูปทาย, แบนเนอร์กติกาคะแนน
+     * สเตจกลาง: ช่องวางรูปทาย
      */
     private JPanel createStagePanel() {
         guessSlotsPanel = AppDialog.panel();
@@ -198,31 +195,11 @@ public class GuesserScreen extends JPanel {
         middleRow.setBorder(new EmptyBorder(6, 24, 6, 24));
         middleRow.add(guessSlotsPanel, BorderLayout.CENTER);
 
-        var stage = new JPanel(new GridLayout(3, 1));
+        var stage = new JPanel(new BorderLayout());
         stage.setBackground(STAGE_BG);
         stage.setBorder(AppDialog.box(AppDialog.CARD_BORDER, 1, 14, 14));
-        stage.add(AppDialog.pin(createAlertBanner("How to play", "Pick the same shapes the questioner chose.",
-                AppDialog.BLUE_LIGHT_BG, AppDialog.BLUE_BORDER, AppDialog.PRIMARY_BLUE, FlowLayout.RIGHT),
-                BorderLayout.NORTH));
-        stage.add(middleRow);
-        stage.add(AppDialog.pin(createAlertBanner("Scoring",
-                "+1 per correct shape, +2 if every shape is right within 10 seconds.",
-                AppDialog.SUCCESS_BG, AppDialog.SUCCESS_BORDER, AppDialog.SUCCESS_TEXT, FlowLayout.LEFT),
-                BorderLayout.SOUTH));
+        stage.add(middleRow, BorderLayout.CENTER);
         return stage;
-    }
-
-    /** แบนเนอร์แสดงข้อความเตือน/แนะนำ */
-    private static JPanel createAlertBanner(String title, String desc, Color bg, Color border, Color fg, int align) {
-        var banner = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        banner.setBackground(bg);
-        banner.setBorder(AppDialog.box(border, 1, 6, 8));
-        banner.add(AppDialog.label(title, AppDialog.BODY_BOLD, fg));
-        banner.add(AppDialog.label(desc, AppDialog.SMALL, fg));
-
-        var slot = AppDialog.panel(new FlowLayout(align, 0, 0));
-        slot.add(banner);
-        return slot;
     }
 
     /**
@@ -360,15 +337,10 @@ public class GuesserScreen extends JPanel {
     /** อัปเดตคอมโพเนนต์ทั้งหมดที่ขึ้นอยู่กับจำนวนรูปทรงที่ทาย */
     private void refreshSelection() {
         updateGuessSlots();
-        selectedBadge.setText(picksText());
         pickCounterLabel.setText(picksCountText());
         for (var picker : pickers) {
             picker.setSelected(guessedShapes.contains(picker.shapeName));
         }
-    }
-
-    private String picksText() {
-        return picksCountText() + " selected";
     }
 
     private String picksCountText() {
@@ -485,10 +457,6 @@ public class GuesserScreen extends JPanel {
         if (guessedShapes.size() != requiredPicks) {
             AppDialog.showWarning(this, "Not ready yet", "Pick exactly " + requiredPicks + " shape"
                     + (requiredPicks == 1 ? "" : "s") + " before submitting.");
-            return;
-        }
-        if (onSubmitAction == null) {
-            markSubmitted();   // โหมดทดสอบพรีวิวโดยไม่ต้องต่อเน็ตเวิร์ก
             return;
         }
         onSubmitAction.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "submit"));
