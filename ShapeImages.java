@@ -30,7 +30,7 @@ public final class ShapeImages {
 
     // ฟังก์ชันอ่านรายชื่อไฟล์ทั้งหมดจากโฟลเดอร์ shape
     private static String[] filesOf() {
-        var files = new File(DIR).list();
+        String[] files = new File(DIR).list();
         return (files == null) ? new String[0] : files;
     }
 
@@ -82,7 +82,7 @@ public final class ShapeImages {
         String path = DIR + fileNameFor(shapeName);
         if (new File(path).isFile()) {
             // โหลดรูปภาพและวาดลงบน Canvas
-            var picture = Toolkit.getDefaultToolkit().getImage(path);
+            Image picture = Toolkit.getDefaultToolkit().getImage(path);
             g.drawImage(picture, x, y, size, size, observer);
             return;
         }
@@ -93,7 +93,7 @@ public final class ShapeImages {
         g.drawRect(x, y, size - 1, size - 1);
         g.setFont(new Font("Tahoma", Font.BOLD, Math.max(10, size / 6)));
         String text = shapeName.length() > 6 ? shapeName.substring(0, 6) : shapeName;
-        var metrics = g.getFontMetrics();
+        FontMetrics metrics = g.getFontMetrics();
         g.drawString(text, x + (size - metrics.stringWidth(text)) / 2,
                 y + (size - metrics.getHeight()) / 2 + metrics.getAscent());
     }
@@ -116,7 +116,7 @@ public final class ShapeImages {
          */
         @Override
         public Dimension getPreferredSize() {
-            var insets = getInsets();
+            Insets insets = getInsets();
             return new Dimension(size + insets.left + insets.right, size + insets.top + insets.bottom);
         }
 
@@ -255,8 +255,8 @@ public final class ShapeImages {
                         }
                         shape = shapeName;
                         fromBoard = boardSource;
-                        var origin = gesture.getDragOrigin();
-                        var onScreen = source.getLocationOnScreen();
+                        Point origin = gesture.getDragOrigin();
+                        Point onScreen = source.getLocationOnScreen();
                         moveGhost(origin.x + onScreen.x, origin.y + onScreen.y);
                         motion = event -> moveGhost(event.getLocation().x, event.getLocation().y);
                         DragSource.getDefaultDragSource().addDragSourceMotionListener(motion);
@@ -317,7 +317,7 @@ public final class ShapeImages {
                         return;
                     }
                     String name = shape;
-                    var where = event.getLocation();
+                    Point where = event.getLocation();
                     event.acceptDrop(DnDConstants.ACTION_MOVE);
                     event.dropComplete(true);
                     onDrop.accept(name, where); // ดำเนินการเมื่อวางสำเร็จ
@@ -341,7 +341,7 @@ public final class ShapeImages {
             if (!host.isShowing()) {
                 return;
             }
-            var origin = host.getLocationOnScreen();
+            Point origin = host.getLocationOnScreen();
             ghostX = screenX - origin.x - ghost / 2;
             ghostY = screenY - origin.y - ghost / 2;
             // Repaint ทั้งหน้าจอเพื่อล้าง ghost ตำแหน่งเดิมให้หมดก่อนวาดตำแหน่งใหม่

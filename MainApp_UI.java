@@ -33,7 +33,7 @@ public class MainApp_UI extends JFrame {
         setTitle("Guess What It Looks Like? - Multiplayer Party Game (LAN)");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         // ปรับขนาดหน้าต่างให้เหมาะสมกับหน้าจอที่ใช้งานได้ เพื่อไม่ให้ปุ่มด้านล่างตกขอบจอ
-        var toolkit = Toolkit.getDefaultToolkit();
+        Toolkit toolkit = Toolkit.getDefaultToolkit();
         Insets usable = toolkit.getScreenInsets(getGraphicsConfiguration());
         Dimension screen = toolkit.getScreenSize();
         int width = Math.min(1360, screen.width - usable.left - usable.right);

@@ -98,35 +98,35 @@ public final class AppDialog {
 
     /** สร้าง JPanel โปร่งแสง (Opaque = false) */
     static JPanel panel() {
-        var p = new JPanel();
+        JPanel p = new JPanel();
         p.setOpaque(false);
         return p;
     }
 
     /** สร้าง JPanel โปร่งแสงพร้อม BorderLayout */
     static JPanel panel(BorderLayout layout) {
-        var p = panel();
+        JPanel p = panel();
         p.setLayout(layout);
         return p;
     }
 
     /** สร้าง JPanel โปร่งแสงพร้อม FlowLayout */
     static JPanel panel(FlowLayout layout) {
-        var p = panel();
+        JPanel p = panel();
         p.setLayout(layout);
         return p;
     }
 
     /** สร้าง JPanel โปร่งแสงพร้อม GridLayout */
     static JPanel panel(GridLayout layout) {
-        var p = panel();
+        JPanel p = panel();
         p.setLayout(layout);
         return p;
     }
 
     /** สร้าง JPanel สีขาวลักษณะเป็นการ์ด มีขอบบางและระยะเว้น 16px */
     static JPanel card() {
-        var card = new JPanel();
+        JPanel card = new JPanel();
         card.setBackground(CARD_BG);
         card.setBorder(box(CARD_BORDER, 1, 16, 16));
         return card;
@@ -134,14 +134,14 @@ public final class AppDialog {
 
     /** สร้างการ์ดพร้อม BorderLayout */
     static JPanel card(BorderLayout layout) {
-        var card = card();
+        JPanel card = card();
         card.setLayout(layout);
         return card;
     }
 
     /** สร้างการ์ดที่มีระยะเว้นด้านในตามที่กำหนด */
     static JPanel card(int padV, int padH) {
-        var card = new JPanel();
+        JPanel card = new JPanel();
         card.setBackground(CARD_BG);
         card.setBorder(box(CARD_BORDER, 1, padV, padH));
         return card;
@@ -149,7 +149,7 @@ public final class AppDialog {
 
     /** สร้างการ์ดพร้อม BorderLayout และระยะเว้นด้านในตามที่กำหนด */
     static JPanel card(BorderLayout layout, int padV, int padH) {
-        var card = card(padV, padH);
+        JPanel card = card(padV, padH);
         card.setLayout(layout);
         return card;
     }
@@ -171,8 +171,8 @@ public final class AppDialog {
 
     // ฟังก์ชันสร้างพื้นที่เติมเต็ม
     private static JPanel filler(int width, int height, int maxHeight) {
-        var filler = panel();
-        var fixed = new Dimension(width, height);
+        JPanel filler = panel();
+        Dimension fixed = new Dimension(width, height);
         filler.setMinimumSize(fixed);
         filler.setPreferredSize(fixed);
         filler.setMaximumSize(new Dimension(Short.MAX_VALUE, maxHeight));
@@ -187,7 +187,7 @@ public final class AppDialog {
 
     /** ตรึงคอมโพเนนต์ไว้ที่ขอบด้านใดด้านหนึ่ง (เช่น NORTH หรือ SOUTH) โดยคงขนาดเดิมไว้ */
     static JPanel pin(Container c, String edge) {
-        var holder = panel();
+        JPanel holder = panel();
         holder.setLayout(new BorderLayout());
         holder.add(c, edge);
         return holder;
@@ -200,7 +200,7 @@ public final class AppDialog {
 
     // สร้าง JLabel พร้อมกำหนดการจัดตำแหน่งข้อความ
     static JLabel label(String text, Font font, Color color, int align) {
-        var label = new JLabel(text, align);
+        JLabel label = new JLabel(text, align);
         label.setFont(font);
         label.setForeground(color);
         return label;
@@ -243,10 +243,10 @@ public final class AppDialog {
 
     /** สร้างป้ายสี่เหลี่ยมสำหรับ Avatar แสดงตัวอักษรหรือตัวเลข */
     static JLabel avatar(String text, Color bg, int size) {
-        var tile = label(text, f(Font.BOLD, size / 2), Color.WHITE, JLabel.CENTER);
+        JLabel tile = label(text, f(Font.BOLD, size / 2), Color.WHITE, JLabel.CENTER);
         tile.setOpaque(true);
         tile.setBackground(bg);
-        var fixed = new Dimension(size, size);
+        Dimension fixed = new Dimension(size, size);
         tile.setPreferredSize(fixed);
         tile.setMinimumSize(fixed);
         tile.setMaximumSize(fixed);
@@ -255,7 +255,7 @@ public final class AppDialog {
 
     /** สร้างป้ายสไตล์ปุ่มคีย์บอร์ด (เช่น แนะนำให้กด ENTER) */
     static JLabel keyCap(String text) {
-        var key = label(text, KEYCAP, new Color(51, 65, 85), JLabel.CENTER);
+        JLabel key = label(text, KEYCAP, new Color(51, 65, 85), JLabel.CENTER);
         key.setOpaque(true);
         key.setBackground(Color.WHITE);
         key.setBorder(box(SLOT_BORDER, 1, 3, 6));
@@ -264,16 +264,16 @@ public final class AppDialog {
 
     /** สร้างส่วนหัวการ์ด 2 บรรทัด (ชื่อหลัก, คำอธิบายย่อย, วิดเจ็ตฝั่งขวา) */
     static JPanel header(String title, Font titleFont, String sub, Font subFont, JLabel right) {
-        var titleRow = panel();
+        JPanel titleRow = panel();
         titleRow.setLayout(new BorderLayout());
         titleRow.add(label(title, titleFont, TEXT_DARK), BorderLayout.WEST);
         if (right != null) {
-            var holder = panel();
+            JPanel holder = panel();
             holder.setLayout(new FlowLayout(FlowLayout.RIGHT, 0, 0));
             holder.add(right);
             titleRow.add(holder, BorderLayout.EAST);
         }
-        var header = panel();
+        JPanel header = panel();
         header.setLayout(new BorderLayout(0, 2));
         header.add(titleRow, BorderLayout.NORTH);
         if (sub != null) {
@@ -284,7 +284,7 @@ public final class AppDialog {
 
     /** สร้างกลุ่ม label/panel แนวเดียวตามการจัดตำแหน่งและระยะห่างที่กำหนด */
     static JPanel group(int align, int hgap, int vgap, Container... items) {
-        var group = panel(new FlowLayout(align, hgap, vgap));
+        JPanel group = panel(new FlowLayout(align, hgap, vgap));
         for (Container item : items) {
             group.add(item);
         }
@@ -293,7 +293,7 @@ public final class AppDialog {
 
     /** สร้างหัวคอลัมน์ของตาราง พร้อมความกว้างและความสูงตามที่กำหนด */
     static JLabel tableTitle(String text, int width, int height, int align) {
-        var label = label(text, SMALL_BOLD, TEXT_LIGHT, align);
+        JLabel label = label(text, SMALL_BOLD, TEXT_LIGHT, align);
         if (width > 0) {
             label.setPreferredSize(new Dimension(width, height));
         }
@@ -302,7 +302,7 @@ public final class AppDialog {
 
     /** สร้างกลุ่มหัวข้อแนวตั้งจาก label หลายบรรทัด */
     static JPanel titleStack(int gap, JLabel... labels) {
-        var titles = panel(new GridLayout(labels.length, 1, 0, gap));
+        JPanel titles = panel(new GridLayout(labels.length, 1, 0, gap));
         for (JLabel label : labels) {
             titles.add(label);
         }
@@ -312,7 +312,7 @@ public final class AppDialog {
     /** สร้างแถบหัวเรื่องที่มีกลุ่มหัวข้อด้านซ้ายและ actions ตามขอบที่กำหนด */
     static JPanel pageHeader(JPanel titles, Container actions, String actionsEdge,
                              int top, int left, int bottom, int right) {
-        var header = panel(new BorderLayout());
+        JPanel header = panel(new BorderLayout());
         header.setBorder(new EmptyBorder(top, left, bottom, right));
         header.add(titles, BorderLayout.WEST);
         if (actions != null) {
@@ -324,7 +324,7 @@ public final class AppDialog {
     /** สร้างกลุ่มข้อมูลผู้เล่น: avatar, ชื่อ และ badge ที่ไม่บังคับ */
     static JPanel playerWho(String avatarText, Color avatarColor, String name, int avatarSize,
                             int hgap, JLabel badge) {
-        var who = panel(new FlowLayout(FlowLayout.LEFT, hgap, 0));
+        JPanel who = panel(new FlowLayout(FlowLayout.LEFT, hgap, 0));
         who.add(avatar(avatarText, avatarColor, avatarSize));
         who.add(label(name, BODY_BOLD, TEXT_DARK));
         if (badge != null) {
@@ -339,7 +339,7 @@ public final class AppDialog {
      */
     static JPanel scoreRow(String name, int index, int score, boolean highlight,
                            int padV, int padH, boolean fixedScoreWidth, int maxHeight) {
-        var row = panel(new BorderLayout());
+        JPanel row = panel(new BorderLayout());
         if (maxHeight > 0) {
             row.setAlignmentX(JPanel.LEFT_ALIGNMENT);
             row.setMaximumSize(new Dimension(Integer.MAX_VALUE, maxHeight));
@@ -349,7 +349,7 @@ public final class AppDialog {
         row.setBorder(highlight ? box(BLUE_BORDER, 1, 4, 8) : new EmptyBorder(padV, padH, padV, padH));
 
         row.add(playerWho(initialOf(name), avatarColor(index), name, 24, 8, null), BorderLayout.WEST);
-        var scoreLabel = label(String.valueOf(score), BODY_BOLD, TEXT_DARK, JLabel.RIGHT);
+        JLabel scoreLabel = label(String.valueOf(score), BODY_BOLD, TEXT_DARK, JLabel.RIGHT);
         if (fixedScoreWidth) {
             scoreLabel.setPreferredSize(new Dimension(24, 24));
         }
@@ -373,14 +373,14 @@ public final class AppDialog {
 
     /** จัดคอมโพเนนต์ไว้กลางแนวนอนด้วย FlowLayout */
     static JPanel centerFlow(Container inner, int padV) {
-        var holder = panel(new FlowLayout(FlowLayout.CENTER, 0, padV));
+        JPanel holder = panel(new FlowLayout(FlowLayout.CENTER, 0, padV));
         holder.add(inner);
         return holder;
     }
 
     /** สร้างปุ่มสไตล์ Flat พร้อมระบบเปลี่ยนสีเมื่อเมาส์ชี้และกด */
     static JButton button(String text, Color bg, Color hover, Color pressed, Color fg, Color line, int padV, int padH) {
-        var button = new JButton(text);
+        JButton button = new JButton(text);
         button.setFont(BODY_BOLD);
         button.setForeground(fg);
         button.setBackground(bg);

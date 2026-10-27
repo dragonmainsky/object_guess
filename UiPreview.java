@@ -75,30 +75,30 @@ public class UiPreview extends JFrame {
     // =====================================================================
 
     private void buildSpecs() {
-        specs.add(new ScreenSpec("join", "Join screen", "Host or join a room", this::buildJoin));
-        specs.add(new ScreenSpec("lobby", "Lobby", "Players, readiness and chat", this::buildLobby));
-        specs.add(new ScreenSpec("questioner", "Questioner", "Pick the secret shapes", this::buildQuestioner));
-        specs.add(new ScreenSpec("guesser", "Guesser", "Fill the guess slots", this::buildGuesser));
-        specs.add(new ScreenSpec("result", "Round result", "Reveal and round scores", this::buildRoundResult));
-        specs.add(new ScreenSpec("scoreboard", "Scoreboard", "Final tournament ranking", this::buildScoreboard));
+        specs.add(new ScreenSpec("join", "Join screen", "Host or join a room", () -> buildJoin()));
+        specs.add(new ScreenSpec("lobby", "Lobby", "Players, readiness and chat", () -> buildLobby()));
+        specs.add(new ScreenSpec("questioner", "Questioner", "Pick the secret shapes", () -> buildQuestioner()));
+        specs.add(new ScreenSpec("guesser", "Guesser", "Fill the guess slots", () -> buildGuesser()));
+        specs.add(new ScreenSpec("result", "Round result", "Reveal and round scores", () -> buildRoundResult()));
+        specs.add(new ScreenSpec("scoreboard", "Scoreboard", "Final tournament ranking", () -> buildScoreboard()));
     }
 
     private JPanel buildHeader() {
-        var bar = new JPanel(new BorderLayout(12, 0));
+        JPanel bar = new JPanel(new BorderLayout(12, 0));
         bar.setBackground(AppDialog.CARD_BG);
         bar.setBorder(new CompoundBorder(new MatteBorder(0, 0, 1, 0, AppDialog.CARD_BORDER),
                 new EmptyBorder(7, 14, 7, 14)));
 
-        var brand = new JPanel(new GridLayout(2, 1, 0, 0));
+        JPanel brand = new JPanel(new GridLayout(2, 1, 0, 0));
         brand.setOpaque(false);
         brand.add(AppDialog.label("UI PREVIEW", AppDialog.SMALL_BOLD_12, AppDialog.PRIMARY_BLUE));
         brand.add(AppDialog.label("Sample data - no server", AppDialog.SMALL, AppDialog.TEXT_MUTED));
         bar.add(brand, BorderLayout.WEST);
 
-        var nav = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        JPanel nav = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         nav.setOpaque(false);
         for (ScreenSpec spec : specs) {
-            var button = new NavButton(spec.title);
+            NavButton button = new NavButton(spec.title);
             button.setToolTipText(spec.subtitle);
             button.addActionListener(event -> selectSpec(spec));
             navButtons.add(button);
@@ -106,13 +106,13 @@ public class UiPreview extends JFrame {
         }
         bar.add(nav, BorderLayout.CENTER);
 
-        var actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
         actions.setOpaque(false);
-        var full = AppDialog.button("FULL SIZE", AppDialog.PRIMARY_BLUE, AppDialog.PRIMARY_HOVER,
+        JButton full = AppDialog.button("FULL SIZE", AppDialog.PRIMARY_BLUE, AppDialog.PRIMARY_HOVER,
                 AppDialog.PRIMARY_PRESS, Color.WHITE, AppDialog.PRIMARY_BLUE, 6, 12);
         full.setFont(AppDialog.SMALL_BOLD_12);
         full.addActionListener(event -> openFullSize());
-        var reload = AppDialog.button("RELOAD", Color.WHITE, AppDialog.BG_LIGHT, AppDialog.CARD_BORDER,
+        JButton reload = AppDialog.button("RELOAD", Color.WHITE, AppDialog.BG_LIGHT, AppDialog.CARD_BORDER,
                 AppDialog.TEXT_DARK, AppDialog.CARD_BORDER, 6, 12);
         reload.setFont(AppDialog.SMALL_BOLD_12);
         reload.addActionListener(event -> reloadCurrent());
@@ -158,7 +158,7 @@ public class UiPreview extends JFrame {
             return;
         }
         JPanel screen = current.factory.get();
-        var frame = new JFrame("Full size - " + current.title);
+        JFrame frame = new JFrame("Full size - " + current.title);
         frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         frame.setLayout(new BorderLayout());
         frame.add(screen, BorderLayout.CENTER);
@@ -192,8 +192,8 @@ public class UiPreview extends JFrame {
     // =====================================================================
 
     private JPanel buildJoin() {
-        var ref = new AtomicReference<JoinScreen>();
-        var screen = new JoinScreen(new JoinScreen.JoinListener() {
+        AtomicReference<JoinScreen> ref = new AtomicReference<JoinScreen>();
+        JoinScreen screen = new JoinScreen(new JoinScreen.JoinListener() {
             @Override
             public void onCreateGame(String playerName, int port) {
                 if (ref.get() != null) {
@@ -215,8 +215,8 @@ public class UiPreview extends JFrame {
     }
 
     private JPanel buildLobby() {
-        var ready = readyMap();
-        var screen = new LobbyScreen(event -> {
+        Map<String, Boolean> ready = readyMap();
+        LobbyScreen screen = new LobbyScreen(event -> {
         }, event -> {
         });
         screen.setMyName("Mhee");
@@ -225,7 +225,12 @@ public class UiPreview extends JFrame {
         screen.setPlayers(Arrays.asList(SAMPLE_NAMES), ready, "Mhee");
         screen.setStatusText("Get ready while the host prepares the round.");
         screen.setReadyAction(event -> {
-            ready.put("Mhee", !Boolean.TRUE.equals(ready.get("Mhee")));
+            Boolean mheeReady = ready.get("Mhee");
+            if (mheeReady != null && mheeReady.booleanValue()) {
+                ready.put("Mhee", false);
+            } else {
+                ready.put("Mhee", true);
+            }
             screen.setPlayers(Arrays.asList(SAMPLE_NAMES), ready, "Mhee");
         });
         screen.setChatAction(text -> screen.addChatMessage("Mhee", text));
@@ -236,8 +241,8 @@ public class UiPreview extends JFrame {
     }
 
     private JPanel buildQuestioner() {
-        var ref = new AtomicReference<QuestionerScreen>();
-        var screen = new QuestionerScreen(event -> {
+        AtomicReference<QuestionerScreen> ref = new AtomicReference<QuestionerScreen>();
+        QuestionerScreen screen = new QuestionerScreen(event -> {
             if (ref.get() != null) {
                 ref.get().lockSelection();
             }
@@ -253,8 +258,8 @@ public class UiPreview extends JFrame {
     }
 
     private JPanel buildGuesser() {
-        var ref = new AtomicReference<GuesserScreen>();
-        var screen = new GuesserScreen(event -> {
+        AtomicReference<GuesserScreen> ref = new AtomicReference<GuesserScreen>();
+        GuesserScreen screen = new GuesserScreen(event -> {
             if (ref.get() != null) {
                 ref.get().markSubmitted();
             }
@@ -271,7 +276,7 @@ public class UiPreview extends JFrame {
     }
 
     private JPanel buildRoundResult() {
-        var screen = new RoundResultScreen();
+        RoundResultScreen screen = new RoundResultScreen();
         screen.showResult(2, 8, false,
                 new String[] {"Circle", "Triangle", "Hexagon"}, "all", "Mhee",
                 SAMPLE_NAMES, new int[] {0, 5, 2, 0}, SAMPLE_SCORES,
@@ -286,7 +291,7 @@ public class UiPreview extends JFrame {
     }
 
     private JPanel buildScoreboard() {
-        var screen = new ScoreboardScreen(event -> {
+        ScoreboardScreen screen = new ScoreboardScreen(event -> {
         }, event -> {
         });
         screen.setResults(SAMPLE_NAMES, SAMPLE_SCORES, 8, 8);
@@ -299,7 +304,7 @@ public class UiPreview extends JFrame {
     // =====================================================================
 
     private static Map<String, Boolean> readyMap() {
-        var ready = new LinkedHashMap<String, Boolean>();
+        LinkedHashMap<String, Boolean> ready = new LinkedHashMap<String, Boolean>();
         ready.put("Mhee", false);
         ready.put("Nina", true);
         ready.put("Ton", true);

@@ -59,7 +59,11 @@ public class LobbyScreen extends LobbyScreen_UI {
 
     // ตรวจสอบว่าผู้เล่นเครื่องนี้พร้อมแล้วหรือไม่
     public boolean isReady() {
-        return Boolean.TRUE.equals(readyStates.get(myName));
+        Boolean value = readyStates.get(myName);
+        if (value == null) {
+            return false;
+        }
+        return value.booleanValue();
     }
 
     /**
@@ -93,7 +97,8 @@ public class LobbyScreen extends LobbyScreen_UI {
         // นับจำนวนผู้เล่นที่กดพร้อม
         int readyCount = 0;
         for (String name : playerNames) {
-            if (Boolean.TRUE.equals(readyStates.get(name))) {
+            Boolean value = readyStates.get(name);
+            if (value != null && value.booleanValue()) {
                 readyCount++;
             }
         }
@@ -102,8 +107,11 @@ public class LobbyScreen extends LobbyScreen_UI {
         // ตรวจสอบว่าผู้เล่นคนอื่นทุกคนพร้อมแล้วหรือไม่
         boolean allOthersReady = total >= GameServer.MIN_PLAYERS;
         for (String name : playerNames) {
-            if (!name.equals(myName) && !Boolean.TRUE.equals(readyStates.get(name))) {
-                allOthersReady = false;
+            if (!name.equals(myName)) {
+                Boolean value = readyStates.get(name);
+                if (value == null || !value.booleanValue()) {
+                    allOthersReady = false;
+                }
             }
         }
         boolean canStart = isHost && allOthersReady;

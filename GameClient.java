@@ -57,7 +57,7 @@ public class GameClient {
      * จะบล็อกการทำงานไม่เกิน CONNECT_TIMEOUT_MS
      */
     public void connect() throws IOException {
-        var newSocket = new Socket();
+        Socket newSocket = new Socket();
         try {
             // เชื่อมต่อไปยัง IP และ Port ที่ระบุ พร้อมกำหนด Timeout
             newSocket.connect(new InetSocketAddress(host, port), CONNECT_TIMEOUT_MS);
@@ -73,7 +73,12 @@ public class GameClient {
         closing = false;
 
         // เริ่มเธรดเบื้องหลังสำหรับรอรับข้อมูลจากเซิร์ฟเวอร์ตลอดเวลา
-        var reader = new Thread(this::readLoop, "GameClient-Reader");
+        Thread reader = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                readLoop();
+            }
+        }, "GameClient-Reader");
         reader.setDaemon(true);
         reader.start();
     }
@@ -85,7 +90,7 @@ public class GameClient {
         try {
             while (connected) {
                 // อ่านข้อความตามโครงสร้าง Protocol
-                var message = GameMessage.readFrom(in);
+                GameMessage message = GameMessage.readFrom(in);
                 if (listener != null) {
                     listener.onMessage(message.type, message.args);
                 }

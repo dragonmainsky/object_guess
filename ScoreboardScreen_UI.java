@@ -29,10 +29,10 @@ public class ScoreboardScreen_UI extends JPanel {
         setLayout(new BorderLayout());
         setBackground(AppDialog.BG_LIGHT);
 
-        var mainContent = AppDialog.panel(new BorderLayout(32, 0));
+        JPanel mainContent = AppDialog.panel(new BorderLayout(32, 0));
         mainContent.setBorder(new EmptyBorder(30, 40, 30, 40));
 
-        var leftColumn = buildLeftColumn();
+        JPanel leftColumn = buildLeftColumn();
         leftColumn.setPreferredSize(new Dimension(480, 100));
         mainContent.add(leftColumn, BorderLayout.WEST);
         mainContent.add(buildRightColumn(), BorderLayout.CENTER);
@@ -100,14 +100,14 @@ public class ScoreboardScreen_UI extends JPanel {
     // =====================================================================
 
     private JPanel buildLeftColumn() {
-        var left = AppDialog.panel(new BorderLayout());
+        JPanel left = AppDialog.panel(new BorderLayout());
         left.setBorder(new EmptyBorder(40, 0, 0, 0));
 
         gameOverBadge = AppDialog.badge("GAME OVER", BG_DARK_HEADER, Color.WHITE, null, 4, 14);
         congratsLabel = AppDialog.label("", AppDialog.TITLE_LARGE,
                 AppDialog.TEXT_DARK, JLabel.CENTER);
 
-        var items = new JPanel[] {
+        JPanel[] items = new JPanel[] {
             AppDialog.centerFlow(buildTrophyPanel(), 0),
             AppDialog.centerFlow(gameOverBadge, 0),
             AppDialog.centerFlow(congratsLabel, 0),
@@ -119,7 +119,7 @@ public class ScoreboardScreen_UI extends JPanel {
 
     /** กล่องสีทองแสดงรูปถ้วยรางวัล (Trophy) */
     private JPanel buildTrophyPanel() {
-        var trophy = new JPanel(new BorderLayout());
+        JPanel trophy = new JPanel(new BorderLayout());
         trophy.setBackground(AppDialog.GOLD_BG);
         trophy.setBorder(new LineBorder(AppDialog.GOLD_BORDER, 2));
         trophy.setPreferredSize(new Dimension(170, 170));
@@ -129,7 +129,7 @@ public class ScoreboardScreen_UI extends JPanel {
 
     /** การ์ดสีฟ้าแสดงคะแนนรวมของผู้ชนะ */
     private JPanel buildScoreCard() {
-        var card = new JPanel(new GridLayout(3, 1, 0, 0));
+        JPanel card = new JPanel(new GridLayout(3, 1, 0, 0));
         card.setBackground(AppDialog.PRIMARY_BLUE);
         card.setBorder(new EmptyBorder(14, 10, 14, 10));
         card.setPreferredSize(new Dimension(220, 140));
@@ -147,17 +147,17 @@ public class ScoreboardScreen_UI extends JPanel {
     // =====================================================================
 
     private JPanel buildRightColumn() {
-        var card = AppDialog.card(new BorderLayout(0, 16), 24, 28);
+        JPanel card = AppDialog.card(new BorderLayout(0, 16), 24, 28);
 
-        var titles = AppDialog.titleStack(2,
+        JPanel titles = AppDialog.titleStack(2,
                 AppDialog.label("FINAL RESULTS", AppDialog.SMALL_BOLD, AppDialog.PRIMARY_BLUE),
                 AppDialog.label("Scoreboard", AppDialog.TITLE_24, AppDialog.TEXT_DARK));
 
         completeBadge = AppDialog.badge("TOURNAMENT COMPLETE", AppDialog.SUCCESS_BG, AppDialog.SUCCESS_TEXT,
                 AppDialog.SUCCESS_BORDER, 6, 14);
-        var badgeHolder = AppDialog.group(FlowLayout.RIGHT, 0, 6, completeBadge);
+        JPanel badgeHolder = AppDialog.group(FlowLayout.RIGHT, 0, 6, completeBadge);
 
-        var cardHeader = AppDialog.pageHeader(titles, badgeHolder, BorderLayout.EAST, 0, 0, 0, 0);
+        JPanel cardHeader = AppDialog.pageHeader(titles, badgeHolder, BorderLayout.EAST, 0, 0, 0, 0);
         card.add(cardHeader, BorderLayout.NORTH);
 
         card.add(stackItems(new JPanel[] {buildTableHeader(), buildRowsPanel(), buildDivider(), buildStatsRow()}, 12),
@@ -167,15 +167,15 @@ public class ScoreboardScreen_UI extends JPanel {
         nextBtn = AppDialog.button("NEW GAME", AppDialog.PRIMARY_BLUE, AppDialog.PRIMARY_HOVER, AppDialog.PRIMARY_PRESS,
                 Color.WHITE, AppDialog.PRIMARY_BLUE, 10, 18);
         nextBtn.setPreferredSize(new Dimension(160, 44));
-        nextBtn.addActionListener(this::onNewGameClicked);
+        nextBtn.addActionListener(event -> onNewGameClicked(event));
 
         // ปุ่ม QUIT สำหรับออกจากห้องกลับไปหน้าแรก
-        var quitBtn = AppDialog.button("QUIT", Color.WHITE, AppDialog.BG_LIGHT, AppDialog.CARD_BORDER,
+        JButton quitBtn = AppDialog.button("QUIT", Color.WHITE, AppDialog.BG_LIGHT, AppDialog.CARD_BORDER,
                 AppDialog.TEXT_DARK, AppDialog.CARD_BORDER, 10, 18);
         quitBtn.setPreferredSize(new Dimension(160, 44));
-        quitBtn.addActionListener(this::onQuitClicked);
+        quitBtn.addActionListener(event -> onQuitClicked(event));
 
-        var buttonRow = AppDialog.panel(new GridLayout(1, 2, 12, 0));
+        JPanel buttonRow = AppDialog.panel(new GridLayout(1, 2, 12, 0));
         buttonRow.add(nextBtn);
         buttonRow.add(quitBtn);
         card.add(buttonRow, BorderLayout.SOUTH);
@@ -184,7 +184,7 @@ public class ScoreboardScreen_UI extends JPanel {
 
     /** ส่วนหัวตาราง: RANK, PLAYER, SCORE */
     private JPanel buildTableHeader() {
-        var header = AppDialog.panel(new BorderLayout(10, 0));
+        JPanel header = AppDialog.panel(new BorderLayout(10, 0));
         header.setBorder(new EmptyBorder(0, 13, 0, 13));
 
         header.add(AppDialog.tableTitle("RANK", 36, 20, JLabel.LEFT), BorderLayout.WEST);
@@ -208,21 +208,21 @@ public class ScoreboardScreen_UI extends JPanel {
         Color rankColor = winner ? AppDialog.GOLD_TEXT : AppDialog.TEXT_MUTED;
         Color scoreColor = winner ? AppDialog.GOLD_TEXT : AppDialog.PRIMARY_BLUE;
 
-        var row = new JPanel(new BorderLayout(10, 0));
+        JPanel row = new JPanel(new BorderLayout(10, 0));
         row.setBackground(rowBg);
         row.setBorder(new CompoundBorder(new LineBorder(rowBorder, 1), new EmptyBorder(7, 12, 7, 12)));
 
-        var rankLabel = AppDialog.label(String.valueOf(rank), AppDialog.BODY_BOLD, rankColor);
+        JLabel rankLabel = AppDialog.label(String.valueOf(rank), AppDialog.BODY_BOLD, rankColor);
         rankLabel.setPreferredSize(new Dimension(36, 26));
         row.add(rankLabel, BorderLayout.WEST);
 
-        var winnerBadge = winner
+        JLabel winnerBadge = winner
                 ? AppDialog.badge("WINNER", GOLD_BADGE_BG, AppDialog.GOLD_TEXT, null, 2, 8)
                 : null;
         row.add(AppDialog.playerWho(name.substring(0, 1), rankColor(rank), name, 28, 10, winnerBadge),
                 BorderLayout.CENTER);
 
-        var scoreLabel = AppDialog.label(String.valueOf(score), AppDialog.TITLE, scoreColor, JLabel.RIGHT);
+        JLabel scoreLabel = AppDialog.label(String.valueOf(score), AppDialog.TITLE, scoreColor, JLabel.RIGHT);
         scoreLabel.setPreferredSize(new Dimension(50, 26));
         row.add(scoreLabel, BorderLayout.EAST);
         return row;
@@ -244,14 +244,14 @@ public class ScoreboardScreen_UI extends JPanel {
         roundsValue = AppDialog.label("", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
         playersValue = AppDialog.label("", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
 
-        var stats = AppDialog.panel(new GridLayout(1, 2, 10, 0));
+        JPanel stats = AppDialog.panel(new GridLayout(1, 2, 10, 0));
         stats.add(statItem("Rounds played", roundsValue));
         stats.add(statItem("Players", playersValue));
         return stats;
     }
 
     private static JPanel statItem(String title, JLabel value) {
-        var item = AppDialog.panel(new GridLayout(2, 1, 0, 2));
+        JPanel item = AppDialog.panel(new GridLayout(2, 1, 0, 2));
         item.add(AppDialog.label(title, AppDialog.SMALL, AppDialog.TEXT_LIGHT));
         item.add(value);
         return item;
@@ -259,7 +259,7 @@ public class ScoreboardScreen_UI extends JPanel {
 
     /** เส้นคั่นแนวนอน 1px */
     private static JPanel buildDivider() {
-        var line = new JPanel();
+        JPanel line = new JPanel();
         line.setBackground(AppDialog.CARD_BORDER);
         line.setPreferredSize(new Dimension(1, 1));
         return line;
@@ -267,12 +267,12 @@ public class ScoreboardScreen_UI extends JPanel {
 
     /** ซ้อนคอมโพเนนต์เรียงจากบนลงล่างตามระยะห่างที่กำหนด */
     private static JPanel stackItems(JPanel[] items, int gap) {
-        var root = AppDialog.panel(new BorderLayout(0, gap));
-        var current = root;
+        JPanel root = AppDialog.panel(new BorderLayout(0, gap));
+        JPanel current = root;
         for (int i = 0; i < items.length; i++) {
             current.add(items[i], BorderLayout.NORTH);
             if (i < items.length - 1) {
-                var next = AppDialog.panel(new BorderLayout(0, gap));
+                JPanel next = AppDialog.panel(new BorderLayout(0, gap));
                 current.add(next, BorderLayout.CENTER);
                 current = next;
             }

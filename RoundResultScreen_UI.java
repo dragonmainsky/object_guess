@@ -34,7 +34,7 @@ public class RoundResultScreen_UI extends JPanel {
         setLayout(new BorderLayout());
         setBackground(AppDialog.BG_LIGHT);
 
-        var mainContent = AppDialog.panel(new BorderLayout(24, 16));
+        JPanel mainContent = AppDialog.panel(new BorderLayout(24, 16));
         mainContent.setBorder(new EmptyBorder(24, 32, 24, 32));
         mainContent.add(buildHeader(), BorderLayout.NORTH);
         mainContent.add(buildBody(), BorderLayout.CENTER);
@@ -53,12 +53,12 @@ public class RoundResultScreen_UI extends JPanel {
         tagLabel = AppDialog.label("ROUND SUMMARY", AppDialog.SUBTITLE, AppDialog.PRIMARY_BLUE);
         titleLabel = AppDialog.label("Round 1", AppDialog.TITLE_LARGE, AppDialog.TEXT_DARK);
         questionerLabel = AppDialog.label("Questioner: -", AppDialog.SCREEN_SUB, AppDialog.TEXT_MUTED);
-        var titles = AppDialog.titleStack(2, tagLabel, titleLabel, questionerLabel);
+        JPanel titles = AppDialog.titleStack(2, tagLabel, titleLabel, questionerLabel);
 
         reasonBadge = AppDialog.badge("Round complete", AppDialog.SUCCESS_BG, AppDialog.SUCCESS_TEXT,
                 SUCCESS_LINE, 8, 16);
         reasonBadge.setFont(AppDialog.SUBTITLE);
-        var badgeHolder = AppDialog.group(FlowLayout.RIGHT, 0, 6, reasonBadge);
+        JPanel badgeHolder = AppDialog.group(FlowLayout.RIGHT, 0, 6, reasonBadge);
         return AppDialog.pageHeader(titles, badgeHolder, BorderLayout.EAST, 0, 0, 0, 0);
     }
 
@@ -67,7 +67,7 @@ public class RoundResultScreen_UI extends JPanel {
     // =====================================================================
 
     private JPanel buildBody() {
-        var body = AppDialog.panel(new BorderLayout(0, 16));
+        JPanel body = AppDialog.panel(new BorderLayout(0, 16));
         body.add(buildSecretCard(), BorderLayout.NORTH);
         body.add(buildResultsCard(), BorderLayout.CENTER);
         return body;
@@ -77,7 +77,7 @@ public class RoundResultScreen_UI extends JPanel {
      * การ์ดแสดงรูปทรงเฉลยความลับของรอบนี้
      */
     private JPanel buildSecretCard() {
-        var card = AppDialog.card(new BorderLayout(0, 14), 18, 20);
+        JPanel card = AppDialog.card(new BorderLayout(0, 14), 18, 20);
 
         secretTitleLabel = AppDialog.label("Secret shapes", AppDialog.SUBTITLE, AppDialog.TEXT_DARK);
         card.add(secretTitleLabel, BorderLayout.NORTH);
@@ -92,7 +92,7 @@ public class RoundResultScreen_UI extends JPanel {
      * แสดงแต่ละรูปทรงเฉลย: รูปภาพพร้อมชื่อรูปทรงตัวอักษรเล็กด้านล่าง
      */
     private JPanel buildSecretItem(String shapeName) {
-        var item = AppDialog.panel(new BorderLayout(0, 6));
+        JPanel item = AppDialog.panel(new BorderLayout(0, 6));
         item.add(shapeIcon(shapeName, SECRET_ICON, AppDialog.CARD_BORDER, 1), BorderLayout.CENTER);
         item.add(AppDialog.label(shapeName, AppDialog.SMALL, AppDialog.TEXT_MUTED, JLabel.CENTER), BorderLayout.SOUTH);
         return item;
@@ -102,19 +102,19 @@ public class RoundResultScreen_UI extends JPanel {
      * การ์ดตารางแสดงคะแนนของผู้เล่นทุกคนในรอบนี้
      */
     private JPanel buildResultsCard() {
-        var card = AppDialog.card(new BorderLayout(0, 14), 18, 20);
+        JPanel card = AppDialog.card(new BorderLayout(0, 14), 18, 20);
 
         resultsTitleLabel = AppDialog.label("Round score", AppDialog.TITLE, AppDialog.TEXT_DARK);
         resultsBadge = AppDialog.badge("-", AppDialog.BG_LIGHT, AppDialog.TEXT_DARK, AppDialog.CARD_BORDER, 4, 10);
-        var titles = AppDialog.panel(new BorderLayout());
+        JPanel titles = AppDialog.panel(new BorderLayout());
         titles.add(resultsTitleLabel, BorderLayout.WEST);
-        var badgeHolder = AppDialog.group(FlowLayout.RIGHT, 0, 0, resultsBadge);
+        JPanel badgeHolder = AppDialog.group(FlowLayout.RIGHT, 0, 0, resultsBadge);
         titles.add(badgeHolder, BorderLayout.EAST);
         card.add(titles, BorderLayout.NORTH);
 
         // แถวคะแนนของผู้เล่น รองรับการเลื่อน (Scroll) เมื่อมีผู้เล่นหลายคน
         rowsPanel = AppDialog.stack(AppDialog.panel());
-        var scroll = new JScrollPane(rowsPanel);
+        JScrollPane scroll = new JScrollPane(rowsPanel);
         scroll.setBorder(null);
         scroll.setOpaque(false);
         scroll.getViewport().setOpaque(false);
@@ -131,12 +131,12 @@ public class RoundResultScreen_UI extends JPanel {
      * ส่วนหัวของตาราง: คอลัมน์ PLAYER, GUESSED, ROUND, TOTAL
      */
     private JPanel buildTableHeader() {
-        var header = AppDialog.panel(new BorderLayout(10, 0));
+        JPanel header = AppDialog.panel(new BorderLayout(10, 0));
         header.setBorder(new EmptyBorder(0, 15, 0, 15));
         header.add(AppDialog.tableTitle("PLAYER", 0, 18, JLabel.LEFT), BorderLayout.WEST);
         header.add(AppDialog.tableTitle("GUESSED", 0, 18, JLabel.LEFT), BorderLayout.CENTER);
 
-        var right = AppDialog.panel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        JPanel right = AppDialog.panel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         right.add(AppDialog.tableTitle("ROUND", 86, 18, JLabel.RIGHT));
         right.add(AppDialog.tableTitle("TOTAL", 50, 18, JLabel.RIGHT));
         header.add(right, BorderLayout.EAST);
@@ -148,7 +148,7 @@ public class RoundResultScreen_UI extends JPanel {
     // =====================================================================
 
     private JPanel buildFooter() {
-        var footer = AppDialog.panel(new BorderLayout(12, 0));
+        JPanel footer = AppDialog.panel(new BorderLayout(12, 0));
         countdownLabel = AppDialog.label("", AppDialog.BODY_BOLD, AppDialog.PRIMARY_BLUE);
         footer.add(countdownLabel, BorderLayout.WEST);
         return footer;
@@ -216,7 +216,7 @@ public class RoundResultScreen_UI extends JPanel {
             String[] guess = guesses[i];
             int correct = correctCounts[i];
             boolean bonus = bonuses[i];
-            var row = buildPlayerRow(i, names[i], delta, total, guess, correct, bonus,
+            JPanel row = buildPlayerRow(i, names[i], delta, total, guess, correct, bonus,
                     names[i].equals(questionerName), secret);
             row.setAlignmentX(JPanel.LEFT_ALIGNMENT);
             row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
@@ -245,12 +245,12 @@ public class RoundResultScreen_UI extends JPanel {
      */
     private JPanel buildPlayerRow(int index, String name, int delta, int total, String[] guess, int correct,
                                   boolean bonus, boolean isQuestioner, String[] secret) {
-        var row = new JPanel(new BorderLayout(10, 0));
+        JPanel row = new JPanel(new BorderLayout(10, 0));
         row.setBackground(AppDialog.ROW_BG);
         row.setBorder(new CompoundBorder(new LineBorder(AppDialog.ROW_BG, 1), new EmptyBorder(10, 14, 10, 14)));
 
         // ข้อมูลผู้เล่นฝั่งซ้าย (Avatar, ชื่อ, ป้าย Questioner)
-        var questionerBadge = isQuestioner
+        JLabel questionerBadge = isQuestioner
                 ? AppDialog.badge("Questioner", AppDialog.CARD_BORDER, AppDialog.TEXT_DARK,
                         AppDialog.CARD_BORDER, 2, 8)
                 : null;
@@ -258,7 +258,7 @@ public class RoundResultScreen_UI extends JPanel {
                 AVATAR_SIZE, 8, questionerBadge), BorderLayout.WEST);
 
         // ส่วนแสดงรูปทรงที่ผู้เล่นทายตรงกลาง (พร้อมสีกรอบเขียว/แดง)
-        var guessed = AppDialog.panel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        JPanel guessed = AppDialog.panel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         if (isQuestioner) {
             guessed.add(mutedLabel("picked the secret"));
         } else if (guess.length == 0) {
@@ -273,7 +273,7 @@ public class RoundResultScreen_UI extends JPanel {
         row.add(guessed, BorderLayout.CENTER);
 
         // ส่วนแสดงคะแนนฝั่งขวา (ป้ายโบนัส, คะแนนที่ได้เพิ่มในรอบนี้, คะแนนรวม)
-        var score = AppDialog.panel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        JPanel score = AppDialog.panel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         if (bonus) {
             score.add(AppDialog.badge("BONUS +2", AppDialog.GOLD_BG, AppDialog.GOLD_TEXT, AppDialog.GOLD_BORDER, 3, 8));
         }
@@ -283,7 +283,7 @@ public class RoundResultScreen_UI extends JPanel {
             score.add(AppDialog.badge("+0", AppDialog.BG_LIGHT, AppDialog.TEXT_MUTED, AppDialog.CARD_BORDER, 3, 10));
         }
 
-        var totalLabel = AppDialog.label(String.valueOf(total), AppDialog.STRONG,
+        JLabel totalLabel = AppDialog.label(String.valueOf(total), AppDialog.STRONG,
                 total > 0 ? AppDialog.PRIMARY_BLUE : AppDialog.TEXT_MUTED, JLabel.RIGHT);
         totalLabel.setPreferredSize(new Dimension(46, 24));
         score.add(totalLabel);
@@ -310,7 +310,7 @@ public class RoundResultScreen_UI extends JPanel {
 
     /** สร้างรูปภาพรูปทรงพร้อมใส่สีกรอบตามที่กำหนด */
     private static JPanel shapeIcon(String shapeName, int size, Color line, int width) {
-        var picture = ShapeImages.shape(shapeName, size);
+        JPanel picture = ShapeImages.shape(shapeName, size);
         picture.setToolTipText(shapeName);
         picture.setBorder(new LineBorder(line, width));
         return picture;

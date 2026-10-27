@@ -19,10 +19,13 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
     private final RoundResultScreen roundResultScreen;
 
     /** เธรดพูลสำหรับจัดการงานด้านเครือข่าย เพื่อไม่ให้บล็อกการทำงานของ UI Thread */
-    private final ExecutorService netExecutor = Executors.newSingleThreadExecutor(task -> {
-        var thread = new Thread(task, "MainApp-Net");
-        thread.setDaemon(true);
-        return thread;
+    private final ExecutorService netExecutor = Executors.newSingleThreadExecutor(new ThreadFactory() {
+        @Override
+        public Thread newThread(Runnable task) {
+            Thread thread = new Thread(task, "MainApp-Net");
+            thread.setDaemon(true);
+            return thread;
+        }
     });
 
     private GameClient client;          // ไคลเอนต์สำหรับเชื่อมต่อกับเซิร์ฟเวอร์
@@ -106,7 +109,12 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         joinScreen.setBusy(true);
         joinScreen.setHostInfo(port);
         joinScreen.showStatus("Starting the room on port " + port + "...");
-        netExecutor.submit(() -> startHost(playerName, port));
+        netExecutor.submit(new Runnable() {
+            @Override
+            public void run() {
+                startHost(playerName, port);
+            }
+        });
     }
 
     /**
@@ -121,7 +129,12 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         }
         joinScreen.setBusy(true);
         joinScreen.showStatus("Connecting to " + serverIp + ":" + port + "...");
-        netExecutor.submit(() -> connectAndJoin(playerName, serverIp, port, false));
+        netExecutor.submit(new Runnable() {
+            @Override
+            public void run() {
+                connectAndJoin(playerName, serverIp, port, false);
+            }
+        });
     }
 
     // =====================================================================
@@ -132,7 +145,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
      * เริ่มการทำงานของ GameServer บนเครื่องนี้ จากนั้นเชื่อมต่อ GameClient ในฐานะโฮสต์ผ่าน 127.0.0.1
      */
     private void startHost(String playerName, int port) {
-        var newServer = new GameServer(port);
+        GameServer newServer = new GameServer(port);
         if (!newServer.start()) {
             String reason = newServer.getStartError();
             joinScreen.setBusy(false);
@@ -153,7 +166,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
      * เริ่มการเชื่อมต่อ GameClient ไปยังเซิร์ฟเวอร์ปลายทาง
      */
     private void connectAndJoin(String playerName, String ip, int port, boolean host) {
-        var newClient = new GameClient(ip, port, new NetworkListener());
+        GameClient newClient = new GameClient(ip, port, new NetworkListener());
         try {
             newClient.connect();
         } catch (IOException e) {
@@ -186,22 +199,28 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
      */
     private void startJoinTimeout() {
         cancelJoinTimeout();
-        joinTimeout = new Thread(() -> {
-            try {
-                Thread.sleep(JOIN_REPLY_TIMEOUT_MS);
-            } catch (InterruptedException e) {
-                return;   // ได้รับการตอบรับทันเวลา เธรดถูกยกเลิก
+        joinTimeout = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Thread.sleep(JOIN_REPLY_TIMEOUT_MS);
+                } catch (InterruptedException e) {
+                    return;   // ได้รับการตอบรับทันเวลา เธรดถูกยกเลิก
+                }
+
+                if (joinTimeout != Thread.currentThread() || !alreadyAtJoinScreen()) {
+                    return;   // มีการพยายามเชื่อมต่อใหม่ หรือเข้าห้องสำเร็จแล้ว
+                }
+
+                joinTimeout = null;
+                teardownSession();
+                joinScreen.setBusy(false);
+
+                String message = "The host did not answer the join request. "
+                        + "Check that the IP and port are right and that the host's firewall allows Java.";
+                joinScreen.showStatus(message, true);
+                showError("No reply from the host", message);
             }
-            if (joinTimeout != Thread.currentThread() || !alreadyAtJoinScreen()) {
-                return;   // มีการพยายามเชื่อมต่อใหม่ หรือเข้าห้องสำเร็จแล้ว
-            }
-            joinTimeout = null;
-            teardownSession();
-            joinScreen.setBusy(false);
-            String message = "The host did not answer the join request. "
-                    + "Check that the IP and port are right and that the host's firewall allows Java.";
-            joinScreen.showStatus(message, true);
-            showError("No reply from the host", message);
         }, "MainApp-JoinTimeout");
         joinTimeout.setDaemon(true);
         joinTimeout.start();
@@ -327,21 +346,45 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
      * แยกแยะและจัดการข้อความตามประเภทที่ได้รับจากเซิร์ฟเวอร์
      */
     private void handleMessage(String type, String[] args) {
-        if (GameServer.JOIN_SUCCESS.equals(type)) { handleJoinSuccess(args); }
-        else if (GameServer.JOIN_FAILED.equals(type)) { handleJoinFailed(args); }
-        else if (GameServer.PLAYER_LIST.equals(type)) { handlePlayerList(args); }
-        else if (GameServer.ROUND_INFO.equals(type)) { handleRoundInfo(args); }
-        else if (GameServer.SECRET_LOCKED.equals(type)) { handleSecretLocked(args); }
-        else if (GameServer.GUESS_ACCEPTED.equals(type)) { guesserScreen.markSubmitted(); }
-        else if (GameServer.GUESS_SUBMITTED.equals(type)) { handleGuessSubmitted(args); }
-        else if (GameServer.ROUND_RESULT.equals(type)) { handleRoundResult(args); }
-        else if (GameServer.TO_LOBBY.equals(type)) { handleToLobby(); }
-        else if (GameServer.SHOW_SCOREBOARD.equals(type)) { handleShowScoreboard(); }
-        else if (GameServer.TICK.equals(type)) { handleTick(args); }
-        else if (GameServer.CHAT.equals(type)) { lobbyScreen.addChatMessage(args.length > 0 ? args[0] : "?", arg(args, 1)); }
-        else if (GameServer.SYSTEM.equals(type)) { lobbyScreen.addChatMessage("System", arg(args, 0)); }
-        else if (GameServer.SERVER_CLOSED.equals(type)) { handleServerClosed(); }
-        else if (GameServer.ERROR.equals(type)) { showError("Server message", arg(args, 0).isEmpty() ? "Unknown error" : arg(args, 0)); }
+        if (GameServer.JOIN_SUCCESS.equals(type)) {
+            handleJoinSuccess(args);
+        } else if (GameServer.JOIN_FAILED.equals(type)) {
+            handleJoinFailed(args);
+        } else if (GameServer.PLAYER_LIST.equals(type)) {
+            handlePlayerList(args);
+        } else if (GameServer.ROUND_INFO.equals(type)) {
+            handleRoundInfo(args);
+        } else if (GameServer.SECRET_LOCKED.equals(type)) {
+            handleSecretLocked(args);
+        } else if (GameServer.GUESS_ACCEPTED.equals(type)) {
+            guesserScreen.markSubmitted();
+        } else if (GameServer.GUESS_SUBMITTED.equals(type)) {
+            handleGuessSubmitted(args);
+        } else if (GameServer.ROUND_RESULT.equals(type)) {
+            handleRoundResult(args);
+        } else if (GameServer.TO_LOBBY.equals(type)) {
+            handleToLobby();
+        } else if (GameServer.SHOW_SCOREBOARD.equals(type)) {
+            handleShowScoreboard();
+        } else if (GameServer.TICK.equals(type)) {
+            handleTick(args);
+        } else if (GameServer.CHAT.equals(type)) {
+            String sender = "?";
+            if (args.length > 0) {
+                sender = args[0];
+            }
+            lobbyScreen.addChatMessage(sender, arg(args, 1));
+        } else if (GameServer.SYSTEM.equals(type)) {
+            lobbyScreen.addChatMessage("System", arg(args, 0));
+        } else if (GameServer.SERVER_CLOSED.equals(type)) {
+            handleServerClosed();
+        } else if (GameServer.ERROR.equals(type)) {
+            String message = arg(args, 0);
+            if (message.isEmpty()) {
+                message = "Unknown error";
+            }
+            showError("Server message", message);
+        }
     }
 
     /** จัดการเมื่อเข้าห้องสำเร็จ (JOIN_SUCCESS) สลับไปหน้าจอ Lobby */
@@ -477,12 +520,12 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         knownTotalRounds = total;
 
         lastScores.clear();
-        var names = new String[playerCount];
-        var deltas = new int[playerCount];
-        var totals = new int[playerCount];
-        var guesses = new String[playerCount][];
-        var correctCounts = new int[playerCount];
-        var bonuses = new boolean[playerCount];
+        String[] names = new String[playerCount];
+        int[] deltas = new int[playerCount];
+        int[] totals = new int[playerCount];
+        String[][] guesses = new String[playerCount][];
+        int[] correctCounts = new int[playerCount];
+        boolean[] bonuses = new boolean[playerCount];
         for (int i = 0; i < playerCount; i++) {
             int base = 7 + i * 6;
             names[i] = arg(args, base);
@@ -568,7 +611,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
     /** ซิงค์คะแนนและรายชื่อผู้เล่นไปยังหน้าจอในเกมทั้งสองหน้า (Questioner และ Guesser) */
     private void pushScoreboards() {
         String[] names = playerNames.toArray(new String[0]);
-        var scores = new int[names.length];
+        int[] scores = new int[names.length];
         for (int i = 0; i < names.length; i++) {
             Integer value = lastScores.get(names[i]);
             scores[i] = (value == null) ? 0 : value.intValue();

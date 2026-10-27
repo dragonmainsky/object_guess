@@ -1,3 +1,5 @@
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import javax.swing.*;
 
 /**
@@ -65,17 +67,22 @@ public class RoundResultScreen extends RoundResultScreen_UI {
         stopCountdown();
         secondsLeft = COUNTDOWN_SECONDS;
         renderCountdown(secondsLeft, isFinal);
-        countdown = new Timer(1000, event -> {
-            if (event.getSource() != countdown) {
-                return;   // Event ค้างจาก Timer ตัวเก่าที่ถูกสั่งหยุดไปแล้ว
-            }
-            secondsLeft--;
-            if (secondsLeft <= 0) {
-                secondsLeft = 0;
-                renderCountdown(secondsLeft, isFinal);
-                stopCountdown();
-            } else {
-                renderCountdown(secondsLeft, isFinal);
+        countdown = new Timer(1000, new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent event) {
+                if (event.getSource() != countdown) {
+                    return;   // Event ค้างจาก Timer ตัวเก่าที่ถูกสั่งหยุดไปแล้ว
+                }
+
+                secondsLeft--;
+
+                if (secondsLeft <= 0) {
+                    secondsLeft = 0;
+                    renderCountdown(secondsLeft, isFinal);
+                    stopCountdown();
+                } else {
+                    renderCountdown(secondsLeft, isFinal);
+                }
             }
         });
         countdown.start();

@@ -37,14 +37,14 @@ public class GuesserScreen_UI extends JPanel {
         setLayout(new BorderLayout());
         setBackground(AppDialog.BG_LIGHT);
 
-        var mainContent = AppDialog.panel(new BorderLayout(12, 12));
+        JPanel mainContent = AppDialog.panel(new BorderLayout(12, 12));
         mainContent.setBorder(new EmptyBorder(18, 24, 14, 24));
         mainContent.add(createSubHeader(), BorderLayout.NORTH);
         mainContent.add(createColumns(), BorderLayout.CENTER);
         add(mainContent, BorderLayout.CENTER);
 
         // รองรับการกดปุ่ม ENTER บนคีย์บอร์ดเพื่อส่งคำตอบทันที หากหน้าจอนี้แสดงอยู่และไม่มี Dialog บัง
-        var manager = KeyboardFocusManager.getCurrentKeyboardFocusManager();
+        KeyboardFocusManager manager = KeyboardFocusManager.getCurrentKeyboardFocusManager();
         manager.addKeyEventDispatcher(event -> {
             boolean submitNow = isShowing() && event.getID() == KeyEvent.KEY_PRESSED
                     && event.getKeyCode() == KeyEvent.VK_ENTER
@@ -94,7 +94,7 @@ public class GuesserScreen_UI extends JPanel {
      * สร้างแถบส่วนหัวด้านบน: แสดงคำแนะนำการเล่น พร้อมป้ายเป้าหมาย เวลา คะแนน และสถานะส่งคำตอบ
      */
     private JPanel createSubHeader() {
-        var titles = AppDialog.titleStack(2,
+        JPanel titles = AppDialog.titleStack(2,
                 AppDialog.label("Guess what the Questioner selected!", AppDialog.TITLE_LARGE, AppDialog.TEXT_DARK),
                 AppDialog.label("Choose the same shapes before time runs out.", AppDialog.SCREEN_SUB, AppDialog.TEXT_MUTED));
 
@@ -105,7 +105,7 @@ public class GuesserScreen_UI extends JPanel {
         scoreBadge = AppDialog.topBadge("Score: 0", AppDialog.BG_LIGHT, AppDialog.TEXT_DARK, AppDialog.CARD_BORDER, false);
         submittedBadge = AppDialog.topBadge("Not submitted", AppDialog.WARNING_BG, AppDialog.WARNING_TEXT,
                 AppDialog.WARNING_BORDER, false);
-        var badges = AppDialog.group(FlowLayout.RIGHT, 12, 0,
+        JPanel badges = AppDialog.group(FlowLayout.RIGHT, 12, 0,
                 targetBadge, timeBadge, scoreBadge, submittedBadge);
         return AppDialog.pageHeader(titles, badges, BorderLayout.CENTER, 4, 0, 6, 0);
     }
@@ -114,12 +114,12 @@ public class GuesserScreen_UI extends JPanel {
      * รวมคอลัมน์ซ้าย, กลาง, ขวา เข้าด้วยกัน
      */
     private JPanel createColumns() {
-        var left = createLeftPanel();
+        JPanel left = createLeftPanel();
         left.setPreferredSize(new Dimension(240, 0));
-        var right = createRightPanel();
+        JPanel right = createRightPanel();
         right.setPreferredSize(new Dimension(300, 0));
 
-        var columns = AppDialog.panel(new BorderLayout(14, 0));
+        JPanel columns = AppDialog.panel(new BorderLayout(14, 0));
         columns.add(left, BorderLayout.WEST);
         columns.add(createCenterPanel(), BorderLayout.CENTER);
         columns.add(right, BorderLayout.EAST);
@@ -133,27 +133,27 @@ public class GuesserScreen_UI extends JPanel {
     private JPanel createLeftPanel() {
         scoreRowsPanel = AppDialog.panel(new GridLayout(0, 1, 0, 8));
         roundLabel = AppDialog.label("Waiting to start", AppDialog.SMALL, AppDialog.TEXT_MUTED);
-        var scoreHeader = AppDialog.panel(new BorderLayout());
+        JPanel scoreHeader = AppDialog.panel(new BorderLayout());
         scoreHeader.add(AppDialog.label("Scoreboard", AppDialog.SUBTITLE, AppDialog.TEXT_DARK), BorderLayout.WEST);
         scoreHeader.add(roundLabel, BorderLayout.EAST);
 
-        var scoreCard = AppDialog.card(new BorderLayout(0, 12));
+        JPanel scoreCard = AppDialog.card(new BorderLayout(0, 12));
         scoreCard.add(scoreHeader, BorderLayout.NORTH);
         scoreCard.add(scoreRowsPanel, BorderLayout.CENTER);
 
         // การ์ดแสดงกติกาคะแนน: +1 ถูกต้อง, +2 ถูกหมดใน 10 วิ, 0 ผิด
-        var ruleRows = AppDialog.panel(new GridLayout(0, 1, 0, 8));
+        JPanel ruleRows = AppDialog.panel(new GridLayout(0, 1, 0, 8));
         ruleRows.add(createRuleRow("+1", AppDialog.SUCCESS_BG, AppDialog.SUCCESS_TEXT, AppDialog.SUCCESS_BORDER,
                 "for each correct shape"));
         ruleRows.add(createRuleRow("+2", AppDialog.GOLD_BG, AppDialog.GOLD_TEXT, AppDialog.GOLD_BORDER,
                 "all correct under 10 sec"));
         ruleRows.add(createRuleRow("0", AppDialog.DANGER_BG, AppDialog.DANGER_TEXT, AppDialog.DANGER_BORDER,
                 "for an incorrect shape"));
-        var guideCard = AppDialog.card(new BorderLayout(0, 12));
+        JPanel guideCard = AppDialog.card(new BorderLayout(0, 12));
         guideCard.add(AppDialog.header("Scoring", AppDialog.SUBTITLE, null, null, null), BorderLayout.NORTH);
         guideCard.add(ruleRows, BorderLayout.CENTER);
 
-        var left = AppDialog.panel(new BorderLayout(0, 12));
+        JPanel left = AppDialog.panel(new BorderLayout(0, 12));
         left.add(scoreCard, BorderLayout.NORTH);
         left.add(AppDialog.pin(guideCard, BorderLayout.NORTH), BorderLayout.CENTER);
         return left;
@@ -161,10 +161,10 @@ public class GuesserScreen_UI extends JPanel {
 
     // สร้างแถวแสดงกติกาคะแนน
     private JPanel createRuleRow(String badgeText, Color bg, Color fg, Color border, String ruleText) {
-        var badge = AppDialog.badge(badgeText, bg, fg, border, 2, 6);
+        JLabel badge = AppDialog.badge(badgeText, bg, fg, border, 2, 6);
         badge.setPreferredSize(new Dimension(34, 22));
 
-        var row = AppDialog.panel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        JPanel row = AppDialog.panel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         row.add(badge);
         row.add(AppDialog.label(ruleText, AppDialog.SMALL, AppDialog.TEXT_DARK));
         return row;
@@ -175,19 +175,19 @@ public class GuesserScreen_UI extends JPanel {
     // =====================================================================
 
     private JPanel createCenterPanel() {
-        var centerCard = AppDialog.card(new BorderLayout(0, 12));
+        JPanel centerCard = AppDialog.card(new BorderLayout(0, 12));
         centerCard.add(AppDialog.header("Your guess", AppDialog.TITLE, "Drag shapes here from Objects",
                 AppDialog.BODY, null), BorderLayout.NORTH);
         centerCard.add(createStagePanel(), BorderLayout.CENTER);
 
         // แถบคำแนะนำด้านล่างการ์ดทำหน้าที่เป็นป้ายแสดงสถานะรอบด้วย
-        var hintRow = AppDialog.panel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        JPanel hintRow = AppDialog.panel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         hintRow.add(AppDialog.label("TIP", AppDialog.SMALL_BOLD, AppDialog.WARNING_TEXT));
         statusLabel = AppDialog.label("Waiting for the questioner to lock in the secret shapes...",
                 AppDialog.SMALL, AppDialog.TEXT_MUTED);
         hintRow.add(statusLabel);
 
-        var center = AppDialog.panel(new BorderLayout(0, 10));
+        JPanel center = AppDialog.panel(new BorderLayout(0, 10));
         center.add(centerCard, BorderLayout.CENTER);
         center.add(hintRow, BorderLayout.SOUTH);
         return center;
@@ -198,11 +198,11 @@ public class GuesserScreen_UI extends JPanel {
      */
     private JPanel createStagePanel() {
         guessSlotsPanel = AppDialog.panel();
-        var middleRow = AppDialog.panel(new BorderLayout());
+        JPanel middleRow = AppDialog.panel(new BorderLayout());
         middleRow.setBorder(new EmptyBorder(6, 24, 6, 24));
         middleRow.add(guessSlotsPanel, BorderLayout.CENTER);
 
-        var stage = new JPanel(new BorderLayout());
+        JPanel stage = new JPanel(new BorderLayout());
         stage.setBackground(STAGE_BG);
         stage.setBorder(AppDialog.box(AppDialog.CARD_BORDER, 1, 14, 14));
         stage.add(middleRow, BorderLayout.CENTER);
@@ -238,7 +238,7 @@ public class GuesserScreen_UI extends JPanel {
      */
     private JPanel createSlot(int index, List<String> guessedShapes, int requiredPicks) {
         boolean filled = index < guessedShapes.size();
-        var slot = new JPanel(new BorderLayout(0, filled ? 8 : 0));
+        JPanel slot = new JPanel(new BorderLayout(0, filled ? 8 : 0));
         if (filled) {
             String name = guessedShapes.get(index);
             int icon = slotIconSize(requiredPicks);
@@ -247,7 +247,7 @@ public class GuesserScreen_UI extends JPanel {
             slot.add(ShapeImages.shape(name, icon), BorderLayout.CENTER);
             slot.add(AppDialog.label(name, requiredPicks > 3 ? AppDialog.SMALL_BOLD : AppDialog.BODY_BOLD,
                     AppDialog.TEXT_DARK, JLabel.CENTER), BorderLayout.SOUTH);
-            drag.draggable(slot, name, true, this::isInputLocked);   // ลากกลับไปที่ Objects เพื่อลบออก
+            drag.draggable(slot, name, true, () -> isInputLocked());   // ลากกลับไปที่ Objects เพื่อลบออก
         } else {
             slot.setBackground(AppDialog.ROW_BG);
             slot.setBorder(AppDialog.box(AppDialog.SLOT_BORDER, 2, 0, 0));
@@ -270,16 +270,16 @@ public class GuesserScreen_UI extends JPanel {
 
     private JPanel createRightPanel() {
         pickCounterLabel = AppDialog.label(picksCountText(0, 0), AppDialog.BODY_BOLD, AppDialog.PRIMARY_BLUE);
-        var objectsCard = AppDialog.card(new BorderLayout(0, 12));
+        JPanel objectsCard = AppDialog.card(new BorderLayout(0, 12));
         objectsCard.add(AppDialog.header("Objects", AppDialog.SUBTITLE, "Drag your shapes into the guess",
                 AppDialog.BODY, pickCounterLabel), BorderLayout.NORTH);
 
-        var grid = AppDialog.panel(new GridLayout(4, 2, 8, 8));
+        JPanel grid = AppDialog.panel(new GridLayout(4, 2, 8, 8));
         grid.setPreferredSize(new Dimension(0, 316));   // ล็อกความสูงคงที่เพื่อให้ขนาดการ์ดไม่เปลี่ยน
         for (String name : ShapeImages.NAMES) {
-            var picker = new ShapeImages.Picker(name, 34, 8, 6, false);
+            ShapeImages.Picker picker = new ShapeImages.Picker(name, 34, 8, 6, false);
             pickers.add(picker);
-            drag.draggable(picker, name, false, this::isInputLocked);
+            drag.draggable(picker, name, false, () -> isInputLocked());
             grid.add(picker);
         }
         objectsCard.add(grid, BorderLayout.CENTER);
@@ -297,11 +297,11 @@ public class GuesserScreen_UI extends JPanel {
             objectsCard.setBorder(AppDialog.box(on ? AppDialog.DANGER_BORDER : AppDialog.CARD_BORDER, 1, 16, 16));
         }, (shapeName, where) -> onShapeRemoved(shapeName));
 
-        var hintRow = AppDialog.panel(new FlowLayout(FlowLayout.CENTER, 8, 0));
+        JPanel hintRow = AppDialog.panel(new FlowLayout(FlowLayout.CENTER, 8, 0));
         hintRow.add(AppDialog.keyCap("ENTER"));
         hintRow.add(AppDialog.label("to submit your guess", AppDialog.SMALL, AppDialog.TEXT_MUTED));
 
-        var right = AppDialog.panel(new BorderLayout(0, 12));
+        JPanel right = AppDialog.panel(new BorderLayout(0, 12));
         right.add(objectsCard, BorderLayout.NORTH);
         right.add(AppDialog.pin(hintRow, BorderLayout.NORTH), BorderLayout.CENTER);
         return right;
@@ -315,7 +315,7 @@ public class GuesserScreen_UI extends JPanel {
     protected void renderSelection(List<String> guessedShapes, int requiredPicks) {
         renderGuessSlots(guessedShapes, requiredPicks);
         pickCounterLabel.setText(picksCountText(guessedShapes.size(), requiredPicks));
-        for (var picker : pickers) {
+        for (ShapeImages.Picker picker : pickers) {
             picker.setSelected(guessedShapes.contains(picker.shapeName));
         }
     }

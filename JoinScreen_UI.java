@@ -38,7 +38,7 @@ public class JoinScreen_UI extends JPanel {
         setBackground(BG_LIGHT);
 
         // แบ่งครึ่งหน้าจอ: ฝั่งซ้ายคือข้อมูลแบรนด์/โลโก้ ฝั่งขวาคือแบบฟอร์มการเชื่อมต่อ
-        var split = new JPanel(new GridLayout(1, 2));
+        JPanel split = new JPanel(new GridLayout(1, 2));
         split.add(buildLeftPanel());
         split.add(buildRightPanel());
         add(split, BorderLayout.CENTER);
@@ -48,17 +48,17 @@ public class JoinScreen_UI extends JPanel {
      * สร้างส่วนแสดงผลฝั่งซ้าย: IP แนะนำของเครื่องนี้, โลโก้เกม และชื่อเกม
      */
     private JPanel buildLeftPanel() {
-        var brand = new JPanel(new BorderLayout());
+        JPanel brand = new JPanel(new BorderLayout());
         brand.setBackground(BG_LIGHT);
         brand.setBorder(new EmptyBorder(30, 40, 40, 40));
 
         hostInfoLabel = AppDialog.label("", AppDialog.SMALL_12, TEXT_MUTED);
-        var header = AppDialog.group(FlowLayout.LEFT, 0, 0, hostInfoLabel);
+        JPanel header = AppDialog.group(FlowLayout.LEFT, 0, 0, hostInfoLabel);
         brand.add(header, BorderLayout.NORTH);
 
         // จัดกลุ่มโลโก้และชื่อเกมให้อยู่ตรงกลางตามแนวตั้ง
-        var center = AppDialog.panel(new GridLayout(4, 1, 0, 8));
-        var title = AppDialog.label("<html>Guess What<br>It Looks Like?</html>", AppDialog.f(Font.BOLD, 36), TEXT_DARK);
+        JPanel center = AppDialog.panel(new GridLayout(4, 1, 0, 8));
+        JLabel title = AppDialog.label("<html>Guess What<br>It Looks Like?</html>", AppDialog.f(Font.BOLD, 36), TEXT_DARK);
         center.add(AppDialog.panel());
         center.add(AppDialog.group(FlowLayout.LEFT, 0, 0, ShapeImages.shape("logo", 100)));
         center.add(AppDialog.group(FlowLayout.LEFT, 0, 0, title));
@@ -72,13 +72,13 @@ public class JoinScreen_UI extends JPanel {
      * สร้างส่วนแสดงผลฝั่งขวา: แบบฟอร์มกรอกชื่อผู้เล่น, IP เซิร์ฟเวอร์, พอร์ต และปุ่มกด
      */
     private JPanel buildRightPanel() {
-        var wrapper = new JPanel(new GridLayout(1, 1));
+        JPanel wrapper = new JPanel(new GridLayout(1, 1));
         wrapper.setBackground(BG_LIGHT);
         wrapper.setBorder(new EmptyBorder(40, 60, 40, 60));
 
-        var form = AppDialog.panel(new BorderLayout());
+        JPanel form = AppDialog.panel(new BorderLayout());
 
-        var header = AppDialog.titleStack(4,
+        JPanel header = AppDialog.titleStack(4,
                 AppDialog.label("HOST OR JOIN", AppDialog.SMALL_BOLD_12, AppDialog.PRIMARY_BLUE),
                 AppDialog.label("Find your party", AppDialog.TITLE_LARGE, TEXT_DARK),
                 AppDialog.label("<html>Host a room on this machine, or join a friend on the same Wi-Fi.</html>",
@@ -89,15 +89,15 @@ public class JoinScreen_UI extends JPanel {
         // รายการช่องกรอกข้อมูล 3 ช่อง: ชื่อ, IP เซิร์ฟเวอร์, พอร์ต
         String[] labels = {"Name", "Server IP (host)", "Port"};
         String[] defaults = {"", "", String.valueOf(DEFAULT_PORT)};
-        var inputs = AppDialog.panel(new GridLayout(labels.length, 1, 0, 16));
-        var fields = new JTextField[labels.length];
+        JPanel inputs = AppDialog.panel(new GridLayout(labels.length, 1, 0, 16));
+        JTextField[] fields = new JTextField[labels.length];
         for (int i = 0; i < labels.length; i++) {
-            var label = AppDialog.label(labels[i], AppDialog.SUBTITLE, TEXT_DARK);
+            JLabel label = AppDialog.label(labels[i], AppDialog.SUBTITLE, TEXT_DARK);
             label.setVerticalAlignment(JLabel.BOTTOM);
             fields[i] = makeField(defaults[i]);
-            var box = framed(fields[i], Color.WHITE, AppDialog.CARD_BORDER, 0, 12, 0, 12);
+            JPanel box = framed(fields[i], Color.WHITE, AppDialog.CARD_BORDER, 0, 12, 0, 12);
             box.setPreferredSize(new Dimension(100, 42));
-            var block = AppDialog.panel(new GridLayout(2, 1, 0, 6));
+            JPanel block = AppDialog.panel(new GridLayout(2, 1, 0, 6));
             block.add(label);
             block.add(box);
             inputs.add(block);
@@ -110,7 +110,7 @@ public class JoinScreen_UI extends JPanel {
         // แถบแสดงสถานะพร้อมปุ่มการทำงาน 3 ปุ่ม
         statusTagLabel = AppDialog.label("STATUS", AppDialog.SMALL_BOLD_12, WARNING_TEXT);
         statusLabel = AppDialog.label("Ready. Host a game or enter a host address.", AppDialog.SMALL_BOLD_12, WARNING_TEXT);
-        var bannerContent = AppDialog.panel(new BorderLayout());
+        JPanel bannerContent = AppDialog.panel(new BorderLayout());
         bannerContent.add(statusTagLabel, BorderLayout.WEST);
         bannerContent.add(statusLabel, BorderLayout.EAST);
         statusBanner = framed(bannerContent, WARNING_BG, WARNING_BORDER, 6, 12, 6, 12);
@@ -128,7 +128,7 @@ public class JoinScreen_UI extends JPanel {
         exitBtn.setPreferredSize(new Dimension(100, 42));
         exitBtn.addActionListener(event -> onLeaveAppClicked());
 
-        var actions = AppDialog.panel(new GridLayout(4, 1, 0, 10));
+        JPanel actions = AppDialog.panel(new GridLayout(4, 1, 0, 10));
         actions.setBorder(new EmptyBorder(20, 0, 0, 0));
         actions.add(statusBanner);
         actions.add(createBtn);
@@ -238,7 +238,7 @@ public class JoinScreen_UI extends JPanel {
             hostInfoLabel.setText("No LAN address found - check your Wi-Fi / Ethernet connection.");
             return;
         }
-        var text = new StringBuilder("Others join at: ");
+        StringBuilder text = new StringBuilder("Others join at: ");
         for (int i = 0; i < addresses.size(); i++) {
             text.append(i > 0 ? "  or  " : "").append(addresses.get(i)).append(":").append(port);
         }
@@ -251,11 +251,11 @@ public class JoinScreen_UI extends JPanel {
 
     /** สร้างกรอบสี่เหลี่ยมมีเส้นขอบและระยะเว้นด้านใน (Padding) */
     private static JPanel framed(Container content, Color fill, Color line, int top, int left, int bottom, int right) {
-        var inner = AppDialog.panel(new BorderLayout());
+        JPanel inner = AppDialog.panel(new BorderLayout());
         inner.setBorder(new EmptyBorder(top, left, bottom, right));
         inner.add(content, BorderLayout.CENTER);
 
-        var outer = new JPanel(new BorderLayout());
+        JPanel outer = new JPanel(new BorderLayout());
         outer.setBackground(fill);
         outer.setBorder(new LineBorder(line, 1));
         outer.add(inner, BorderLayout.CENTER);
@@ -264,7 +264,7 @@ public class JoinScreen_UI extends JPanel {
 
     /** สร้างช่องกรอกข้อความ (JTextField) แบบไม่มีขอบในตัว */
     private static JTextField makeField(String initialText) {
-        var field = new JTextField(initialText);
+        JTextField field = new JTextField(initialText);
         field.setFont(AppDialog.PLAIN_14);
         field.setForeground(TEXT_DARK);
         field.setBackground(Color.WHITE);
@@ -274,7 +274,7 @@ public class JoinScreen_UI extends JPanel {
 
     // สร้างปุ่มกดพร้อมระบบเปลี่ยนสีเมื่อเมาส์ชี้
     private static JButton makeButton(String text, Color normal, Color fg, Color hover, boolean outlined) {
-        var button = new JButton(text);
+        JButton button = new JButton(text);
         button.setFont(AppDialog.SUBTITLE);
         button.setForeground(fg);
         button.setBackground(normal);

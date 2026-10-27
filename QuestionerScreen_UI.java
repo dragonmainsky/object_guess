@@ -38,17 +38,17 @@ public class QuestionerScreen_UI extends JPanel {
         setLayout(new BorderLayout());
         setBackground(AppDialog.BG_LIGHT);
 
-        var leftColumn = createLeftPanel();
-        var rightColumn = createRightPanel();
+        JPanel leftColumn = createLeftPanel();
+        JPanel rightColumn = createRightPanel();
         leftColumn.setPreferredSize(new Dimension(LEFT_WIDTH, leftColumn.getPreferredSize().height));
         rightColumn.setPreferredSize(new Dimension(RIGHT_WIDTH, rightColumn.getPreferredSize().height));
 
-        var columns = AppDialog.panel(new BorderLayout(12, 0));
+        JPanel columns = AppDialog.panel(new BorderLayout(12, 0));
         columns.add(leftColumn, BorderLayout.WEST);
         columns.add(createCenterPanel(), BorderLayout.CENTER);
         columns.add(rightColumn, BorderLayout.EAST);
 
-        var mainContent = AppDialog.panel(new BorderLayout(12, 12));
+        JPanel mainContent = AppDialog.panel(new BorderLayout(12, 12));
         mainContent.setBorder(new EmptyBorder(18, 24, 16, 24));
         mainContent.add(createSubHeader(), BorderLayout.NORTH);
         mainContent.add(columns, BorderLayout.CENTER);
@@ -107,7 +107,7 @@ public class QuestionerScreen_UI extends JPanel {
      * สร้างแถบส่วนหัวด้านบน: แสดงหัวข้อว่าถึงตาคุณเลือกแล้ว พร้อมป้ายเป้าหมายจำนวนรูปและเวลานับถอยหลัง
      */
     private JPanel createSubHeader() {
-        var titles = AppDialog.titleStack(2,
+        JPanel titles = AppDialog.titleStack(2,
                 AppDialog.label("YOUR TURN TO CHOOSE", AppDialog.SUBTITLE, AppDialog.PRIMARY_BLUE),
                 AppDialog.label("Select the shapes the others must guess.", AppDialog.TITLE_LARGE, AppDialog.TEXT_DARK));
 
@@ -115,7 +115,7 @@ public class QuestionerScreen_UI extends JPanel {
                 AppDialog.PRIMARY_BLUE, AppDialog.BLUE_BORDER, false);
         timeBadge = AppDialog.topBadge("Time: --:--", AppDialog.WARNING_BG, AppDialog.WARNING_TEXT,
                 AppDialog.WARNING_BORDER, true);
-        var badges = AppDialog.group(FlowLayout.RIGHT, 12, 0, targetBadge, timeBadge);
+        JPanel badges = AppDialog.group(FlowLayout.RIGHT, 12, 0, targetBadge, timeBadge);
         return AppDialog.pageHeader(titles, badges, BorderLayout.CENTER, 4, 0, 6, 0);
     }
 
@@ -123,7 +123,7 @@ public class QuestionerScreen_UI extends JPanel {
      * คอลัมน์ฝั่งซ้าย: แสดงตารางคะแนนสดของผู้เล่น และแถบขั้นตอน 3 ขั้นตอน
      */
     private JPanel createLeftPanel() {
-        var playersCard = AppDialog.stack(AppDialog.card());
+        JPanel playersCard = AppDialog.stack(AppDialog.card());
         playersCard.add(alignLeft(AppDialog.label("Players", AppDialog.SUBTITLE, AppDialog.TEXT_DARK)));
         playersCard.add(alignLeft(AppDialog.label("Live round score", AppDialog.SMALL, AppDialog.TEXT_MUTED)));
         playersCard.add(AppDialog.strut(12));
@@ -132,16 +132,16 @@ public class QuestionerScreen_UI extends JPanel {
         playersCard.add(AppDialog.strut(14));
 
         // กล่องคำแนะนำกติกาการให้คะแนน
-        var tipLines = AppDialog.panel(new GridLayout(2, 1));
+        JPanel tipLines = AppDialog.panel(new GridLayout(2, 1));
         tipLines.add(AppDialog.label("Info: Guessers score +1 per correct shape,", AppDialog.SMALL, AppDialog.TEXT_MUTED));
         tipLines.add(AppDialog.label("and a wrong guess scores nothing for anyone.", AppDialog.SMALL, AppDialog.TEXT_MUTED));
-        var tipBox = AppDialog.pin(tipLines, BorderLayout.NORTH);
+        JPanel tipBox = AppDialog.pin(tipLines, BorderLayout.NORTH);
         tipBox.setBorder(new CompoundBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, AppDialog.CARD_BORDER),
                 new EmptyBorder(10, 0, 0, 0)));
         playersCard.add(alignLeft(tipBox));
 
         // การ์ดแสดงขั้นตอน 3 สเต็ป: 1. เลือกรูปทรง, 2. ยืนยัน, 3. รอดูคนทาย
-        var roundCard = AppDialog.stack(AppDialog.card());
+        JPanel roundCard = AppDialog.stack(AppDialog.card());
         roundLabel = AppDialog.label("Waiting to start", AppDialog.SUBTITLE, AppDialog.TEXT_DARK);
         roundCard.add(alignLeft(roundLabel));
         roundCard.add(AppDialog.strut(12));
@@ -151,7 +151,7 @@ public class QuestionerScreen_UI extends JPanel {
         roundCard.add(AppDialog.strut(10));
         roundCard.add(createStepRow(3, "Watch guesses").row);
 
-        var column = AppDialog.stack(AppDialog.panel());
+        JPanel column = AppDialog.stack(AppDialog.panel());
         column.add(alignLeft(playersCard, 290));
         column.add(AppDialog.strut(12));
         column.add(alignLeft(roundCard, 200));
@@ -163,7 +163,7 @@ public class QuestionerScreen_UI extends JPanel {
      * คอลัมน์ตรงกลาง: ผืนผ้าใบ (Canvas) พร้อมเส้นประ สำหรับวางและจัดตำแหน่งรูปทรงความลับ
      */
     private JPanel createCenterPanel() {
-        var titles = AppDialog.panel(new GridLayout(2, 1, 0, 2));
+        JPanel titles = AppDialog.panel(new GridLayout(2, 1, 0, 2));
         titles.add(AppDialog.label("Your secret set", AppDialog.TITLE, AppDialog.TEXT_DARK));
         titles.add(AppDialog.label("Drag your shapes onto the canvas", AppDialog.BODY, AppDialog.TEXT_MUTED));
 
@@ -171,11 +171,11 @@ public class QuestionerScreen_UI extends JPanel {
         canvas = new DashedCanvas();
         drag.dropZone(canvas,
                 () -> drag.fromBoard() || canAcceptDrop(drag.shape()),
-                canvas::setDropHighlight,
+                on -> canvas.setDropHighlight(on),
                 (shapeName, where) -> onShapeDroppedToCanvas(shapeName, where));
 
         hintLabel = AppDialog.label("", AppDialog.SMALL, AppDialog.TEXT_MUTED, JLabel.CENTER);
-        var centerCard = AppDialog.card(new BorderLayout(0, 12));
+        JPanel centerCard = AppDialog.card(new BorderLayout(0, 12));
         centerCard.add(titles, BorderLayout.NORTH);
         centerCard.add(canvas, BorderLayout.CENTER);
         centerCard.add(hintLabel, BorderLayout.SOUTH);
@@ -188,20 +188,20 @@ public class QuestionerScreen_UI extends JPanel {
     private JPanel createRightPanel() {
         selectedCounterLabel = AppDialog.label("Selected: 0 / " + GameServer.MIN_SHAPES, AppDialog.SMALL_BOLD,
                 AppDialog.PRIMARY_BLUE);
-        var objectsHeader = AppDialog.panel(new BorderLayout());
+        JPanel objectsHeader = AppDialog.panel(new BorderLayout());
         objectsHeader.add(AppDialog.label("Objects", AppDialog.SUBTITLE, AppDialog.TEXT_DARK), BorderLayout.WEST);
         objectsHeader.add(selectedCounterLabel, BorderLayout.EAST);
 
-        var grid = AppDialog.panel(new GridLayout(4, 2, 8, 8));
+        JPanel grid = AppDialog.panel(new GridLayout(4, 2, 8, 8));
         for (String name : ShapeImages.NAMES) {
-            var picker = new ShapeImages.Picker(name, SMALL_ICON, 7, 7, true);
+            ShapeImages.Picker picker = new ShapeImages.Picker(name, SMALL_ICON, 7, 7, true);
             pickers.add(picker);
-            drag.draggable(picker, name, false, this::isInputLocked);
+            drag.draggable(picker, name, false, () -> isInputLocked());
             grid.add(picker);
         }
 
         // ปุ่มล้างตัวเลือกทั้งหมด (CLEAR)
-        var clearBtn = AppDialog.button("CLEAR", Color.WHITE, AppDialog.BG_LIGHT, AppDialog.CARD_BORDER,
+        JButton clearBtn = AppDialog.button("CLEAR", Color.WHITE, AppDialog.BG_LIGHT, AppDialog.CARD_BORDER,
                 AppDialog.TEXT_DARK, AppDialog.CARD_BORDER, 10, 18);
         clearBtn.addActionListener(event -> onClearClicked());
         // ปุ่มยืนยันชุดรูปทรงความลับ (CONFIRM)
@@ -209,11 +209,11 @@ public class QuestionerScreen_UI extends JPanel {
                 AppDialog.PRIMARY_PRESS, Color.WHITE, AppDialog.PRIMARY_BLUE, 10, 18);
         confirmButton.addActionListener(event -> onConfirmClicked());
 
-        var buttonRow = AppDialog.panel(new GridLayout(1, 2, 8, 0));
+        JPanel buttonRow = AppDialog.panel(new GridLayout(1, 2, 8, 0));
         buttonRow.add(clearBtn);
         buttonRow.add(confirmButton);
 
-        var objectsCard = AppDialog.stack(AppDialog.card());
+        JPanel objectsCard = AppDialog.stack(AppDialog.card());
         objectsCard.add(alignLeft(objectsHeader, 24));
         objectsCard.add(alignLeft(AppDialog.label("Drag your shapes to the canvas", AppDialog.SMALL, AppDialog.TEXT_MUTED)));
         objectsCard.add(AppDialog.strut(10));
@@ -227,7 +227,7 @@ public class QuestionerScreen_UI extends JPanel {
             objectsCard.setBorder(AppDialog.box(on ? AppDialog.DANGER_BORDER : AppDialog.CARD_BORDER, 1, 16, 16));
         }, (shapeName, where) -> onShapeRemoved(shapeName));
 
-        var column = AppDialog.stack(AppDialog.panel());
+        JPanel column = AppDialog.stack(AppDialog.panel());
         column.add(alignLeft(objectsCard, objectsCard.getPreferredSize().height));
         column.add(AppDialog.glue());
         return column;
@@ -243,10 +243,10 @@ public class QuestionerScreen_UI extends JPanel {
     protected void renderSelection(List<String> selectedShapes, int requiredShapes, int activeStep) {
         canvas.removeAll();
         for (String shapeName : selectedShapes) {
-            var picture = ShapeImages.shape(shapeName, BIG_ICON);
+            JPanel picture = ShapeImages.shape(shapeName, BIG_ICON);
             picture.setName(shapeName);   // ให้ Canvas ค้นหาพิกัดของรูปทรงได้จากชื่อนี้
             picture.setToolTipText("Drag to move " + shapeName + ", or back to Objects to remove it");
-            drag.draggable(picture, shapeName, true, this::isInputLocked);
+            drag.draggable(picture, shapeName, true, () -> isInputLocked());
             canvas.add(picture);
         }
         canvas.revalidate();
@@ -257,7 +257,7 @@ public class QuestionerScreen_UI extends JPanel {
         targetBadge.setText(AppDialog.targetText(requiredShapes));
 
         // อัปเดตสถานะการถูกเลือกของแต่ละช่องในรายการ Objects
-        for (var picker : pickers) {
+        for (ShapeImages.Picker picker : pickers) {
             picker.setSelected(selectedShapes.contains(picker.shapeName));
         }
 
@@ -270,7 +270,7 @@ public class QuestionerScreen_UI extends JPanel {
      */
     protected void renderStep(int activeStep) {
         for (int i = 0; i < stepRows.size(); i++) {
-            var step = stepRows.get(i);
+            StepRow step = stepRows.get(i);
             int number = i + 1;
             boolean done = number < activeStep;
             boolean current = number == activeStep;
@@ -332,13 +332,13 @@ public class QuestionerScreen_UI extends JPanel {
      * สร้างแถวขั้นตอน (Step row) แสดงหมายเลขในวงกลมและคำอธิบาย
      */
     private StepRow createStepRow(int number, String text) {
-        var row = AppDialog.panel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        JPanel row = AppDialog.panel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         alignLeft(row, 28);
-        var circle = AppDialog.avatar(String.valueOf(number), AppDialog.SLOT_BORDER, 20);
-        var textLabel = AppDialog.label(text, AppDialog.BODY, AppDialog.TEXT_MUTED);
+        JLabel circle = AppDialog.avatar(String.valueOf(number), AppDialog.SLOT_BORDER, 20);
+        JLabel textLabel = AppDialog.label(text, AppDialog.BODY, AppDialog.TEXT_MUTED);
         row.add(circle);
         row.add(textLabel);
-        var step = new StepRow(row, circle, textLabel);
+        StepRow step = new StepRow(row, circle, textLabel);
         stepRows.add(step);
         return step;
     }
@@ -395,7 +395,7 @@ public class QuestionerScreen_UI extends JPanel {
         @Override
         public void doLayout() {
             for (int i = 0; i < getComponentCount(); i++) {
-                var shape = getComponent(i);
+                Component shape = getComponent(i);
                 double[] spot = shapeSpot(shape.getName());
                 if (spot == null) {
                     continue;
