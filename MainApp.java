@@ -133,14 +133,13 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
      */
     private void startHost(String playerName, int port) {
         var newServer = new GameServer(port);
-        try {
-            newServer.start();
-        } catch (IOException e) {
+        if (!newServer.start()) {
+            String reason = newServer.getStartError();
             joinScreen.setBusy(false);
-            joinScreen.showStatus("Could not host on port " + port + ": " + e.getMessage() + ". "
+            joinScreen.showStatus("Could not host on port " + port + ": " + reason + ". "
                     + "Another program may be using it, or the firewall blocked it.", true);
             showError("Could not start the room", "Port " + port + " could not be opened on this machine.\n"
-                    + e.getMessage() + "\n\nTry a different port, or allow Java through your firewall.");
+                    + reason + "\n\nTry a different port, or allow Java through your firewall.");
             return;
         }
         server = newServer;

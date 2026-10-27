@@ -86,6 +86,7 @@ public class GameServer {
 
     // ===== ตัวแปรการทำงานของเซิร์ฟเวอร์ =====
     private final int port;                      // หมายเลขพอร์ตที่เซิร์ฟเวอร์เปิดใช้งาน
+    private String startError = "";              // ข้อความผิดพลาดล่าสุดจากการเปิดพอร์ต
     private ServerSocket serverSocket;           // ซ็อกเก็ตฝั่งเซิร์ฟเวอร์
     private boolean running;            // สถานะว่าเซิร์ฟเวอร์กำลังทำงานอยู่หรือไม่
     private Thread acceptThread;                 // เธรดสำหรับรอรับการเชื่อมต่อจาก Client ใหม่
@@ -131,14 +132,27 @@ public class GameServer {
 
     /**
      * ผูกพอร์ตและเริ่มเธรดรอรับการเชื่อมต่อ (Accept loop)
-     * หากพอร์ตถูกโปรแกรมอื่นใช้งานอยู่จะส่ง IOException ออกไป
+     * คืนค่า true หากเปิดพอร์ตสำเร็จ หรือ false หากพอร์ตถูกโปรแกรมอื่นใช้งานอยู่
      */
-    public void start() throws IOException {
-        serverSocket = new ServerSocket(port);
+    public boolean start() {
+        startError = "";
+        try {
+            serverSocket = new ServerSocket(port);
+        } catch (IOException e) {
+            startError = e.getMessage();
+            System.out.println("[server] could not open port " + port + ": " + startError);
+            return false;
+        }
         running = true;
         acceptThread = new Thread(this::acceptLoop, "GameServer-Accept");
         acceptThread.setDaemon(true);
         acceptThread.start();
+        return true;
+    }
+
+    /** คืนข้อความผิดพลาดจากการเรียก start() ครั้งล่าสุด (ว่างหากเปิดพอร์ตสำเร็จ) */
+    public String getStartError() {
+        return startError;
     }
 
     // ตรวจสอบว่าเซิร์ฟเวอร์กำลังทำงานอยู่หรือไม่
