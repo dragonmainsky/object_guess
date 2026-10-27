@@ -188,7 +188,9 @@ public class RoundResultScreen_UI extends JPanel {
      */
     protected void renderSecret(String[] secret) {
         secretRow.removeAll();
-        if (secret != null && secret.length > 0) {
+        // secret มาจาก splitCsv() ใน MainApp หรืออาเรย์ตัวอย่างใน UiPreview
+        // ทั้งสองทางไม่คืนค่า null จึงเหลือเพียงตรวจว่ามีรูปทรงหรือไม่
+        if (secret.length > 0) {
             for (String shapeName : secret) {
                 secretRow.add(buildSecretItem(shapeName));
             }
@@ -207,7 +209,8 @@ public class RoundResultScreen_UI extends JPanel {
      */
     protected void renderResults(String[] names, int[] deltas, int[] totals, String[][] guesses,
                                  int[] correctCounts, boolean[] bonuses, String questioner, String[] secret) {
-        String questionerName = (questioner == null) ? "" : questioner;
+        // showResult() ส่งค่าที่ไม่เป็น null มาจาก MainApp/UiPreview แล้ว
+        String questionerName = questioner;
         resultsBadge.setText(names.length + (names.length == 1 ? " player" : " players"));
 
         // สร้างแถวแสดงผลสำหรับผู้เล่นแต่ละคน
@@ -295,9 +298,8 @@ public class RoundResultScreen_UI extends JPanel {
 
     /** ตรวจสอบว่ารูปทรงที่ระบุมีอยู่ในชุดเฉลยหรือไม่ */
     private static boolean containsShape(String[] shapes, String wanted) {
-        if (shapes == null || wanted == null) {
-            return false;
-        }
+        // shapes คือ secret ที่ showResult() ส่งมา และ wanted มาจาก splitCsv()
+        // ทั้งคู่ไม่เป็น null จึงไม่ต้องมี guard นี้
         for (String shape : shapes) {
             if (wanted.equalsIgnoreCase(shape)) {
                 return true;

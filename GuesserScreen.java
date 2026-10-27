@@ -137,9 +137,10 @@ public class GuesserScreen extends GuesserScreen_UI {
         setStatus("The questioner locked in " + requiredPicks + " shape" + (requiredPicks == 1 ? "" : "s")
                 + ". Pick yours, then press SUBMIT GUESS.");
         renderSubmitEnabled(!submitted);
-        if (!submitted) {
-            renderSubmitted(false);
-        }
+        // เซิร์ฟเวอร์ส่ง SECRET_LOCKED ครั้งเดียวต่อรอบ ก่อนรับคำตอบแรก
+        // และ startRound() ตั้ง submitted = false ไว้แล้ว
+        // ดังนั้น ณ จุดนี้ submitted เป็น false เสมอ
+        renderSubmitted(false);
         refreshSelection();
     }
 

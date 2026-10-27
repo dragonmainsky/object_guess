@@ -323,9 +323,10 @@ public class GameServer {
             handler.joined = true;
             clients.add(handler);
             ready.put(name, false);
-            if (!scores.containsKey(name)) {
-                scores.put(name, 0);
-            }
+            // ผู้เล่นที่ join ได้จะไม่อยู่ในทัวร์นาเมนต์ที่กำลังแข่ง (ตรวจ tournamentActive ด้านบน)
+            // คะแนนจะถูกนำไปใช้จริงเมื่อเริ่มทัวร์นาเมนต์ใหม่
+            // และ resetScoresLocked() จะเซ็ตคะแนนของทุกคนเป็น 0 อยู่แล้ว
+            scores.put(name, 0);
             isHost = clients.get(0) == handler;
         }
 
@@ -539,12 +540,9 @@ public class GameServer {
             expectedShapes = lastCycleShapes;
 
             // ดึง Questioner คนถัดไปจากลำดับที่สุ่มไว้
+            // ด้านบนตรวจแล้วว่า clients ไม่ว่าง และ takeNextQuestionerLocked()
+            // จะคืนชื่อผู้เล่นคนแรกเสมอเมื่อคิวว่าง จึงไม่มีทางเป็น null
             selectedQuestioner = takeNextQuestionerLocked();
-            if (selectedQuestioner == null) {
-                tournamentActive = false;
-                roundRunning = false;
-                return;
-            }
             questioner = selectedQuestioner;
             currentRound = round;
             lockedTotal = totalRounds;
@@ -792,7 +790,10 @@ public class GameServer {
                 return;
             }
 
-            if (!secretLocked || secret == null) {
+            // secretLocked เป็น true ได้หลัง secret ถูกกำหนดใน handleSecret() เท่านั้น
+            // ทั้งสองค่าถูกตั้งเป็น null/false พร้อมกันใน resetScoresLocked() และ nextRound()
+            // จึงไม่ต้องเช็ก secret == null ซ้ำ
+            if (!secretLocked) {
                 sender.send(ERROR, "Wait for the questioner to lock the secret shapes first.");
                 return;
             }
@@ -1020,9 +1021,10 @@ public class GameServer {
     // นับจำนวนรูปทรงที่ตรงกัน
     private int countMatching(String[] target, String[] guess) {
         int matches = 0;
+        // target คือ secret ที่ผ่าน normalizeShapes() แล้ว จึงไม่มีค่า null
         for (String wanted : target) {
             for (String picked : guess) {
-                if (wanted != null && wanted.equalsIgnoreCase(picked)) {
+                if (wanted.equalsIgnoreCase(picked)) {
                     matches++;
                     break;
                 }
@@ -1042,19 +1044,18 @@ public class GameServer {
         out.add(String.valueOf(totalRounds));
         out.add(isFinal ? "1" : "0");
         out.add(secret == null ? "" : String.join(",", secret));
-        out.add(reason == null ? "" : reason);
+        // reason มาจาก endRound()/finishTournament() ซึ่งส่งค่าคงที่ที่ไม่เป็น null
+        out.add(reason);
         out.add(questioner == null ? "" : questioner);
         out.add(String.valueOf(clients.size()));
         for (ClientHandler client : clients) {
             String name = client.playerName;
-            Integer delta = deltas.get(name);
-            Integer total = scores.get(name);
+            // computeScoresLocked() เติมค่าให้ผู้เล่นทุกคนใน clients แล้ว
+            // ก่อน buildRoundResultPayload() ถูกเรียก จึงอ่านค่าออกมาใช้ได้เลย
             String[] guess = guesses.get(name);
-            Integer correct = correctCounts.get(name);
-
-            int deltaValue = (delta == null) ? 0 : delta.intValue();
-            int totalValue = (total == null) ? 0 : total.intValue();
-            int correctValue = (correct == null) ? 0 : correct.intValue();
+            int deltaValue = deltas.get(name).intValue();
+            int totalValue = scores.get(name).intValue();
+            int correctValue = correctCounts.get(name).intValue();
 
             out.add(name);
             out.add(String.valueOf(deltaValue));
@@ -1062,8 +1063,8 @@ public class GameServer {
             out.add(guess == null ? "" : String.join(",", guess));
             out.add(String.valueOf(correctValue));
 
-            Boolean bonusValue = bonusFlags.get(name);
-            if (bonusValue != null && bonusValue.booleanValue()) {
+            // bonusFlags ถูกเติมครบทุกคนใน computeScoresLocked() เช่นกัน
+            if (bonusFlags.get(name).booleanValue()) {
                 out.add("1");
             } else {
                 out.add("0");

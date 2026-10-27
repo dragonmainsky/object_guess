@@ -553,7 +553,9 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
 
     /** แยกชุดชื่อรูปทรงที่คั่นด้วยจุลภาค */
     private static String[] splitCsv(String csv) {
-        return (csv == null || csv.isEmpty()) ? new String[0] : csv.split(",");
+        // ผู้เรียกทุกจุดส่งค่าจาก arg() ซึ่งคืนสตริงว่างแทน null
+        // จึงเหลือเพียงการตรวจว่าข้อความว่างหรือไม่
+        return csv.isEmpty() ? new String[0] : csv.split(",");
     }
 
     /** กลับไปยังหน้าห้องพักคอย (TO_LOBBY) */

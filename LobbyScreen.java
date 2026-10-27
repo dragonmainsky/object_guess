@@ -75,9 +75,8 @@ public class LobbyScreen extends LobbyScreen_UI {
         playerNames.addAll(names);
         readyStates.putAll(ready);
         hostName = host;
-        if (playerNames.isEmpty()) {
-            hostName = "";
-        }
+        // MainApp เริ่มต้น hostName เป็นค่าว่างก่อนอ่านรายชื่อ
+        // ถ้าไม่มีผู้เล่นก็จะส่งค่าว่างมาให้อยู่แล้ว จึงไม่ต้องเช็กซ้ำ
         refreshPlayers();
     }
 

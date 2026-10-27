@@ -33,7 +33,9 @@ public class RoundResultScreen extends RoundResultScreen_UI {
     public void showResult(int round, int totalRounds, boolean isFinal, String[] secret, String reason,
                            String questioner, String[] names, int[] deltas, int[] totals,
                            String[][] guesses, int[] correctCounts, boolean[] bonuses) {
-        String questionerName = (questioner == null) ? "" : questioner;
+        // MainApp ส่ง questioner มาจาก arg() ซึ่งคืนสตริงว่างแทน null
+        // UiPreview ก็ส่งชื่อจริง จึงใช้ค่าที่ได้รับได้เลย
+        String questionerName = questioner;
         renderHeader(round, totalRounds, isFinal, questionerName);
 
         // ปรับข้อความและสีของป้ายเหตุผลที่จบรอบ
