@@ -138,9 +138,7 @@ public class GameServer {
         broadcast(SERVER_CLOSED);
 
         try {
-            if (serverSocket != null) {
-                serverSocket.close();
-            }
+            serverSocket.close();
         } catch (IOException ignored) {
             // ปิดเรียบร้อยแล้ว
         }
@@ -153,9 +151,7 @@ public class GameServer {
         for (ClientHandler client : snapshot) {
             client.closeQuietly();
         }
-        if (acceptThread != null) {
-            acceptThread.interrupt();
-        }
+        acceptThread.interrupt();
     }
 
     /**
@@ -261,7 +257,7 @@ public class GameServer {
     /** ค้นหา ClientHandler ตามชื่อผู้เล่น (ผู้เรียกต้องถือล็อก lock อยู่) */
     private ClientHandler findByNameLocked(String name) {
         for (ClientHandler client : clients) {
-            if (client.playerName != null && client.playerName.equalsIgnoreCase(name)) {
+            if (client.playerName.equalsIgnoreCase(name)) {
                 return client;
             }
         }
@@ -273,7 +269,7 @@ public class GameServer {
      * คืนค่า null หากชื่อไม่ถูกต้อง หรือมีรูปทรงซ้ำกัน
      */
     private static String[] normalizeShapes(String[] raw, int expectedCount) {
-        if (raw == null || raw.length != expectedCount) {
+        if (raw.length != expectedCount) {
             return null;
         }
         String[] canonical = new String[raw.length];
@@ -302,7 +298,7 @@ public class GameServer {
      * ดำเนินการเมื่อมีคำขอเข้าร่วมห้อง (JOIN) จากผู้เล่น
      */
     private void handleJoin(ClientHandler handler, String rawName) {
-        String name = (rawName == null) ? "" : rawName.trim();
+        String name = rawName.trim();
 
         if (name.isEmpty()) {
             handler.send(JOIN_FAILED, "Player name cannot be empty.");
@@ -353,7 +349,7 @@ public class GameServer {
         boolean wasHost;
         String name;
         synchronized (lock) {
-            wasJoined = handler.joined && handler.playerName != null;
+            wasJoined = handler.joined;
             name = handler.playerName;
             wasHost = wasJoined && !clients.isEmpty() && clients.get(0) == handler;
             if (wasJoined) {
@@ -385,7 +381,7 @@ public class GameServer {
                 if (clients.size() < MIN_PLAYERS) {
                     finishTournament = true; // ผู้เล่นเหลือน้อยกว่าขั้นต่ำ ให้จบทัวร์นาเมนต์
                 } else if (roundRunning) {
-                    if (name != null && name.equals(questioner)) {
+                    if (name.equals(questioner)) {
                         restartRound = true;   // ถ้าคนตั้งโจทย์ออก ให้เริ่มรอบนี้ใหม่ด้วย Questioner คนใหม่
                     } else if (countGuessersLocked() == 0) {
                         finishTournament = true;
@@ -1090,7 +1086,7 @@ public class GameServer {
 
     /** ตรวจและตัดข้อความแชตให้อยู่ในขอบเขต แล้วกระจายให้ทุกคนในห้อง */
     private void handleChat(ClientHandler sender, String text) {
-        String clean = (text == null) ? "" : text.trim();
+        String clean = text.trim();
         if (clean.isEmpty()) {
             return;
         }
@@ -1205,9 +1201,6 @@ public class GameServer {
         /** ส่งข้อความผ่าน OutputStream พร้อมล็อกไม่ให้หลายเธรดเขียนพร้อมกัน */
         void send(GameMessage message) {
             synchronized (writeLock) {
-                if (out == null) {
-                    return;
-                }
                 try {
                     message.writeTo(out);
                 } catch (IOException e) {
@@ -1219,7 +1212,7 @@ public class GameServer {
         /** ปิดซ็อกเก็ตโดยไม่ให้ Exception รบกวนการทำงานส่วนอื่น */
         void closeQuietly() {
             try {
-                if (socket != null && !socket.isClosed()) {
+                if (!socket.isClosed()) {
                     socket.close();
                 }
             } catch (IOException ignored) {

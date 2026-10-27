@@ -174,7 +174,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
             newClient.connect();
         } catch (IOException e) {
             String message = describeConnectionFailure(e, ip, port);
-            if (host && server != null) {
+            if (host) {
                 server.shutdown();
                 server = null;
             }

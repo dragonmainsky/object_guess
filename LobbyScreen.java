@@ -72,13 +72,9 @@ public class LobbyScreen extends LobbyScreen_UI {
     public void setPlayers(List<String> names, Map<String, Boolean> ready, String host) {
         playerNames.clear();
         readyStates.clear();
-        if (names != null) {
-            playerNames.addAll(names);
-        }
-        if (ready != null) {
-            readyStates.putAll(ready);
-        }
-        hostName = (host == null) ? "" : host;
+        playerNames.addAll(names);
+        readyStates.putAll(ready);
+        hostName = host;
         if (playerNames.isEmpty()) {
             hostName = "";
         }
@@ -153,33 +149,25 @@ public class LobbyScreen extends LobbyScreen_UI {
     /** ผู้เล่นกดปุ่มสลับสถานะพร้อม */
     @Override
     protected void onReadyClicked(ActionEvent event) {
-        if (readyAction != null) {
-            readyAction.actionPerformed(event);
-        }
+        readyAction.actionPerformed(event);
     }
 
     /** โฮสต์กดปุ่มเริ่มเกม */
     @Override
     protected void onStartClicked(ActionEvent event) {
-        if (onStartGameAction != null) {
-            onStartGameAction.actionPerformed(event);
-        }
+        onStartGameAction.actionPerformed(event);
     }
 
     /** ผู้เล่นกดปุ่มออกจากห้อง */
     @Override
     protected void onLeaveClicked(ActionEvent event) {
-        if (onLeaveAction != null) {
-            onLeaveAction.actionPerformed(event);
-        }
+        onLeaveAction.actionPerformed(event);
     }
 
     /** ส่งข้อความแชตที่ผู้เล่นพิมพ์ */
     @Override
     protected void onChatSend(String text) {
-        if (chatAction != null) {
-            chatAction.accept(text);
-        }
+        chatAction.accept(text);
     }
 
 }
