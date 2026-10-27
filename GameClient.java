@@ -123,10 +123,20 @@ public class GameClient {
         }
     }
 
+    /** ส่งข้อความประเภทเดียว โดยไม่มีข้อมูลเพิ่มเติม */
+    public void send(String type) {
+        send(type, new String[0]);
+    }
+
+    /** ส่งข้อความที่มีข้อมูลเพิ่มเติมหนึ่งค่า */
+    public void send(String type, String arg) {
+        send(type, new String[] {arg});
+    }
+
     /**
      * ส่งข้อความ Protocol ไปยังเซิร์ฟเวอร์ มีการป้องกันการเขียนข้อมูลพร้อมกัน (Thread-safe)
      */
-    public void send(String type, String... args) {
+    public void send(String type, String[] args) {
         if (!connected || out == null) {
             return;
         }

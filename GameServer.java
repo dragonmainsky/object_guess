@@ -179,8 +179,23 @@ public class GameServer {
     //  การกระจายข้อความ (Broadcasting)
     // =====================================================================
 
+    /** ส่งข้อความประเภทเดียว โดยไม่มีข้อมูลเพิ่มเติม */
+    private void broadcast(String type) {
+        broadcast(type, new String[0]);
+    }
+
+    /** ส่งข้อความที่มีข้อมูลเพิ่มเติมหนึ่งค่า */
+    private void broadcast(String type, String arg) {
+        broadcast(type, new String[] {arg});
+    }
+
+    /** ส่งข้อความที่มีข้อมูลเพิ่มเติมสองค่า */
+    private void broadcast(String type, String arg1, String arg2) {
+        broadcast(type, new String[] {arg1, arg2});
+    }
+
     /** ห่อข้อมูลเป็น GameMessage แล้วส่งให้ผู้เล่นทุกคน */
-    private void broadcast(String type, String... args) {
+    private void broadcast(String type, String[] args) {
         broadcast(new GameMessage(type, args));
     }
 
@@ -551,8 +566,12 @@ public class GameServer {
             }
         }
         // ประกาศข้อมูลรอบใหม่ไปยังทุกคน (นาฬิกาจะยังไม่เริ่มนับจนกว่า Questioner จะล็อกรูป)
-        broadcast(ROUND_INFO, String.valueOf(currentRound), String.valueOf(lockedTotal),
-                selectedQuestioner, String.valueOf(shapesThisRound));
+        broadcast(ROUND_INFO, new String[] {
+            String.valueOf(currentRound),
+            String.valueOf(lockedTotal),
+            selectedQuestioner,
+            String.valueOf(shapesThisRound)
+        });
     }
 
     /**
@@ -627,7 +646,7 @@ public class GameServer {
             super("GameServer-RoundTimer");
             setDaemon(true);
             this.roundNumber = roundNumber;
-            this.deadlineNanos = System.nanoTime() + seconds * 1_000_000_000L;
+            this.deadlineNanos = System.nanoTime() + seconds * 1000000000L;
         }
 
         /** ขอให้เธรดนับถอยหลังหยุดทำงาน แล้วปลุกเธรดให้ออกจาก sleep ทันที */
@@ -659,7 +678,16 @@ public class GameServer {
         /** คำนวณจำนวนวินาทีที่เหลือแบบปัดขึ้น เพื่อไม่ให้แสดง 0 ก่อนหมดเวลาจริง */
         private int remainingSeconds() {
             long nanos = deadlineNanos - System.nanoTime();
-            return (nanos <= 0) ? 0 : (int) ((nanos + 999_999_999L) / 1_000_000_000L);
+            if (nanos <= 0) {
+                return 0;
+            }
+
+            long seconds = nanos / 1000000000L;
+            long remainder = nanos % 1000000000L;
+            if (remainder > 0) {
+                seconds = seconds + 1;
+            }
+            return (int) seconds;
         }
 
         // คำนวณมิลลิวินาทีจนกว่าจะครบวินาทีถัดไป เพื่อให้ส่ง TICK ตรงวินาทีพอดี
@@ -668,8 +696,12 @@ public class GameServer {
             if (nanos <= 0) {
                 return 0;
             }
-            long remainder = nanos % 1_000_000_000L;
-            return (remainder == 0) ? 1000 : remainder / 1_000_000L;
+
+            long remainder = nanos % 1000000000L;
+            if (remainder == 0) {
+                return 1000;
+            }
+            return remainder / 1000000L;
         }
     }
 
@@ -805,7 +837,11 @@ public class GameServer {
             totalGuessers = countGuessersLocked();
         }
         sender.send(GUESS_ACCEPTED);
-        broadcast(GUESS_SUBMITTED, sender.playerName, String.valueOf(submitted), String.valueOf(totalGuessers));
+        broadcast(GUESS_SUBMITTED, new String[] {
+            sender.playerName,
+            String.valueOf(submitted),
+            String.valueOf(totalGuessers)
+        });
         // หากผู้ทายทุกคนส่งคำตอบครบแล้ว ให้จบรอบทันที
         if (submitted >= totalGuessers) {
             endRound("all");
@@ -1146,8 +1182,23 @@ public class GameServer {
             }
         }
 
+        /** ส่งข้อความประเภทเดียว โดยไม่มีข้อมูลเพิ่มเติม */
+        void send(String type) {
+            send(type, new String[0]);
+        }
+
+        /** ส่งข้อความที่มีข้อมูลเพิ่มเติมหนึ่งค่า */
+        void send(String type, String arg) {
+            send(type, new String[] {arg});
+        }
+
+        /** ส่งข้อความที่มีข้อมูลเพิ่มเติมสองค่า */
+        void send(String type, String arg1, String arg2) {
+            send(type, new String[] {arg1, arg2});
+        }
+
         /** ห่อข้อมูลเป็น GameMessage แล้วส่งไปยังผู้เล่นคนนี้ */
-        void send(String type, String... args) {
+        void send(String type, String[] args) {
             send(new GameMessage(type, args));
         }
 

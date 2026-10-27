@@ -19,9 +19,9 @@ public class GameMessage {
 
     /**
      * สร้างข้อความใหม่
-     * ถ้าไม่ส่งอาร์กิวเมนต์มา จะเก็บเป็นอาร์เรย์ว่างแทน null
+     * ถ้าอาร์เรย์เป็น null จะเก็บเป็นอาร์เรย์ว่างแทน
      */
-    public GameMessage(String type, String... args) {
+    public GameMessage(String type, String[] args) {
         this.type = type;
         if (args == null) {
             this.args = new String[0];
