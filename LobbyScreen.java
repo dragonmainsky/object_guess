@@ -150,6 +150,7 @@ public class LobbyScreen extends LobbyScreen_UI {
     //  การเชื่อมเหตุการณ์จากปุ่มและแชต (Event hooks)
     // =====================================================================
 
+    /** ผู้เล่นกดปุ่มสลับสถานะพร้อม */
     @Override
     protected void onReadyClicked(ActionEvent event) {
         if (readyAction != null) {
@@ -157,6 +158,7 @@ public class LobbyScreen extends LobbyScreen_UI {
         }
     }
 
+    /** โฮสต์กดปุ่มเริ่มเกม */
     @Override
     protected void onStartClicked(ActionEvent event) {
         if (onStartGameAction != null) {
@@ -164,6 +166,7 @@ public class LobbyScreen extends LobbyScreen_UI {
         }
     }
 
+    /** ผู้เล่นกดปุ่มออกจากห้อง */
     @Override
     protected void onLeaveClicked(ActionEvent event) {
         if (onLeaveAction != null) {
@@ -171,6 +174,7 @@ public class LobbyScreen extends LobbyScreen_UI {
         }
     }
 
+    /** ส่งข้อความแชตที่ผู้เล่นพิมพ์ */
     @Override
     protected void onChatSend(String text) {
         if (chatAction != null) {

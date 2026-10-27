@@ -428,6 +428,7 @@ public final class AppDialog {
         private final Color pressed;
         private boolean inside;
 
+        /** เก็บสีทั้งสามสถานะของปุ่มเพื่อใช้สลับสีตอนเมาส์ชี้และกด */
         ButtonHover(JButton button, Color normal, Color hover, Color pressed) {
             this.button = button;
             this.normal = normal;
@@ -435,28 +436,33 @@ public final class AppDialog {
             this.pressed = pressed;
         }
 
+        // เมื่อเมาส์เข้าปุ่ม ให้ใช้สี hover
         @Override
         public void mouseEntered(MouseEvent event) {
             inside = true;
             apply(hover);
         }
 
+        // เมื่อเมาส์ออกจากปุ่ม ให้กลับไปใช้สีปกติ
         @Override
         public void mouseExited(MouseEvent event) {
             inside = false;
             apply(normal);
         }
 
+        // ขณะกดปุ่ม ให้ใช้สี pressed
         @Override
         public void mousePressed(MouseEvent event) {
             apply(pressed);
         }
 
+        // เมื่อปล่อยเมาส์ ให้กลับไปใช้สี hover หรือสีปกติ
         @Override
         public void mouseReleased(MouseEvent event) {
             apply(inside ? hover : normal);
         }
 
+        // เปลี่ยนสีพื้นหลังปุ่มเฉพาะเมื่อปุ่มยังใช้งานได้
         private void apply(Color color) {
             if (color != null && button.isEnabled()) {
                 button.setBackground(color);

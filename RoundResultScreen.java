@@ -68,6 +68,7 @@ public class RoundResultScreen extends RoundResultScreen_UI {
         secondsLeft = COUNTDOWN_SECONDS;
         renderCountdown(secondsLeft, isFinal);
         countdown = new Timer(1000, new ActionListener() {
+            /** ลดเวลาถอยหลังลงหนึ่งวินาที และหยุดเมื่อครบศูนย์ */
             @Override
             public void actionPerformed(ActionEvent event) {
                 if (event.getSource() != countdown) {

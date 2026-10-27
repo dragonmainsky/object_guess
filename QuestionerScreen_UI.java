@@ -347,16 +347,19 @@ public class QuestionerScreen_UI extends JPanel {
     //  ฟังก์ชันช่วยและคลาสภายใน (Small Helpers and Inner Classes)
     // =====================================================================
 
+    /** จำกัดความสูงของ JPanel แล้วจัดให้ชิดซ้าย */
     private static JPanel alignLeft(JPanel c, int maxHeight) {
         c.setMaximumSize(new Dimension(Integer.MAX_VALUE, maxHeight));
         return alignLeft(c);
     }
 
+    /** จัด JPanel ให้ชิดซ้าย */
     private static JPanel alignLeft(JPanel c) {
         c.setAlignmentX(JPanel.LEFT_ALIGNMENT);
         return c;
     }
 
+    /** จัด JLabel ให้ชิดซ้าย */
     private static JLabel alignLeft(JLabel c) {
         c.setAlignmentX(JLabel.LEFT_ALIGNMENT);
         return c;
@@ -370,6 +373,7 @@ public class QuestionerScreen_UI extends JPanel {
         final JLabel circle;
         final JLabel text;
 
+        /** เก็บคอมโพเนนต์ทั้งสามส่วนของแถวขั้นตอน */
         StepRow(JPanel row, JLabel circle, JLabel text) {
             this.row = row;
             this.circle = circle;
@@ -384,6 +388,7 @@ public class QuestionerScreen_UI extends JPanel {
     protected class DashedCanvas extends JPanel {
         private boolean dropHighlight; // สถานะไฮไลต์เมื่อมีรูปทรงกำลังลากเข้ามาวาง
 
+        /** กำหนดพื้นหลังโปร่งใสเพื่อให้เห็นเส้นประที่วาดเอง */
         DashedCanvas() {
             setOpaque(false);
             setLayout(null);   // วางตำแหน่งคอมโพเนนต์ด้วยพิกัดเจาะจงผ่าน doLayout() ด้านล่าง
@@ -415,6 +420,7 @@ public class QuestionerScreen_UI extends JPanel {
             repaint();
         }
 
+        /** วาดพื้นหลัง กรอบเส้นประ และไฮไลต์เมื่อมีรูปทรงลากผ่าน */
         @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);

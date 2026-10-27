@@ -32,11 +32,13 @@ public class QuestionerScreen extends QuestionerScreen_UI {
     //  การเชื่อมเหตุการณ์จาก UI (Event hooks)
     // =====================================================================
 
+    /** ผู้เล่นกดปุ่มยืนยันชุดรูปทรงความลับ */
     @Override
     protected void onConfirmClicked() {
         confirmSelection();
     }
 
+    /** ผู้เล่นกดปุ่มล้างรูปทรงทั้งหมดบน Canvas */
     @Override
     protected void onClearClicked() {
         if (selectionLocked) {
@@ -47,6 +49,7 @@ public class QuestionerScreen extends QuestionerScreen_UI {
         refreshUI();
     }
 
+    /** ผู้เล่นลากรูปทรงจากรายการ Objects มาวางบน Canvas */
     @Override
     protected void onShapeDroppedToCanvas(String shapeName, Point where) {
         if (selectionLocked) {
@@ -63,6 +66,7 @@ public class QuestionerScreen extends QuestionerScreen_UI {
         refreshUI();
     }
 
+    /** ผู้เล่นลากรูปทรงออกจาก Canvas */
     @Override
     protected void onShapeRemoved(String shapeName) {
         selectedShapes.remove(shapeName);
@@ -70,16 +74,19 @@ public class QuestionerScreen extends QuestionerScreen_UI {
         refreshUI();
     }
 
+    /** ตรวจสอบว่ายังสามารถรับรูปทรงนี้มาวางบน Canvas ได้หรือไม่ */
     @Override
     protected boolean canAcceptDrop(String shapeName) {
         return selectedShapes.contains(shapeName) || selectedShapes.size() < requiredShapes;
     }
 
+    /** ล็อกการแก้ไขหลังจากยืนยันชุดรูปทรงแล้ว */
     @Override
     protected boolean isInputLocked() {
         return selectionLocked;
     }
 
+    /** คืนตำแหน่งของรูปทรงบน Canvas ในรูปแบบ {x, y} */
     @Override
     protected double[] shapeSpot(String shapeName) {
         return shapeSpots.get(shapeName);

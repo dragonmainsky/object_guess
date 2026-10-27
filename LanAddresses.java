@@ -56,6 +56,7 @@ public final class LanAddresses {
 
         // เรียง IP ที่เหมาะสมที่สุดขึ้นก่อน ถ้าลำดับเท่ากันให้เรียงตามตัวอักษร
         Collections.sort(result, new Comparator<String>() {
+            /** เปรียบเทียบ IP จาก rank ก่อน แล้วจึงเปรียบเทียบชื่อ */
             @Override
             public int compare(String first, String second) {
                 int firstRank = ranks.get(first).intValue();

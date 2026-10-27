@@ -66,6 +66,7 @@ public class RoundResultScreen_UI extends JPanel {
     //  ส่วนเนื้อหา: รูปทรงเฉลยความลับด้านบน และตารางผลคะแนนด้านล่าง (Body)
     // =====================================================================
 
+    /** สร้างส่วนเนื้อหา: การ์ดเฉลยรูปทรงด้านบน และตารางผลคะแนนด้านล่าง */
     private JPanel buildBody() {
         JPanel body = AppDialog.panel(new BorderLayout(0, 16));
         body.add(buildSecretCard(), BorderLayout.NORTH);
@@ -147,6 +148,7 @@ public class RoundResultScreen_UI extends JPanel {
     //  ส่วนท้าย: เวลานับถอยหลังก่อนเริ่มรอบต่อไป (Footer)
     // =====================================================================
 
+    /** สร้างส่วนท้ายที่มีป้ายเวลานับถอยหลังก่อนเริ่มรอบต่อไป */
     private JPanel buildFooter() {
         JPanel footer = AppDialog.panel(new BorderLayout(12, 0));
         countdownLabel = AppDialog.label("", AppDialog.BODY_BOLD, AppDialog.PRIMARY_BLUE);
@@ -304,6 +306,7 @@ public class RoundResultScreen_UI extends JPanel {
         return false;
     }
 
+    /** สร้างข้อความสีเทาสำหรับข้อมูลรอง */
     private static JLabel mutedLabel(String text) {
         return AppDialog.label(text, AppDialog.SMALL, AppDialog.TEXT_MUTED);
     }

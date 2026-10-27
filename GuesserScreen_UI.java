@@ -130,6 +130,7 @@ public class GuesserScreen_UI extends JPanel {
     //  คอลัมน์ซ้าย: สกอร์บอร์ดและกติกาการให้คะแนน (Left Column)
     // =====================================================================
 
+    /** สร้างคอลัมน์ซ้าย ประกอบด้วยการ์ดสกอร์บอร์ดและกติกาการให้คะแนน */
     private JPanel createLeftPanel() {
         scoreRowsPanel = AppDialog.panel(new GridLayout(0, 1, 0, 8));
         roundLabel = AppDialog.label("Waiting to start", AppDialog.SMALL, AppDialog.TEXT_MUTED);
@@ -174,6 +175,7 @@ public class GuesserScreen_UI extends JPanel {
     //  คอลัมน์กลาง: สเตจและช่องวางรูปทาย (Center Column)
     // =====================================================================
 
+    /** สร้างคอลัมน์กลาง: การ์ดช่องวางรูปทาย พร้อมแถบคำแนะนำและสถานะ */
     private JPanel createCenterPanel() {
         JPanel centerCard = AppDialog.card(new BorderLayout(0, 12));
         centerCard.add(AppDialog.header("Your guess", AppDialog.TITLE, "Drag shapes here from Objects",
@@ -268,6 +270,7 @@ public class GuesserScreen_UI extends JPanel {
     //  คอลัมน์ขวา: รายการ Objects และปุ่มส่งคำตอบ (Right Column)
     // =====================================================================
 
+    /** สร้างคอลัมน์ขวา: การ์ดรายการ Objects สำหรับลาก และปุ่มส่งคำตอบ */
     private JPanel createRightPanel() {
         pickCounterLabel = AppDialog.label(picksCountText(0, 0), AppDialog.BODY_BOLD, AppDialog.PRIMARY_BLUE);
         JPanel objectsCard = AppDialog.card(new BorderLayout(0, 12));
@@ -320,6 +323,7 @@ public class GuesserScreen_UI extends JPanel {
         }
     }
 
+    /** สร้างข้อความจำนวนรูปที่เลือก เช่น "2 / 4" */
     private static String picksCountText(int selected, int requiredPicks) {
         return selected + (requiredPicks == 0 ? " / ?" : " / " + requiredPicks);
     }

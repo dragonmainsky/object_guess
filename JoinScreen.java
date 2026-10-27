@@ -32,16 +32,19 @@ public class JoinScreen extends JoinScreen_UI {
     //  การทำงานและการตรวจสอบความถูกต้องของข้อมูล (Actions and Validation)
     // =====================================================================
 
+    /** ผู้เล่นกดปุ่มสร้างห้อง (Host) */
     @Override
     protected void onCreateClicked() {
         onCreateGame();
     }
 
+    /** ผู้เล่นกดปุ่มเข้าร่วมห้อง (Join) */
     @Override
     protected void onJoinClicked() {
         onJoinGame();
     }
 
+    /** ผู้เล่นกดปุ่มออกจากโปรแกรม พร้อมยืนยันก่อนปิด */
     @Override
     protected void onLeaveAppClicked() {
         boolean confirmed = AppDialog.showConfirm(this, "Exit Game", "Are you sure you want to exit?");

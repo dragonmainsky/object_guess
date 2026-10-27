@@ -74,6 +74,7 @@ public class GameClient {
 
         // เริ่มเธรดเบื้องหลังสำหรับรอรับข้อมูลจากเซิร์ฟเวอร์ตลอดเวลา
         Thread reader = new Thread(new Runnable() {
+            /** เริ่มลูปอ่านข้อความจากเซิร์ฟเวอร์ในเธรดเบื้องหลัง */
             @Override
             public void run() {
                 readLoop();

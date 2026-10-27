@@ -199,6 +199,7 @@ public class LobbyScreen_UI extends JPanel {
         JButton sendBtn = AppDialog.button("Send", AppDialog.PRIMARY_BLUE, AppDialog.PRIMARY_HOVER, AppDialog.PRIMARY_PRESS,
                 Color.WHITE, AppDialog.PRIMARY_BLUE, 8, 14);
         Runnable sendChat = new Runnable() {
+            /** ตรวจข้อความและส่งแชตเมื่อผู้เล่นกด Send หรือกด Enter */
             @Override
             public void run() {
                 String text = chatField.getText().trim();
@@ -398,10 +399,12 @@ public class LobbyScreen_UI extends JPanel {
         return slot;
     }
 
+    /** สร้างแถวข้อมูล โดยสร้าง JLabel ของค่าจากข้อความที่กำหนด */
     private JPanel createInfoRow(String label, String value) {
         return createInfoRow(label, AppDialog.label(value, AppDialog.BODY_BOLD, AppDialog.TEXT_DARK));
     }
 
+    /** สร้างแถวข้อมูลโดยใช้ JLabel ที่เตรียมไว้แล้ว */
     private JPanel createInfoRow(String label, JLabel valueLabel) {
         JPanel row = AppDialog.panel(new BorderLayout());
         row.add(AppDialog.label(label, AppDialog.BODY, AppDialog.TEXT_MUTED), BorderLayout.WEST);

@@ -284,6 +284,7 @@ public class JoinScreen_UI extends JPanel {
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
         button.setBorder(outlined ? new LineBorder(AppDialog.CARD_BORDER, 1) : new EmptyBorder(0, 0, 0, 0));
         button.addMouseListener(new MouseAdapter() {
+            // เมื่อเมาส์เข้าปุ่ม ให้เปลี่ยนเป็นสี hover
             @Override
             public void mouseEntered(MouseEvent event) {
                 if (button.isEnabled()) {
@@ -291,6 +292,7 @@ public class JoinScreen_UI extends JPanel {
                 }
             }
 
+            // เมื่อเมาส์ออกจากปุ่ม ให้กลับไปใช้สีปกติ
             @Override
             public void mouseExited(MouseEvent event) {
                 if (button.isEnabled()) {

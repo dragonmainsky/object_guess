@@ -78,6 +78,10 @@ public class GameServer {
     private int lastCycleShapes;          // จำนวนรูปทรงที่ใช้ในรอบใหญ่ก่อนหน้า
     private final List<String> cycleOrder = new ArrayList<>(); // ลำดับผู้เล่นที่รอเป็น Questioner ในรอบใหญ่นี้
 
+    /**
+     * สร้างออบเจกต์เซิร์ฟเวอร์สำหรับพอร์ตที่กำหนด
+     * ยังไม่เปิดพอร์ตจริงจนกว่าจะเรียกเมธอด start()
+     */
     public GameServer(int port) {
         this.port = port;
     }
@@ -100,6 +104,7 @@ public class GameServer {
         }
         running = true;
         acceptThread = new Thread(new Runnable() {
+            /** เธรดนี้รอรับผู้เล่นใหม่ไปตลอดจนกว่าเซิร์ฟเวอร์จะหยุดทำงาน */
             @Override
             public void run() {
                 acceptLoop();
@@ -174,6 +179,7 @@ public class GameServer {
     //  การกระจายข้อความ (Broadcasting)
     // =====================================================================
 
+    /** ห่อข้อมูลเป็น GameMessage แล้วส่งให้ผู้เล่นทุกคน */
     private void broadcast(String type, String... args) {
         broadcast(new GameMessage(type, args));
     }
@@ -616,6 +622,7 @@ public class GameServer {
         private final long deadlineNanos;
         private volatile boolean stopped;
 
+        /** เก็บหมายเลขรอบและเวลาสิ้นสุดของรอบนี้ พร้อมตั้งเป็นเธรด daemon */
         RoundTimerThread(int roundNumber, int seconds) {
             super("GameServer-RoundTimer");
             setDaemon(true);
@@ -623,11 +630,13 @@ public class GameServer {
             this.deadlineNanos = System.nanoTime() + seconds * 1_000_000_000L;
         }
 
+        /** ขอให้เธรดนับถอยหลังหยุดทำงาน แล้วปลุกเธรดให้ออกจาก sleep ทันที */
         void requestStop() {
             stopped = true;
             interrupt();
         }
 
+        /** ส่งเวลา TICK ทุกวินาที และสั่งจบรอบเมื่อเวลาหมด */
         @Override
         public void run() {
             while (!stopped) {
@@ -647,6 +656,7 @@ public class GameServer {
             }
         }
 
+        /** คำนวณจำนวนวินาทีที่เหลือแบบปัดขึ้น เพื่อไม่ให้แสดง 0 ก่อนหมดเวลาจริง */
         private int remainingSeconds() {
             long nanos = deadlineNanos - System.nanoTime();
             return (nanos <= 0) ? 0 : (int) ((nanos + 999_999_999L) / 1_000_000_000L);
@@ -663,6 +673,7 @@ public class GameServer {
         }
     }
 
+    /** หยุดตัวนับรอบเดิม (ถ้ามี) แล้วเริ่มตัวนับรอบใหม่ */
     private void startRoundTimer(int roundNumber, int seconds) {
         stopRoundTimer();
         RoundTimerThread timer = new RoundTimerThread(roundNumber, seconds);
@@ -672,6 +683,7 @@ public class GameServer {
         timer.start();
     }
 
+    /** หยุดเธรดนับถอยหลังของรอบปัจจุบัน และรอให้เธรดเดิมจบอย่างสั้น ๆ */
     private void stopRoundTimer() {
         RoundTimerThread timer;
         synchronized (lock) {
@@ -887,6 +899,7 @@ public class GameServer {
 
         // ใช้ anonymous class แทน lambda เพื่อให้อ่านลำดับการทำงานได้ง่าย
         Thread thread = new Thread(new Runnable() {
+            /** รอตามเวลาพักรอบ แล้วเริ่มรอบถัดไปหรือเปิดหน้าสกอร์บอร์ด */
             @Override
             public void run() {
                 try {
@@ -915,6 +928,7 @@ public class GameServer {
         thread.start();
     }
 
+    /** ยกเลิกเธรดพักระหว่างรอบหากยังทำงานอยู่ */
     private void stopIntermission() {
         Thread thread;
         synchronized (lock) {
@@ -1038,6 +1052,7 @@ public class GameServer {
     //  ระบบข้อความแชต (Chat)
     // =====================================================================
 
+    /** ตรวจและตัดข้อความแชตให้อยู่ในขอบเขต แล้วกระจายให้ทุกคนในห้อง */
     private void handleChat(ClientHandler sender, String text) {
         String clean = (text == null) ? "" : text.trim();
         if (clean.isEmpty()) {
@@ -1064,12 +1079,14 @@ public class GameServer {
         private String playerName;
         private boolean joined;
 
+        /** สร้างตัวจัดการสำหรับซ็อกเก็ตของผู้เล่นที่เพิ่งเชื่อมต่อเข้ามา */
         ClientHandler(Socket socket) {
             super("GameServer-Client");
             this.socket = socket;
             setDaemon(true);
         }
 
+        /** อ่านข้อความจากผู้เล่นคนนี้ไปเรื่อย ๆ จนกว่าการเชื่อมต่อจะปิด */
         @Override
         public void run() {
             try {
@@ -1129,10 +1146,12 @@ public class GameServer {
             }
         }
 
+        /** ห่อข้อมูลเป็น GameMessage แล้วส่งไปยังผู้เล่นคนนี้ */
         void send(String type, String... args) {
             send(new GameMessage(type, args));
         }
 
+        /** ส่งข้อความผ่าน OutputStream พร้อมล็อกไม่ให้หลายเธรดเขียนพร้อมกัน */
         void send(GameMessage message) {
             synchronized (writeLock) {
                 if (out == null) {
@@ -1146,6 +1165,7 @@ public class GameServer {
             }
         }
 
+        /** ปิดซ็อกเก็ตโดยไม่ให้ Exception รบกวนการทำงานส่วนอื่น */
         void closeQuietly() {
             try {
                 if (socket != null && !socket.isClosed()) {

@@ -33,21 +33,25 @@ public class GuesserScreen extends GuesserScreen_UI {
     //  การเชื่อมเหตุการณ์จาก UI (Event hooks)
     // =====================================================================
 
+    /** ผู้เล่นกดปุ่มส่งคำตอบทาย */
     @Override
     protected void onSubmitClicked() {
         submitGuess();
     }
 
+    /** ผู้เล่นลากรูปทรงมาวางในช่องทาย */
     @Override
     protected void onShapeDroppedToSlot(String shapeName, int slotIndex) {
         placeShape(shapeName, slotIndex);
     }
 
+    /** ผู้เล่นลากรูปทรงออกจากช่องทาย */
     @Override
     protected void onShapeRemoved(String shapeName) {
         removeShape(shapeName);
     }
 
+    /** ล็อกการแก้ไขเมื่อผู้เล่นส่งคำตอบของรอบนี้แล้ว */
     @Override
     protected boolean isInputLocked() {
         return submitted;

@@ -20,6 +20,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
 
     /** เธรดพูลสำหรับจัดการงานด้านเครือข่าย เพื่อไม่ให้บล็อกการทำงานของ UI Thread */
     private final ExecutorService netExecutor = Executors.newSingleThreadExecutor(new ThreadFactory() {
+        /** สร้างเธรด daemon สำหรับงานเครือข่าย */
         @Override
         public Thread newThread(Runnable task) {
             Thread thread = new Thread(task, "MainApp-Net");
@@ -110,6 +111,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         joinScreen.setHostInfo(port);
         joinScreen.showStatus("Starting the room on port " + port + "...");
         netExecutor.submit(new Runnable() {
+            /** เริ่มเซิร์ฟเวอร์ในเธรดเครือข่าย เพื่อไม่ให้ UI ค้าง */
             @Override
             public void run() {
                 startHost(playerName, port);
@@ -130,6 +132,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         joinScreen.setBusy(true);
         joinScreen.showStatus("Connecting to " + serverIp + ":" + port + "...");
         netExecutor.submit(new Runnable() {
+            /** เชื่อมต่อและส่งคำขอ JOIN ในเธรดเครือข่าย */
             @Override
             public void run() {
                 connectAndJoin(playerName, serverIp, port, false);
@@ -200,6 +203,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
     private void startJoinTimeout() {
         cancelJoinTimeout();
         joinTimeout = new Thread(new Runnable() {
+            /** รอตามเวลาที่กำหนด แล้วแจ้งเตือนหากยังไม่ได้รับคำตอบจากโฮสต์ */
             @Override
             public void run() {
                 try {
@@ -226,6 +230,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         joinTimeout.start();
     }
 
+    /** ยกเลิกการรอคำตอบ JOIN ที่ค้างอยู่ (ถ้ามี) */
     private void cancelJoinTimeout() {
         if (joinTimeout != null) {
             joinTimeout.interrupt();
@@ -573,10 +578,12 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         showScreen(SCREEN_SCOREBOARD);
     }
 
+    /** เรียกเมื่อเซิร์ฟเวอร์แจ้งว่าห้องถูกปิด */
     private void handleServerClosed() {
         endSession("Room closed", "The host closed the room. You have been returned to the join screen.");
     }
 
+    /** เรียกเมื่อการเชื่อมต่อกับโฮสต์หลุด */
     private void handleDisconnected(String reason) {
         endSession("Disconnected", reason);
     }
@@ -624,10 +631,12 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
     //  ฟังก์ชันช่วยและการแสดงผลกล่องข้อความ (Small Helpers)
     // =====================================================================
 
+    /** ดึงค่าอาร์กิวเมนต์ตามตำแหน่ง หากไม่มีให้คืนสตริงว่าง */
     private static String arg(String[] args, int index) {
         return (index < 0 || index >= args.length) ? "" : args[index];
     }
 
+    /** แปลงข้อความเป็นตัวเลข หากผิดรูปแบบให้คืนค่า fallback */
     private static int parseInt(String value, int fallback) {
         try {
             return Integer.parseInt(value);
@@ -636,21 +645,25 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         }
     }
 
+    /** แสดงกล่องข้อความแจ้งข้อผิดพลาด */
     private void showError(String title, String message) {
         AppDialog.showError(this, title, message);
     }
 
+    /** แสดงกล่องข้อความข้อมูล */
     private void showInfo(String message, String title) {
         AppDialog.showInfo(this, title, message);
     }
 
     /** คลาสรับคอลแบ็กข้อความจาก GameClient */
     private class NetworkListener implements GameClient.Listener {
+        /** ส่งข้อความที่ได้รับต่อไปยังตัวจัดการหน้าจอ */
         @Override
         public void onMessage(String type, String[] args) {
             handleMessage(type, args);
         }
 
+        /** แจ้ง MainApp เมื่อการเชื่อมต่อหลุด */
         @Override
         public void onDisconnected(String reason) {
             handleDisconnected(reason);

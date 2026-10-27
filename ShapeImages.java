@@ -105,6 +105,7 @@ public final class ShapeImages {
         private final String shapeName; // ชื่อรูปทรง
         private final int size;         // ขนาดของรูปภาพ
 
+        /** เก็บชื่อรูปทรงและขนาดที่ใช้แสดงภาพ */
         Picture(String shapeName, int size) {
             this.shapeName = shapeName;
             this.size = size;
@@ -120,11 +121,13 @@ public final class ShapeImages {
             return new Dimension(size + insets.left + insets.right, size + insets.top + insets.bottom);
         }
 
+        /** ใช้ขนาดเดียวกับ preferred size เพื่อไม่ให้รูปทรงถูกบีบ */
         @Override
         public Dimension getMinimumSize() {
             return getPreferredSize();
         }
 
+        /** ใช้ขนาดเดียวกับ preferred size เพื่อไม่ให้รูปทรงถูกบีบ */
         @Override
         public Dimension getMaximumSize() {
             return getPreferredSize();
@@ -171,12 +174,14 @@ public final class ShapeImages {
             // ตรวจจับเหตุการณ์เมาส์ชี้เพื่อเปลี่ยนสีพื้นหลังและกรอบ
             if (hoverable) {
                 addMouseListener(new MouseAdapter() {
+                    /** เมื่อเมาส์เข้าช่องรูปทรง ให้เปิดสถานะ hover */
                     @Override
                     public void mouseEntered(MouseEvent event) {
                         hovered = true;
                         refresh();
                     }
 
+                    /** เมื่อเมาส์ออกจากช่องรูปทรง ให้ปิดสถานะ hover */
                     @Override
                     public void mouseExited(MouseEvent event) {
                         hovered = false;
@@ -226,6 +231,7 @@ public final class ShapeImages {
         private int ghostY;          // พิกัด Y ของรูปที่ลอยตามเมาส์
         private DragSourceMotionListener motion; // ตัวตรวจจับการเคลื่อนที่ของเมาส์ขณะลาก
 
+        /** กำหนดหน้าจอหลักและขนาดของรูปทรงที่ลอยตามเมาส์ */
         public DragBoard(JPanel host, int ghostSize) {
             this.host = host;
             this.ghost = ghostSize;
@@ -262,6 +268,7 @@ public final class ShapeImages {
                         DragSource.getDefaultDragSource().addDragSourceMotionListener(motion);
                         try {
                             gesture.startDrag(null, payload(shapeName), new DragSourceAdapter() {
+                                /** เมื่อการลากจบ ให้ล้างสถานะและเอารูปที่ลอยออก */
                                 @Override
                                 public void dragDropEnd(DragSourceDropEvent event) {
                                     endDrag(); // สิ้นสุดการลาก
@@ -287,6 +294,7 @@ public final class ShapeImages {
                     return shape != null && accepts.getAsBoolean();
                 }
 
+                /** ตรวจสอบว่าวางได้หรือไม่ และเปิดไฮไลต์พื้นที่รับ */
                 @Override
                 public void dragEnter(DropTargetDragEvent event) {
                     dragOver(event);
@@ -295,6 +303,7 @@ public final class ShapeImages {
                     }
                 }
 
+                /** ตอบรับหรือปฏิเสธการลากตามเงื่อนไข */
                 @Override
                 public void dragOver(DropTargetDragEvent event) {
                     if (allowed()) {
@@ -304,11 +313,13 @@ public final class ShapeImages {
                     }
                 }
 
+                /** ปิดไฮไลต์เมื่อเมาส์ออกจากพื้นที่ */
                 @Override
                 public void dragExit(DropTargetEvent event) {
                     mark.accept(false); // ยกเลิกการไฮไลต์เมื่อเมาส์ออกนอกพื้นที่
                 }
 
+                /** ตรวจสอบและส่งต่อรูปทรงที่ถูกวาง */
                 @Override
                 public void drop(DropTargetDropEvent event) {
                     mark.accept(false);
@@ -366,16 +377,19 @@ public final class ShapeImages {
          */
         private static Transferable payload(final String shapeName) {
             return new Transferable() {
+                /** ข้อมูลที่รองรับการถ่ายโอนคือข้อความธรรมดา */
                 @Override
                 public DataFlavor[] getTransferDataFlavors() {
                     return new DataFlavor[] {DataFlavor.stringFlavor};
                 }
 
+                /** ตรวจสอบว่า flavor ที่ขอเป็นข้อความหรือไม่ */
                 @Override
                 public boolean isDataFlavorSupported(DataFlavor flavor) {
                     return DataFlavor.stringFlavor.equals(flavor);
                 }
 
+                /** คืนชื่อรูปทรงเมื่อมีการขอข้อมูลแบบข้อความ */
                 @Override
                 public Object getTransferData(DataFlavor flavor) throws UnsupportedFlavorException {
                     if (!DataFlavor.stringFlavor.equals(flavor)) {

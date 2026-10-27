@@ -99,6 +99,7 @@ public class ScoreboardScreen_UI extends JPanel {
     //  คอลัมน์ซ้าย: ถ้วยรางวัล, ผู้ชนะ และคะแนนสูงสุด (Left Column)
     // =====================================================================
 
+    /** สร้างคอลัมน์ซ้าย: ถ้วยรางวัล ป้ายจบเกม คำแสดงความยินดี และคะแนนสูงสุด */
     private JPanel buildLeftColumn() {
         JPanel left = AppDialog.panel(new BorderLayout());
         left.setBorder(new EmptyBorder(40, 0, 0, 0));
@@ -146,6 +147,7 @@ public class ScoreboardScreen_UI extends JPanel {
     //  คอลัมน์ขวา: ตารางอันดับและสถิติ (Right Column)
     // =====================================================================
 
+    /** สร้างคอลัมน์ขวา: การ์ดตารางอันดับ สรุปสถิติ และปุ่มดำเนินการ */
     private JPanel buildRightColumn() {
         JPanel card = AppDialog.card(new BorderLayout(0, 16), 24, 28);
 
@@ -193,6 +195,7 @@ public class ScoreboardScreen_UI extends JPanel {
         return header;
     }
 
+    /** สร้างพาเนลสำหรับใส่แถวอันดับ และเก็บอ้างอิงไว้สำหรับอัปเดตภายหลัง */
     private JPanel buildRowsPanel() {
         rowsPanel = AppDialog.panel();
         return rowsPanel;
@@ -250,6 +253,7 @@ public class ScoreboardScreen_UI extends JPanel {
         return stats;
     }
 
+    /** สร้างช่องสถิติสองบรรทัด (หัวข้อและค่า) */
     private static JPanel statItem(String title, JLabel value) {
         JPanel item = AppDialog.panel(new GridLayout(2, 1, 0, 2));
         item.add(AppDialog.label(title, AppDialog.SMALL, AppDialog.TEXT_LIGHT));

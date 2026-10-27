@@ -66,6 +66,7 @@ public class ScoreboardScreen extends ScoreboardScreen_UI {
     //  การเชื่อมเหตุการณ์จากปุ่ม (Button hooks)
     // =====================================================================
 
+    /** โฮสต์กดปุ่มเริ่มเกมใหม่ */
     @Override
     protected void onNewGameClicked(ActionEvent event) {
         if (onNewGameAction != null) {
@@ -73,6 +74,7 @@ public class ScoreboardScreen extends ScoreboardScreen_UI {
         }
     }
 
+    /** ผู้เล่นกดปุ่มออกจากห้อง */
     @Override
     protected void onQuitClicked(ActionEvent event) {
         if (onQuitAction != null) {
