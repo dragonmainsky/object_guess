@@ -12,7 +12,7 @@ public class GameServer {
 
     // ===== การกำหนดค่าพื้นฐานของเกม (Configuration) =====
     public static final int DEFAULT_PORT = 5000;         // พอร์ตเริ่มต้น
-    public static final int MIN_PLAYERS = 2;             // จำนวนผู้เล่นขั้นต่ำ (โฮสต์ + ผู้เล่นอื่นอีก 1 คน)
+    public static final int MIN_PLAYERS = 3;             // จำนวนผู้เล่นขั้นต่ำ (โฮสต์ + ผู้เล่นอื่นอีก 1 คน)
     public static final int MIN_SHAPES = 1;              // จำนวนรูปทรงขั้นต่ำในแต่ละรอบ
     public static final int MAX_SHAPES = 5;              // จำนวนรูปทรงสูงสุดในแต่ละรอบ
     public static final int ROUND_SECONDS = 30;          // เวลาในการทายแต่ละรอบ (เริ่มนับเมื่อ Questioner ล็อกรูป)
@@ -87,7 +87,7 @@ public class GameServer {
     // ===== ตัวแปรการทำงานของเซิร์ฟเวอร์ =====
     private final int port;                      // หมายเลขพอร์ตที่เซิร์ฟเวอร์เปิดใช้งาน
     private ServerSocket serverSocket;           // ซ็อกเก็ตฝั่งเซิร์ฟเวอร์
-    private volatile boolean running;            // สถานะว่าเซิร์ฟเวอร์กำลังทำงานอยู่หรือไม่
+    private boolean running;            // สถานะว่าเซิร์ฟเวอร์กำลังทำงานอยู่หรือไม่
     private Thread acceptThread;                 // เธรดสำหรับรอรับการเชื่อมต่อจาก Client ใหม่
 
     /** มอนิเตอร์ล็อกตัวเดียวสำหรับปกป้องตัวแปรสถานะทั้งหมดด้านล่าง */
