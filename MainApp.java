@@ -171,7 +171,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         client = newClient;
         intentionalLeave = false;
         if (host) {
-            String lan = GameServer.getPreferredLanAddress();
+            String lan = LanAddresses.getPreferredLanAddress();
             connectAddress = (lan.isEmpty() ? "127.0.0.1" : lan) + ":" + port;
         } else {
             connectAddress = ip + ":" + port;

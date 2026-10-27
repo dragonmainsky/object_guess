@@ -233,7 +233,7 @@ public class JoinScreen_UI extends JPanel {
 
     // ค้นหาและแสดงรายการ IP ในเครือข่าย LAN สำหรับให้ผู้เล่นคนอื่นพิมพ์เข้าร่วม
     private void refreshHostInfo(int port) {
-        List<String> addresses = GameServer.getLanAddresses();
+        List<String> addresses = LanAddresses.getLanAddresses();
         if (addresses.isEmpty()) {
             hostInfoLabel.setText("No LAN address found - check your Wi-Fi / Ethernet connection.");
             return;

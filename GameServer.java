@@ -40,50 +40,6 @@ public class GameServer {
     public static final String CHAT = "CHAT", SYSTEM = "SYSTEM";
     public static final String SERVER_CLOSED = "SERVER_CLOSED", ERROR = "ERROR";
 
-    /**
-     * โครงสร้างข้อความตามโปรโตคอล: ประกอบด้วยประเภทข้อความ (type) และชุดข้อความอาร์กิวเมนต์ (args)
-     * เขียนลง DataOutputStream ด้วยรูปแบบ writeUTF(type), writeInt(count), writeUTF(arg) * count
-     * โดยทุกข้อความจะมีขนาดความยาวระบุชัดเจน เพื่อป้องกันปัญหาข้อมูลปะปนกันบน TCP Stream
-     */
-    public static class Message {
-        public final String type;       // ประเภทข้อความ
-        public final String[] args;     // รายการข้อมูลพารามิเตอร์
-
-        public Message(String type, String... args) {
-            this.type = type;
-            this.args = (args == null) ? new String[0] : args;
-        }
-
-        // ดึงค่าอาร์กิวเมนต์ตามดัชนี หากเกินช่วงจะคืนค่าสตริงว่าง
-        public String arg(int index) {
-            return (index < 0 || index >= args.length) ? "" : args[index];
-        }
-
-        // เขียนข้อมูลข้อความลงในสตรีม
-        public void writeTo(DataOutputStream out) throws IOException {
-            out.writeUTF(type);
-            out.writeInt(args.length);
-            for (String value : args) {
-                out.writeUTF(value == null ? "" : value);
-            }
-            out.flush();
-        }
-
-        // อ่านข้อมูลข้อความจากสตรีม
-        public static Message readFrom(DataInputStream in) throws IOException {
-            String type = in.readUTF();
-            int count = in.readInt();
-            if (count < 0 || count > 1024) {
-                throw new IOException("Malformed message: bad field count " + count);
-            }
-            var args = new String[count];
-            for (int i = 0; i < count; i++) {
-                args[i] = in.readUTF();
-            }
-            return new Message(type, args);
-        }
-    }
-
     // ===== ตัวแปรการทำงานของเซิร์ฟเวอร์ =====
     private final int port;                      // หมายเลขพอร์ตที่เซิร์ฟเวอร์เปิดใช้งาน
     private String startError = "";              // ข้อความผิดพลาดล่าสุดจากการเปิดพอร์ต
@@ -143,12 +99,7 @@ public class GameServer {
             return false;
         }
         running = true;
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                acceptLoop();
-            }
-        });
+        acceptThread = new Thread(this::acceptLoop, "GameServer-Accept");
         acceptThread.setDaemon(true);
         acceptThread.start();
         return true;
@@ -219,13 +170,13 @@ public class GameServer {
     // =====================================================================
 
     private void broadcast(String type, String... args) {
-        broadcast(new Message(type, args));
+        broadcast(new GameMessage(type, args));
     }
 
     /**
      * ส่งข้อความไปยัง Client ทุกคนที่อยู่ในห้อง
      */
-    private void broadcast(Message message) {
+    private void broadcast(GameMessage message) {
         for (ClientHandler client : clientsSnapshot()) {
             client.send(message);
         }
@@ -239,7 +190,7 @@ public class GameServer {
         synchronized (lock) {
             payload = buildPlayerListPayload();
         }
-        broadcast(new Message(PLAYER_LIST, payload));
+        broadcast(new GameMessage(PLAYER_LIST, payload));
     }
 
     // ดึง Snapshot ของรายการ Client เพื่อใช้ส่งข้อมูลนอกบล็อกล็อก
@@ -293,6 +244,7 @@ public class GameServer {
             return null;
         }
         var canonical = new String[raw.length];
+        var used = new HashSet<String>();
         for (int i = 0; i < raw.length; i++) {
             String match = null;
             for (String shape : SHAPE_NAMES) {
@@ -301,17 +253,23 @@ public class GameServer {
                     break;
                 }
             }
-            if (match == null) {
-                return null;   // ไม่พบชื่อรูปทรงที่ถูกต้อง
-            }
-            for (int j = 0; j < i; j++) {
-                if (canonical[j].equals(match)) {
-                    return null;   // มีรูปทรงซ้ำกัน
-                }
+            if (match == null || !used.add(match)) {
+                return null;   // ไม่พบชื่อรูปทรงที่ถูกต้อง หรือมีรูปทรงซ้ำกัน
             }
             canonical[i] = match;
         }
         return canonical;
+    }
+
+    /** ส่งข้อความ ERROR กลับไปยังผู้เล่น (ใช้ในบล็อกตรวจสอบก่อน return) */
+    private static void reject(ClientHandler client, String message) {
+        client.send(ERROR, message);
+    }
+
+    /** ส่ง JOIN_FAILED และปิดการเชื่อมต่อของผู้เล่น */
+    private static void rejectJoin(ClientHandler handler, String message) {
+        handler.send(JOIN_FAILED, message);
+        handler.closeQuietly();
     }
 
     /**
@@ -319,11 +277,7 @@ public class GameServer {
      */
     private void handleJoin(ClientHandler handler, String rawName) {
         String name = (rawName == null) ? "" : rawName.trim();
-        if (name.isEmpty()) {
-            handler.send(JOIN_FAILED, "Player name cannot be empty.");
-            handler.closeQuietly();
-            return;
-        }
+        if (name.isEmpty()) { rejectJoin(handler, "Player name cannot be empty."); return; }
         if (name.length() > MAX_NAME_LENGTH) {
             name = name.substring(0, MAX_NAME_LENGTH);
         }
@@ -331,22 +285,14 @@ public class GameServer {
         boolean isHost;
         synchronized (lock) {
             // ตรวจสอบชื่อซ้ำ
-            if (findByNameLocked(name) != null) {
-                handler.send(JOIN_FAILED, "That name is already taken in this room.");
-                handler.closeQuietly();
-                return;
-            }
+            if (findByNameLocked(name) != null) { rejectJoin(handler, "That name is already taken in this room."); return; }
             // ตรวจสอบว่ากำลังแข่งทัวร์นาเมนต์อยู่หรือไม่
-            if (tournamentActive) {
-                handler.send(JOIN_FAILED, "A tournament is in progress. Please wait until it finishes.");
-                handler.closeQuietly();
-                return;
-            }
+            if (tournamentActive) { rejectJoin(handler, "A tournament is in progress. Please wait until it finishes."); return; }
             handler.playerName = name;
             handler.joined = true;
             clients.add(handler);
-            ready.put(name, Boolean.FALSE);
-            scores.putIfAbsent(name, Integer.valueOf(0));
+            ready.put(name, false);
+            scores.putIfAbsent(name, 0);
             isHost = clients.get(0) == handler;
         }
         handler.send(JOIN_SUCCESS, name, isHost ? "1" : "0");
@@ -427,22 +373,10 @@ public class GameServer {
     private void handleStartGame(ClientHandler requester) {
         boolean newTournament;
         synchronized (lock) {
-            if (roundRunning) {
-                requester.send(ERROR, "A round is already in progress.");
-                return;
-            }
-            if (clients.isEmpty() || clients.get(0) != requester) {
-                requester.send(ERROR, "Only the host can start the game.");
-                return;
-            }
-            if (clients.size() < MIN_PLAYERS) {
-                requester.send(ERROR, "Need at least " + MIN_PLAYERS + " players to start.");
-                return;
-            }
-            if (!othersReadyLocked(requester)) {
-                requester.send(ERROR, "All other players must press READY before you can start.");
-                return;
-            }
+            if (roundRunning) { reject(requester, "A round is already in progress."); return; }
+            if (clients.isEmpty() || clients.get(0) != requester) { reject(requester, "Only the host can start the game."); return; }
+            if (clients.size() < MIN_PLAYERS) { reject(requester, "Need at least " + MIN_PLAYERS + " players to start."); return; }
+            if (!othersReadyLocked(requester)) { reject(requester, "All other players must press READY before you can start."); return; }
             newTournament = !tournamentActive;
             if (newTournament) {
                 totalRounds = clients.size() * ROUNDS_PER_PLAYER;
@@ -463,21 +397,12 @@ public class GameServer {
      */
     private void handleNewGame(ClientHandler requester) {
         synchronized (lock) {
-            if (clients.isEmpty() || clients.get(0) != requester) {
-                requester.send(ERROR, "Only the host can start a new game.");
-                return;
-            }
-            if (tournamentActive) {
-                requester.send(ERROR, "A tournament is in progress.");
-                return;
-            }
-            if (roundRunning) {
-                requester.send(ERROR, "A round is in progress.");
-                return;
-            }
+            if (clients.isEmpty() || clients.get(0) != requester) { reject(requester, "Only the host can start a new game."); return; }
+            if (tournamentActive) { reject(requester, "A tournament is in progress."); return; }
+            if (roundRunning) { reject(requester, "A round is in progress."); return; }
             resetScoresLocked();
             for (ClientHandler client : clients) {
-                ready.put(client.playerName, Boolean.FALSE);
+                ready.put(client.playerName, false);
             }
         }
         stopIntermission();
@@ -500,8 +425,8 @@ public class GameServer {
     private void resetScoresLocked() {
         round = 0;
         for (ClientHandler client : clients) {
-            scores.put(client.playerName, Integer.valueOf(0));
-            deltas.put(client.playerName, Integer.valueOf(0));
+            scores.put(client.playerName, 0);
+            deltas.put(client.playerName, 0);
         }
         questioner = null;
         secret = null;
@@ -561,7 +486,7 @@ public class GameServer {
             lockedTotal = totalRounds;
             shapesThisRound = expectedShapes;
             for (ClientHandler client : clients) {
-                ready.put(client.playerName, Boolean.FALSE);
+                ready.put(client.playerName, false);
             }
         }
         // ประกาศข้อมูลรอบใหม่ไปยังทุกคน (นาฬิกาจะยังไม่เริ่มนับจนกว่า Questioner จะล็อกรูป)
@@ -686,9 +611,7 @@ public class GameServer {
     private void startRoundTimer(int roundNumber, int seconds) {
         stopRoundTimer();
         var timer = new RoundTimerThread(roundNumber, seconds);
-        synchronized (lock) {
-            roundTimer = timer;
-        }
+        synchronized (lock) { roundTimer = timer; }
         timer.start();
     }
 
@@ -702,13 +625,8 @@ public class GameServer {
             return;
         }
         timer.requestStop();
-        if (timer == Thread.currentThread()) {
-            return;
-        }
-        try {
-            timer.join(300);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+        if (timer != Thread.currentThread()) {
+            try { timer.join(300); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
         }
     }
 
@@ -723,28 +641,15 @@ public class GameServer {
         String[] canonical;
         int count, currentRound;
         synchronized (lock) {
-            if (!roundRunning) {
-                sender.send(ERROR, "No round is in progress.");
-                return;
-            }
-            if (!sender.playerName.equals(questioner)) {
-                sender.send(ERROR, "Only the questioner can set the secret shapes.");
-                return;
-            }
-            if (secretLocked) {
-                sender.send(ERROR, "The secret shapes are already locked for this round.");
-                return;
-            }
+            if (!roundRunning) { reject(sender, "No round is in progress."); return; }
+            if (!sender.playerName.equals(questioner)) { reject(sender, "Only the questioner can set the secret shapes."); return; }
+            if (secretLocked) { reject(sender, "The secret shapes are already locked for this round."); return; }
             if (shapes.length != expectedShapes) {
-                sender.send(ERROR, "Pick exactly " + expectedShapes + " shape"
-                        + (expectedShapes == 1 ? "" : "s") + " for this round.");
-                return;
+                reject(sender, "Pick exactly " + expectedShapes + " shape"
+                        + (expectedShapes == 1 ? "" : "s") + " for this round."); return;
             }
             canonical = normalizeShapes(shapes, shapes.length);
-            if (canonical == null) {
-                sender.send(ERROR, "Those shapes are not valid (unknown or repeated).");
-                return;
-            }
+            if (canonical == null) { reject(sender, "Those shapes are not valid (unknown or repeated)."); return; }
             secret = canonical;
             secretLocked = true;
             count = canonical.length;
@@ -766,34 +671,18 @@ public class GameServer {
         int totalGuessers;
         String[] canonical;
         synchronized (lock) {
-            if (!roundRunning) {
-                sender.send(ERROR, "No round is in progress.");
-                return;
-            }
-            if (!secretLocked || secret == null) {
-                sender.send(ERROR, "Wait for the questioner to lock the secret shapes first.");
-                return;
-            }
-            if (sender.playerName.equals(questioner)) {
-                sender.send(ERROR, "The questioner cannot submit a guess.");
-                return;
-            }
-            if (guesses.containsKey(sender.playerName)) {
-                sender.send(ERROR, "You already submitted a guess this round.");
-                return;
-            }
+            if (!roundRunning) { reject(sender, "No round is in progress."); return; }
+            if (!secretLocked || secret == null) { reject(sender, "Wait for the questioner to lock the secret shapes first."); return; }
+            if (sender.playerName.equals(questioner)) { reject(sender, "The questioner cannot submit a guess."); return; }
+            if (guesses.containsKey(sender.playerName)) { reject(sender, "You already submitted a guess this round."); return; }
             if (shapes.length != secret.length) {
-                sender.send(ERROR, "Pick exactly " + secret.length + " shape"
-                        + (secret.length == 1 ? "" : "s") + " for this round.");
-                return;
+                reject(sender, "Pick exactly " + secret.length + " shape"
+                        + (secret.length == 1 ? "" : "s") + " for this round."); return;
             }
             canonical = normalizeShapes(shapes, secret.length);
-            if (canonical == null) {
-                sender.send(ERROR, "Those shapes are not valid (unknown or repeated).");
-                return;
-            }
+            if (canonical == null) { reject(sender, "Those shapes are not valid (unknown or repeated)."); return; }
             guesses.put(sender.playerName, canonical);
-            guessTimes.put(sender.playerName, Long.valueOf(System.currentTimeMillis()));
+            guessTimes.put(sender.playerName, System.currentTimeMillis());
             submitted = countSubmittedLocked();
             totalGuessers = countGuessersLocked();
         }
@@ -807,24 +696,12 @@ public class GameServer {
 
     /** นับจำนวนผู้เล่นที่ทำหน้าที่ทายทั้งหมด (ยกเว้น Questioner) */
     private int countGuessersLocked() {
-        int count = 0;
-        for (ClientHandler client : clients) {
-            if (!client.playerName.equals(questioner)) {
-                count++;
-            }
-        }
-        return count;
+        return (int) clients.stream().filter(client -> !client.playerName.equals(questioner)).count();
     }
 
     /** นับจำนวนผู้เล่นที่ส่งคำตอบทายเข้ามาแล้ว */
     private int countSubmittedLocked() {
-        int count = 0;
-        for (String name : guesses.keySet()) {
-            if (!name.equals(questioner)) {
-                count++;
-            }
-        }
-        return count;
+        return (int) guesses.keySet().stream().filter(name -> !name.equals(questioner)).count();
     }
 
     /**
@@ -936,29 +813,16 @@ public class GameServer {
         int expected = (secret == null) ? 0 : secret.length;
         for (ClientHandler client : clients) {
             String name = client.playerName;
-            int correct = 0;
-            int delta = 0;
-            boolean bonus = false;
             String[] guess = (expected == 0 || name.equals(questioner)) ? null : guesses.get(name);
-            if (guess != null) {
-                correct = countMatching(secret, guess);
-                delta = correct;
-                Long submittedAt = guessTimes.get(name);
-                long elapsedSeconds = (submittedAt == null) ? 0 : (submittedAt.longValue() - roundStartMillis) / 1000;
-                bonus = (correct == expected && elapsedSeconds <= BONUS_WINDOW_SECONDS);
-                if (bonus) {
-                    delta += 2; // เพิ่มโบนัสความเร็ว
-                }
-            }
-            deltas.put(name, Integer.valueOf(delta));
-            correctCounts.put(name, Integer.valueOf(correct));
-            bonusFlags.put(name, Boolean.valueOf(bonus));
-        }
-        // รวมคะแนนรอบนี้เข้ากับคะแนนสะสม
-        for (Map.Entry<String, Integer> entry : deltas.entrySet()) {
-            Integer current = scores.get(entry.getKey());
-            scores.put(entry.getKey(), Integer.valueOf((current == null ? 0 : current.intValue())
-                    + entry.getValue().intValue()));
+            int correct = (guess == null) ? 0 : countMatching(secret, guess);
+            Long submittedAt = guessTimes.get(name);
+            long elapsedSeconds = (submittedAt == null) ? 0 : (submittedAt - roundStartMillis) / 1000;
+            boolean bonus = guess != null && correct == expected && elapsedSeconds <= BONUS_WINDOW_SECONDS;
+            int delta = correct + (bonus ? 2 : 0); // +2 โบนัสความเร็ว
+            deltas.put(name, delta);
+            correctCounts.put(name, correct);
+            bonusFlags.put(name, bonus);
+            scores.merge(name, delta, Integer::sum); // รวมคะแนนรอบนี้เข้ากับคะแนนสะสม
         }
     }
 
@@ -992,15 +856,12 @@ public class GameServer {
         out.add(String.valueOf(clients.size()));
         for (ClientHandler client : clients) {
             String name = client.playerName;
-            Integer delta = deltas.get(name);
-            Integer total = scores.get(name);
             String[] guess = guesses.get(name);
-            Integer correct = correctCounts.get(name);
             out.add(name);
-            out.add(String.valueOf(delta == null ? 0 : delta.intValue()));
-            out.add(String.valueOf(total == null ? 0 : total.intValue()));
+            out.add(String.valueOf(deltas.getOrDefault(name, 0)));
+            out.add(String.valueOf(scores.getOrDefault(name, 0)));
             out.add(guess == null ? "" : String.join(",", guess));
-            out.add(String.valueOf(correct == null ? 0 : correct.intValue()));
+            out.add(String.valueOf(correctCounts.getOrDefault(name, 0)));
             out.add(Boolean.TRUE.equals(bonusFlags.get(name)) ? "1" : "0");
         }
         return out.toArray(new String[0]);
@@ -1048,7 +909,7 @@ public class GameServer {
                 in = new DataInputStream(new BufferedInputStream(socket.getInputStream()));
                 out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
                 while (running && !socket.isClosed()) {
-                    dispatch(Message.readFrom(in));
+                    dispatch(GameMessage.readFrom(in));
                 }
             } catch (EOFException | SocketException e) {
                 // ไคลเอนต์ปิดการเชื่อมต่อตามปกติหรือเน็ตเวิร์กหลุด
@@ -1064,7 +925,7 @@ public class GameServer {
         /**
          * กระจายข้อความที่ได้รับจาก Client ไปยังเมธอดที่เกี่ยวข้อง
          */
-        private void dispatch(Message message) {
+        private void dispatch(GameMessage message) {
             if (!joined) {
                 if (JOIN.equals(message.type)) {
                     handleJoin(this, message.arg(0));
@@ -1073,36 +934,30 @@ public class GameServer {
                 }
                 return;
             }
-            if (READY.equals(message.type)) {
-                boolean value = "1".equals(message.arg(0)) || "true".equalsIgnoreCase(message.arg(0));
-                synchronized (lock) {
-                    ready.put(playerName, Boolean.valueOf(value));
+            switch (message.type) {
+                case READY -> {
+                    boolean value = "1".equals(message.arg(0)) || "true".equalsIgnoreCase(message.arg(0));
+                    synchronized (lock) {
+                        ready.put(playerName, value);
+                    }
+                    broadcastPlayerList();
                 }
-                broadcastPlayerList();
-            } else if (START_GAME.equals(message.type)) {
-                handleStartGame(this);
-            } else if (SECRET.equals(message.type)) {
-                handleSecret(this, message.args);
-            } else if (GUESS.equals(message.type)) {
-                handleGuess(this, message.args);
-            } else if (NEW_GAME.equals(message.type)) {
-                handleNewGame(this);
-            } else if (CHAT.equals(message.type)) {
-                handleChat(this, message.arg(0));
-            } else if (LEAVE_ROOM.equals(message.type)) {
-                closeQuietly();
-            } else if (JOIN.equals(message.type)) {
-                send(ERROR, "You already joined the room.");
-            } else {
-                send(ERROR, "Unknown message type: " + message.type);
+                case START_GAME -> handleStartGame(this);
+                case SECRET -> handleSecret(this, message.args);
+                case GUESS -> handleGuess(this, message.args);
+                case NEW_GAME -> handleNewGame(this);
+                case CHAT -> handleChat(this, message.arg(0));
+                case LEAVE_ROOM -> closeQuietly();
+                case JOIN -> send(ERROR, "You already joined the room.");
+                default -> send(ERROR, "Unknown message type: " + message.type);
             }
         }
 
         void send(String type, String... args) {
-            send(new Message(type, args));
+            send(new GameMessage(type, args));
         }
 
-        void send(Message message) {
+        void send(GameMessage message) {
             synchronized (writeLock) {
                 if (out == null) {
                     return;
@@ -1124,80 +979,5 @@ public class GameServer {
                 // ปิดเรียบร้อยแล้ว
             }
         }
-    }
-
-    // =====================================================================
-    //  ฟังก์ชันช่วยค้นหาที่อยู่ IP ในเครือข่าย LAN (Network helpers)
-    // =====================================================================
-
-    /**
-     * ค้นหาที่อยู่ IPv4 ในวง LAN / Wi-Fi ทั้งหมดของเครื่องนี้ที่ไม่ใช่ Loopback
-     */
-    public static List<String> getLanAddresses() {
-        var ranks = new LinkedHashMap<String, Integer>();
-        try {
-            var interfaces = NetworkInterface.getNetworkInterfaces();
-            while (interfaces != null && interfaces.hasMoreElements()) {
-                var networkInterface = interfaces.nextElement();
-                if (!networkInterface.isUp() || networkInterface.isLoopback() || networkInterface.isVirtual()) {
-                    continue;
-                }
-                String label = (networkInterface.getDisplayName() + " " + networkInterface.getName()).toLowerCase();
-                var addresses = networkInterface.getInetAddresses();
-                while (addresses.hasMoreElements()) {
-                    var address = addresses.nextElement();
-                    if (address.isLoopbackAddress() || address.isAnyLocalAddress() || address.isLinkLocalAddress()) {
-                        continue;
-                    }
-                    if (address instanceof Inet4Address) {
-                        ranks.put(address.getHostAddress(), Integer.valueOf(addressRank(address.getHostAddress(), label)));
-                    }
-                }
-            }
-        } catch (SocketException e) {
-            // ไม่สามารถดึงรายชื่อการ์ดเครือข่ายได้
-        }
-        var result = new ArrayList<>(ranks.keySet());
-        // เรียงลำดับที่อยู่ IP ที่เหมาะสมที่สุดขึ้นก่อน
-        result.sort((a, b) -> {
-            int byRank = ranks.get(a).compareTo(ranks.get(b));
-            return (byRank != 0) ? byRank : a.compareTo(b);
-        });
-        return result;
-    }
-
-    /**
-     * จัดลำดับความเหมาะสมของ IP (ค่าน้อยคือเหมาะสมกว่า):
-     * ให้ความสำคัญกับวง 192.168.x.x และ 10.x.x.x ก่อน และลดความสำคัญของ Virtual Adapter (เช่น VirtualBox, VMware, Docker)
-     */
-    private static int addressRank(String ip, String interfaceLabel) {
-        int rank;
-        if (ip.startsWith("192.168.")) {
-            rank = 0;
-        } else if (ip.startsWith("10.")) {
-            rank = 1;
-        } else if (ip.startsWith("172.")) {
-            int second = 0;
-            try {
-                second = Integer.parseInt(ip.split("\\.")[1]);
-            } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
-                second = 0;
-            }
-            rank = (second >= 16 && second <= 31) ? 2 : 3;
-        } else {
-            rank = 3;
-        }
-        
-        // วง Host-only ที่มักใช้โดย VirtualBox (192.168.56.x)
-        if (ip.startsWith("192.168.56.") || ip.startsWith("192.168.99.")) {
-            rank += 10;
-        }
-        return rank;
-    }
-
-    /** ดึงที่อยู่ IP วง LAN ที่ดีที่สุดสำหรับแสดงแนะนำให้เพื่อนเชื่อมต่อ */
-    public static String getPreferredLanAddress() {
-        List<String> addresses = getLanAddresses();
-        return addresses.isEmpty() ? "" : addresses.get(0);
     }
 }

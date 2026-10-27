@@ -85,7 +85,7 @@ public class GameClient {
         try {
             while (connected) {
                 // อ่านข้อความตามโครงสร้าง Protocol
-                var message = GameServer.Message.readFrom(in);
+                var message = GameMessage.readFrom(in);
                 if (listener != null) {
                     listener.onMessage(message.type, message.args);
                 }
@@ -126,7 +126,7 @@ public class GameClient {
         }
         synchronized (writeLock) {
             try {
-                new GameServer.Message(type, args).writeTo(out);
+                new GameMessage(type, args).writeTo(out);
             } catch (IOException e) {
                 notifyDisconnected("Could not reach the host: " + e.getMessage());
             }
