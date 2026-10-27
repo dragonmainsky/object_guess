@@ -1,12 +1,11 @@
 import java.awt.*;
 import java.awt.event.*;
-import java.awt.geom.*;
 import javax.swing.*;
 import javax.swing.border.*;
 
 /**
  * AppDialog: คลาสศูนย์กลางสำหรับจัดการรูปลักษณ์ของเกม (ชุดสี, ฟอนต์, คอมโพเนนต์ UI สำเร็จรูป)
- * และกล่องข้อความแจ้งเตือน/ยืนยัน (Alert & Confirmation Dialogs)
+ * และกล่องข้อความแจ้งเตือน/ยืนยัน (Alert & Confirmation Dialogs) ที่ใช้ JOptionPane มาตรฐานของ Java
  * เพื่อให้ทุกหน้าจอมีดีไซน์และธีมที่เป็นมาตรฐานเดียวกันทั้งแอปพลิเคชัน
  */
 public final class AppDialog {
@@ -48,12 +47,6 @@ public final class AppDialog {
         new Color(245, 158, 11), new Color(14, 165, 233), new Color(244, 63, 94), new Color(99, 102, 241)
     };
 
-    /** ค่าคงที่สำหรับหน้าต่าง Dialog โดยเฉพาะ */
-    private static final Color ERROR_ACCENT = new Color(185, 28, 28);
-    private static final Font DIALOG_TITLE = new Font("Tahoma", Font.BOLD, 17);
-    private static final int BADGE_SIZE = 44, BODY_WIDTH = 380, CARD_ARC = 16, ACCENT_HEIGHT = 6;
-    private static final int TYPE_INFO = 0, TYPE_WARNING = 1, TYPE_ERROR = 2, TYPE_CONFIRM = 3;
-
     // ===== ฟอนต์มาตรฐานของเกม (Fonts) =====
     // ฟังก์ชันช่วยสร้างฟอนต์ Tahoma ตามรูปแบบและขนาดที่ต้องการ
     static Font f(int style, int size) {
@@ -66,190 +59,37 @@ public final class AppDialog {
     static final Font SCREEN_SUB = f(Font.PLAIN, 15), PLAIN_14 = f(Font.PLAIN, 14), BODY = f(Font.PLAIN, 13);
     static final Font SMALL_12 = f(Font.PLAIN, 12), SMALL = f(Font.PLAIN, 11);
 
-    // ป้องกันการสร้างออบเจกต์ (Utility Class)
-    private AppDialog() {
-    }
-
     // =====================================================================
     //  หน้าต่างแจ้งเตือนและยืนยัน (Alerts and Confirmation)
     // =====================================================================
 
     /**
-     * แสดงหน้าต่างแจ้งข้อมูลทั่วไป (สีฟ้า) พร้อมปุ่ม OK
+     * แสดงหน้าต่างแจ้งข้อมูลทั่วไปพร้อมปุ่ม OK (ดีฟอลต์ของ Java)
      */
     public static void showInfo(Container parent, String title, String message) {
-        show(TYPE_INFO, parent, title, message, null);
+        JOptionPane.showMessageDialog(parent, message, title, JOptionPane.INFORMATION_MESSAGE);
     }
 
     /**
-     * แสดงหน้าต่างแจ้งเตือนข้อควรระวัง (สีเหลือง) พร้อมปุ่ม OK
+     * แสดงหน้าต่างแจ้งเตือนข้อควรระวังพร้อมปุ่ม OK (ดีฟอลต์ของ Java)
      */
     public static void showWarning(Container parent, String title, String message) {
-        show(TYPE_WARNING, parent, title, message, null);
+        JOptionPane.showMessageDialog(parent, message, title, JOptionPane.WARNING_MESSAGE);
     }
 
     /**
-     * แสดงหน้าต่างแจ้งข้อผิดพลาด (สีแดง) พร้อมปุ่ม OK
+     * แสดงหน้าต่างแจ้งข้อผิดพลาดพร้อมปุ่ม OK (ดีฟอลต์ของ Java)
      */
     public static void showError(Container parent, String title, String message) {
-        show(TYPE_ERROR, parent, title, message, null);
+        JOptionPane.showMessageDialog(parent, message, title, JOptionPane.ERROR_MESSAGE);
     }
 
     /**
      * แสดงหน้าต่างยืนยัน Yes/No คืนค่า true เมื่อผู้เล่นกดปุ่มยืนยัน (Yes)
      */
-    public static boolean showConfirm(Container parent, String title, String message, String yesText, String noText) {
-        return show(TYPE_CONFIRM, parent, title, message, new String[] {yesText, noText});
-    }
-
-    /**
-     * ฟังก์ชันหลักในการสร้าง Modal Dialog รูปแบบการ์ด แสดงผลและหยุดรอจนกว่าผู้เล่นจะกดตอบรับ
-     */
-    private static boolean show(int type, Container parent, String title, String message, String[] confirmText) {
-        var answer = new boolean[1]; // เก็บผลลัพธ์การตอบของผู้เล่น
-        var dialog = new JDialog(ownerOf(parent), text(title), JDialog.ModalityType.APPLICATION_MODAL);
-        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
-        dialog.setResizable(false);
-
-        var card = buildCard(type, text(title), text(message));
-        var yes = new RoundedButton(text(confirmText == null ? "OK" : confirmText[0]), PRIMARY_BLUE, PRIMARY_HOVER,
-                PRIMARY_PRESS, Color.WHITE, PRIMARY_BLUE);
-        yes.addActionListener(event -> {
-            answer[0] = true;
-            dialog.dispose();
-        });
-
-        var row = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-        row.setOpaque(false);
-        // หากเป็นการยืนยัน ให้เพิ่มปุ่ม No เข้าไปด้วย
-        if (confirmText != null) {
-            var no = new RoundedButton(text(confirmText[1]), CARD_BG, BG_LIGHT, CARD_BORDER, TEXT_DARK, CARD_BORDER);
-            no.addActionListener(event -> {
-                answer[0] = false;
-                dialog.dispose();
-            });
-            row.add(no);
-        }
-        row.add(yes);
-        card.add(row, BorderLayout.SOUTH);
-
-        var root = new JPanel(new BorderLayout());
-        root.setBackground(BG_LIGHT);
-        root.add(card, BorderLayout.CENTER);
-        dialog.setContentPane(root);
-
-        // รองรับการกดปุ่มบนคีย์บอร์ด: ENTER คือตกลง, ESC คือยกเลิก
-        var manager = KeyboardFocusManager.getCurrentKeyboardFocusManager();
-        KeyEventDispatcher keys = event -> {
-            if (event.getID() != KeyEvent.KEY_PRESSED) {
-                return false;
-            }
-            if (event.getKeyCode() == KeyEvent.VK_ESCAPE) {
-                answer[0] = false;
-                dialog.dispose();
-                return true;
-            }
-            if (event.getKeyCode() == KeyEvent.VK_ENTER) {
-                answer[0] = true;
-                dialog.dispose();
-                return true;
-            }
-            return false;
-        };
-        manager.addKeyEventDispatcher(keys);
-        dialog.addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowOpened(WindowEvent event) {
-                yes.requestFocusInWindow();   // โฟกัสเริ่มต้นที่ปุ่มหลัก
-            }
-        });
-
-        dialog.pack();
-        dialog.setLocationRelativeTo(parent);
-        dialog.setVisible(true);   // แบบ Modal: จะค้างบรรทัดนี้จนกว่า Dialog จะถูกปิด
-        manager.removeKeyEventDispatcher(keys);
-        return answer[0];
-    }
-
-    /**
-     * ค้นหาหน้าต่างแม่ (Window) ที่ครอบคอมโพเนนต์นี้อยู่ เพื่อใช้ผูก Modal Dialog
-     */
-    private static Window ownerOf(Container parent) {
-        for (Container c = parent; c != null; c = c.getParent()) {
-            if (c instanceof Window) {
-                return (Window) c;
-            }
-        }
-        return null;
-    }
-
-    // =====================================================================
-    //  การประกอบการ์ดกล่องข้อความ (Card content)
-    // =====================================================================
-
-    /**
-     * สร้างการ์ดมุมมนที่บรรจุไอคอนประเภท ข้อความหัวเรื่อง และเนื้อหา
-     */
-    private static RoundedCard buildCard(int type, String title, String message) {
-        var card = new RoundedCard(accentOf(type), borderOf(type));
-        card.setLayout(new BorderLayout(0, 16));
-        // เว้นระยะขอบด้านบนเผื่อพื้นที่สำหรับแถบสีด้านบนการ์ด
-        card.setBorder(new EmptyBorder(ACCENT_HEIGHT + 18, 24, 20, 24));
-
-        var header = panel();
-        header.setLayout(new BorderLayout(14, 0));
-        header.add(new CircleBadge(letterOf(type), accentOf(type)), BorderLayout.WEST);
-        header.add(label(title, DIALOG_TITLE, TEXT_DARK), BorderLayout.CENTER);
-        card.add(header, BorderLayout.NORTH);
-
-        // ย่อหน้าเนื้อหาให้อยู่ในแนวเดียวกับชื่อเรื่อง (ตรงกับหัวข้อ ไม่ทับคอลัมน์ไอคอน)
-        var bodyHolder = panel();
-        bodyHolder.setLayout(new BorderLayout());
-        bodyHolder.setBorder(new EmptyBorder(0, BADGE_SIZE + 14, 0, 0));
-        bodyHolder.add(wrappedBody(message), BorderLayout.CENTER);
-        card.add(bodyHolder, BorderLayout.CENTER);
-        return card;
-    }
-
-    /**
-     * สร้างพื้นที่ข้อความ (JTextArea) ที่ตัดบรรทัดอัตโนมัติ ไม่สามารถแก้ไขได้
-     */
-    private static JTextArea wrappedBody(String message) {
-        var body = new JTextArea(message);
-        body.setFont(PLAIN_14);
-        body.setForeground(TEXT_MUTED);
-        body.setOpaque(false);
-        body.setEditable(false);
-        body.setFocusable(false);
-        body.setLineWrap(true);
-        body.setWrapStyleWord(true);
-        body.setBorder(null);
-        // กำหนดความกว้างสูงสุดเพื่อให้คำนวณความสูงตามการตัดคำ
-        body.setSize(new Dimension(BODY_WIDTH, Short.MAX_VALUE));
-        var wrapped = body.getPreferredSize();
-        body.setPreferredSize(wrapped);
-        body.setMinimumSize(wrapped);
-        return body;
-    }
-
-    // ดึงสีเด่นตามประเภท Dialog
-    private static Color accentOf(int type) {
-        return type == TYPE_WARNING ? WARNING_TEXT : (type == TYPE_ERROR ? ERROR_ACCENT : PRIMARY_BLUE);
-    }
-
-    // ดึงสีกรอบตามประเภท Dialog
-    private static Color borderOf(int type) {
-        return type == TYPE_WARNING ? WARNING_BORDER : (type == TYPE_ERROR ? DANGER_BORDER : BLUE_BORDER);
-    }
-
-    // ดึงตัวอักษรสัญลักษณ์ตามประเภท Dialog
-    private static String letterOf(int type) {
-        return type == TYPE_WARNING ? "!" : (type == TYPE_ERROR ? "x" : (type == TYPE_CONFIRM ? "?" : "i"));
-    }
-
-    // ฟังก์ชันตรวจสอบค่า null ของข้อความ
-    private static String text(String value) {
-        return value == null ? "" : value;
+    public static boolean showConfirm(Container parent, String title, String message) {
+        return JOptionPane.showConfirmDialog(parent, message, title,
+                JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE) == JOptionPane.YES_OPTION;
     }
 
     // =====================================================================
@@ -624,131 +464,4 @@ public final class AppDialog {
         }
     }
 
-    // =====================================================================
-    //  คอมโพเนนต์วาดพิเศษ (Rounded Card, Circle Badge, Rounded Button)
-    // =====================================================================
-
-    /**
-     * การ์ดสีขาวมุมมน พร้อมแถบสีเด่น (accent) พาดที่ขอบด้านบน
-     */
-    private static class RoundedCard extends JPanel {
-        private final Color accent; // สีของแถบด้านบน
-        private final Color edge;   // สีของเส้นขอบการ์ด
-
-        RoundedCard(Color accent, Color edge) {
-            this.accent = accent;
-            this.edge = edge;
-            setOpaque(false);
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            super.paintComponent(g);
-            int w = getWidth();
-            int h = getHeight();
-            g.setColor(CARD_BG);
-            g.fillRoundRect(0, 0, w - 1, h - 1, CARD_ARC, CARD_ARC);
-
-            // ตัดพื้นที่เพื่อวาดแถบสีตามแนวโค้งมนของขอบการ์ดด้านบน
-            var clip = g.getClip();
-            g.setClip(new RoundRectangle2D.Float(0, 0, w - 1, h - 1, CARD_ARC, CARD_ARC));
-            g.setColor(accent);
-            g.fillRect(0, 0, w, ACCENT_HEIGHT);
-            g.setClip(clip);
-
-            g.setColor(edge);
-            g.drawRoundRect(1, 1, w - 3, h - 3, CARD_ARC, CARD_ARC);
-        }
-    }
-
-    /**
-     * ป้ายวงกลมแสดงตัวอักษรสีขาวตรงกลาง (เช่น เครื่องหมาย !, ?, x, i)
-     */
-    private static class CircleBadge extends JLabel {
-        private final Color fill; // สีพื้นหลังวงกลม
-
-        CircleBadge(String letter, Color fill) {
-            super(letter, JLabel.CENTER);
-            this.fill = fill;
-            setOpaque(false);
-            setFont(new Font("Tahoma", Font.BOLD, 18));
-            setForeground(Color.WHITE);
-            var size = new Dimension(BADGE_SIZE, BADGE_SIZE);
-            setPreferredSize(size);
-            setMinimumSize(size);
-            setMaximumSize(size);
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            g.setColor(fill);
-            g.fillOval(0, 0, getWidth() - 1, getHeight() - 1);
-            super.paintComponent(g);
-        }
-    }
-
-    /**
-     * ปุ่มมุมมนสไตล์โมเดิร์น มีเอฟเฟกต์สีตามการ hover และกด
-     */
-    private static class RoundedButton extends JButton {
-        private static final int ARC = 12; // รัศมีความโค้งมนของปุ่ม
-
-        private final Color normal;
-        private final Color hover;
-        private final Color pressed;
-        private final Color edge;
-        private boolean down;
-        private boolean over;
-
-        RoundedButton(String text, Color normal, Color hover, Color pressed, Color fg, Color edge) {
-            super(text);
-            this.normal = normal;
-            this.hover = hover;
-            this.pressed = pressed;
-            this.edge = edge;
-            setFont(BODY_BOLD);
-            setForeground(fg);
-            setOpaque(false);
-            setContentAreaFilled(false);
-            setBorderPainted(false);
-            setFocusPainted(false);
-            setCursor(new Cursor(Cursor.HAND_CURSOR));
-            setBorder(new EmptyBorder(10, 22, 10, 22));
-            addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseEntered(MouseEvent event) {
-                    over = true;
-                    repaint();
-                }
-
-                @Override
-                public void mouseExited(MouseEvent event) {
-                    over = false;
-                    down = false;
-                    repaint();
-                }
-
-                @Override
-                public void mousePressed(MouseEvent event) {
-                    down = true;
-                    repaint();
-                }
-
-                @Override
-                public void mouseReleased(MouseEvent event) {
-                    down = false;
-                    repaint();
-                }
-            });
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            g.setColor(down ? pressed : (over ? hover : normal));
-            g.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, ARC, ARC);
-            g.setColor(isEnabled() ? edge : CARD_BORDER);
-            g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, ARC, ARC);
-            super.paintComponent(g);
-        }
-    }
 }

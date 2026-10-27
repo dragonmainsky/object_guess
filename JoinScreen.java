@@ -44,7 +44,7 @@ public class JoinScreen extends JoinScreen_UI {
 
     @Override
     protected void onLeaveAppClicked() {
-        boolean confirmed = AppDialog.showConfirm(this, "Exit Game", "Are you sure you want to exit?", "Yes", "No");
+        boolean confirmed = AppDialog.showConfirm(this, "Exit Game", "Are you sure you want to exit?");
         if (confirmed) {
             System.exit(0);
         }
