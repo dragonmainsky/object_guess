@@ -263,13 +263,8 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         intentionalLeave = true;
         if (client != null) {
             client.leave();
-            client = null;
         }
-        if (server != null) {
-            server.shutdown();
-            server = null;
-        }
-        resetRoomState();
+        teardownSession();
         joinScreen.reset();
         showScreen(SCREEN_JOIN);
     }

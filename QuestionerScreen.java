@@ -120,7 +120,7 @@ public class QuestionerScreen extends QuestionerScreen_UI {
 
     // กำหนดชื่อของผู้เล่นเครื่องนี้
     public void setMyName(String name) {
-        myName = (name == null) ? "" : name;
+        myName = name;
     }
 
     /**

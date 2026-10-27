@@ -38,7 +38,7 @@ public class LobbyScreen extends LobbyScreen_UI {
 
     // ตั้งค่าชื่อผู้เล่นเครื่องนี้
     public void setMyName(String name) {
-        myName = (name == null) ? "" : name;
+        myName = name;
     }
 
     // กำหนดสถานะว่าเป็นโฮสต์หรือไม่
@@ -93,8 +93,7 @@ public class LobbyScreen extends LobbyScreen_UI {
         // นับจำนวนผู้เล่นที่กดพร้อม
         int readyCount = 0;
         for (String name : playerNames) {
-            Boolean value = readyStates.get(name);
-            if (value != null && value.booleanValue()) {
+            if (readyStates.get(name).booleanValue()) {
                 readyCount++;
             }
         }
@@ -104,8 +103,7 @@ public class LobbyScreen extends LobbyScreen_UI {
         boolean allOthersReady = total >= GameServer.MIN_PLAYERS;
         for (String name : playerNames) {
             if (!name.equals(myName)) {
-                Boolean value = readyStates.get(name);
-                if (value == null || !value.booleanValue()) {
+                if (!readyStates.get(name).booleanValue()) {
                     allOthersReady = false;
                 }
             }

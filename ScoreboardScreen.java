@@ -69,17 +69,13 @@ public class ScoreboardScreen extends ScoreboardScreen_UI {
     /** โฮสต์กดปุ่มเริ่มเกมใหม่ */
     @Override
     protected void onNewGameClicked(ActionEvent event) {
-        if (onNewGameAction != null) {
-            onNewGameAction.actionPerformed(event);
-        }
+        onNewGameAction.actionPerformed(event);
     }
 
     /** ผู้เล่นกดปุ่มออกจากห้อง */
     @Override
     protected void onQuitClicked(ActionEvent event) {
-        if (onQuitAction != null) {
-            onQuitAction.actionPerformed(event);
-        }
+        onQuitAction.actionPerformed(event);
     }
 
 }

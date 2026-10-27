@@ -229,25 +229,18 @@ public class GameServer {
     private String[] buildPlayerListPayload() {
         ArrayList<String> out = new ArrayList<String>();
         out.add(String.valueOf(clients.size()));
-        String hostName = hostNameLocked();
         for (ClientHandler client : clients) {
             out.add(client.playerName);
 
-            Boolean readyValue = ready.get(client.playerName);
-            if (readyValue != null && readyValue.booleanValue()) {
+            if (ready.get(client.playerName).booleanValue()) {
                 out.add("1");
             } else {
                 out.add("0");
             }
 
-            out.add(client.playerName.equals(hostName) ? "1" : "0");
+            out.add(client == clients.get(0) ? "1" : "0");
         }
         return out.toArray(new String[0]);
-    }
-
-    /** คืนค่าชื่อโฮสต์ (ผู้เล่นคนแรกในลิสต์) ผู้เรียกต้องถือล็อก lock อยู่ */
-    private String hostNameLocked() {
-        return clients.isEmpty() ? "" : clients.get(0).playerName;
     }
 
     // =====================================================================
@@ -484,8 +477,7 @@ public class GameServer {
     private boolean othersReadyLocked(ClientHandler host) {
         for (ClientHandler client : clients) {
             if (client != host) {
-                Boolean readyValue = ready.get(client.playerName);
-                if (readyValue == null || !readyValue.booleanValue()) {
+                if (!ready.get(client.playerName).booleanValue()) {
                     return false;
                 }
             }

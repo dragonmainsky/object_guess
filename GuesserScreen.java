@@ -102,7 +102,7 @@ public class GuesserScreen extends GuesserScreen_UI {
 
     // ตั้งชื่อผู้เล่นเครื่องนี้
     public void setMyName(String name) {
-        myName = (name == null) ? "" : name;
+        myName = name;
     }
 
     /**
@@ -113,7 +113,7 @@ public class GuesserScreen extends GuesserScreen_UI {
         secretLocked = false;
         requiredPicks = (requiredShapes >= GameServer.MIN_SHAPES && requiredShapes <= GameServer.MAX_SHAPES)
                 ? requiredShapes : GameServer.MIN_SHAPES;
-        questionerName = (questioner == null) ? "" : questioner;
+        questionerName = questioner;
         guessedShapes.clear();
         renderRoundLabel(roundNumber, totalRounds);
         renderTarget(requiredPicks);
@@ -130,7 +130,7 @@ public class GuesserScreen extends GuesserScreen_UI {
      */
     public void onSecretLocked(String questioner, int count) {
         secretLocked = true;
-        questionerName = (questioner == null) ? "" : questioner;
+        questionerName = questioner;
         requiredPicks = Math.max(1, count);
         guessedShapes.clear();
         renderTarget(requiredPicks);
@@ -174,7 +174,7 @@ public class GuesserScreen extends GuesserScreen_UI {
             AppDialog.showInfo(this, "Already submitted", "You already submitted a guess this round.");
             return;
         }
-        if (!secretLocked || requiredPicks == 0) {
+        if (!secretLocked) {
             AppDialog.showWarning(this, "Not yet", "Wait for the questioner to lock in the secret shapes first.");
             return;
         }

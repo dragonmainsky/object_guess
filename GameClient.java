@@ -92,9 +92,7 @@ public class GameClient {
             while (connected) {
                 // อ่านข้อความตามโครงสร้าง Protocol
                 GameMessage message = GameMessage.readFrom(in);
-                if (listener != null) {
-                    listener.onMessage(message.type, message.args);
-                }
+                listener.onMessage(message.type, message.args);
             }
         } catch (EOFException e) {
             notifyDisconnected("The host closed the connection.");
@@ -117,9 +115,7 @@ public class GameClient {
     private void notifyDisconnected(String reason) {
         if (!closing) {
             closing = true;
-            if (listener != null) {
-                listener.onDisconnected(reason);
-            }
+            listener.onDisconnected(reason);
         }
     }
 
@@ -137,7 +133,7 @@ public class GameClient {
      * ส่งข้อความ Protocol ไปยังเซิร์ฟเวอร์ มีการป้องกันการเขียนข้อมูลพร้อมกัน (Thread-safe)
      */
     public void send(String type, String[] args) {
-        if (!connected || out == null) {
+        if (!connected) {
             return;
         }
         synchronized (writeLock) {
@@ -201,9 +197,7 @@ public class GameClient {
      */
     public void leave() {
         closing = true;
-        if (connected) {
-            send(GameServer.LEAVE_ROOM);
-        }
+        send(GameServer.LEAVE_ROOM);
         close();
     }
 
