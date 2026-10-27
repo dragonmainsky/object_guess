@@ -1,9 +1,8 @@
 import java.awt.*;
-import java.awt.datatransfer.*;
+import java.awt.datatransfer.StringSelection;
 import java.awt.dnd.*;
 import java.awt.event.*;
 import java.io.File;
-import java.util.function.*;
 import javax.swing.*;
 /**
  * ShapeImages: คลาสจัดการรูปทรงเรขาคณิตทั้งหมดในเกม
@@ -231,6 +230,31 @@ public final class ShapeImages {
         private int ghostY;          // พิกัด Y ของรูปที่ลอยตามเมาส์
         private DragSourceMotionListener motion; // ตัวตรวจจับการเคลื่อนที่ของเมาส์ขณะลาก
 
+        // -----------------------------------------------------------------
+        //  interface สำหรับ callback ของระบบลากวาง
+        //  ใช้แทน interface สำเร็จรูปของ Java เพื่อให้ชื่อสื่อความหมาย
+        // -----------------------------------------------------------------
+
+        /** ตรวจสอบว่าอินพุตถูกล็อกอยู่หรือไม่ */
+        public interface DragLock {
+            boolean isLocked();
+        }
+
+        /** ตรวจสอบว่าพื้นที่ปลายทางยอมรับรูปทรงที่กำลังลากหรือไม่ */
+        public interface DropCheck {
+            boolean accepts();
+        }
+
+        /** เปิดหรือปิดไฮไลต์ของพื้นที่ปลายทาง */
+        public interface DropMark {
+            void mark(boolean on);
+        }
+
+        /** รับเหตุการณ์เมื่อรูปทรงถูกปล่อยลงบนพื้นที่ปลายทาง */
+        public interface DropHandler {
+            void dropped(String shapeName, Point where);
+        }
+
         /** กำหนดหน้าจอหลักและขนาดของรูปทรงที่ลอยตามเมาส์ */
         public DragBoard(JPanel host, int ghostSize) {
             this.host = host;
@@ -250,13 +274,13 @@ public final class ShapeImages {
         /**
          * กำหนดให้คอมโพเนนต์ต้นทางสามารถลากได้ (draggable)
          */
-        public void draggable(JPanel source, String shapeName, boolean boardSource, BooleanSupplier locked) {
+        public void draggable(JPanel source, String shapeName, boolean boardSource, DragLock locked) {
             source.setCursor(new Cursor(Cursor.MOVE_CURSOR));
             // สร้างตัวตรวจจับท่าทางการลาก (DragGestureRecognizer)
             DragSource.getDefaultDragSource().createDefaultDragGestureRecognizer(
                     source, DnDConstants.ACTION_MOVE, gesture -> {
                         // หากถูกล็อกอยู่ (เช่น หมดเวลาหรือยืนยันแล้ว) จะไม่ให้ลาก
-                        if (locked.getAsBoolean()) {
+                        if (locked.isLocked()) {
                             return;
                         }
                         shape = shapeName;
@@ -267,7 +291,10 @@ public final class ShapeImages {
                         motion = event -> moveGhost(event.getLocation().x, event.getLocation().y);
                         DragSource.getDefaultDragSource().addDragSourceMotionListener(motion);
                         try {
-                            gesture.startDrag(null, payload(shapeName), new DragSourceAdapter() {
+                            // ใช้ StringSelection ซึ่งเป็นคลาสมาตรฐานสำหรับห่อข้อความเพื่อลากวาง
+                            // ทำให้คลาสนี้ไม่ต้องประกาศ flavor ของตัวเอง
+                            // ปลายทางอ่านชื่อรูปจาก DragBoard โดยตรง จึงไม่ต้องตรวจ flavor ของ payload
+                            gesture.startDrag(null, new StringSelection(shapeName), new DragSourceAdapter() {
                                 /** เมื่อการลากจบ ให้ล้างสถานะและเอารูปที่ลอยออก */
                                 @Override
                                 public void dragDropEnd(DragSourceDropEvent event) {
@@ -286,12 +313,11 @@ public final class ShapeImages {
          * mark: ไฮไลต์พื้นที่เมื่อเมาส์ลากเข้ามา
          * onDrop: การทำงานเมื่อมีการปล่อยวางรูปทรงลงบนพื้นที่
          */
-        public void dropZone(JPanel target, BooleanSupplier accepts, Consumer<Boolean> mark,
-                             BiConsumer<String, Point> onDrop) {
+        public void dropZone(JPanel target, DropCheck accepts, DropMark mark, DropHandler onDrop) {
             new DropTarget(target, DnDConstants.ACTION_MOVE, new DropTargetAdapter() {
                 // ตรวจสอบเงื่อนไขว่าอนุญาตให้วางได้หรือไม่
                 private boolean allowed() {
-                    return shape != null && accepts.getAsBoolean();
+                    return shape != null && accepts.accepts();
                 }
 
                 /** ตรวจสอบว่าวางได้หรือไม่ และเปิดไฮไลต์พื้นที่รับ */
@@ -299,7 +325,7 @@ public final class ShapeImages {
                 public void dragEnter(DropTargetDragEvent event) {
                     dragOver(event);
                     if (allowed()) {
-                        mark.accept(true); // ไฮไลต์พื้นที่ตอบรับ
+                        mark.mark(true); // ไฮไลต์พื้นที่ตอบรับ
                     }
                 }
 
@@ -316,13 +342,13 @@ public final class ShapeImages {
                 /** ปิดไฮไลต์เมื่อเมาส์ออกจากพื้นที่ */
                 @Override
                 public void dragExit(DropTargetEvent event) {
-                    mark.accept(false); // ยกเลิกการไฮไลต์เมื่อเมาส์ออกนอกพื้นที่
+                    mark.mark(false); // ยกเลิกการไฮไลต์เมื่อเมาส์ออกนอกพื้นที่
                 }
 
                 /** ตรวจสอบและส่งต่อรูปทรงที่ถูกวาง */
                 @Override
                 public void drop(DropTargetDropEvent event) {
-                    mark.accept(false);
+                    mark.mark(false);
                     if (!allowed()) {
                         event.rejectDrop();
                         return;
@@ -331,7 +357,7 @@ public final class ShapeImages {
                     Point where = event.getLocation();
                     event.acceptDrop(DnDConstants.ACTION_MOVE);
                     event.dropComplete(true);
-                    onDrop.accept(name, where); // ดำเนินการเมื่อวางสำเร็จ
+                    onDrop.dropped(name, where); // ดำเนินการเมื่อวางสำเร็จ
                 }
             }, true);
         }
@@ -370,34 +396,6 @@ public final class ShapeImages {
             shape = null;
             // ล้าง ghost ตำแหน่งสุดท้ายด้วยการ repaint ทั้งหน้าจอ
             host.repaint();
-        }
-
-        /**
-         * เตรียมข้อมูล Payload ที่ส่งไปกับการลาก เป็นชื่อรูปทรงแบบข้อความธรรมดา
-         */
-        private static Transferable payload(final String shapeName) {
-            return new Transferable() {
-                /** ข้อมูลที่รองรับการถ่ายโอนคือข้อความธรรมดา */
-                @Override
-                public DataFlavor[] getTransferDataFlavors() {
-                    return new DataFlavor[] {DataFlavor.stringFlavor};
-                }
-
-                /** ตรวจสอบว่า flavor ที่ขอเป็นข้อความหรือไม่ */
-                @Override
-                public boolean isDataFlavorSupported(DataFlavor flavor) {
-                    return DataFlavor.stringFlavor.equals(flavor);
-                }
-
-                /** คืนชื่อรูปทรงเมื่อมีการขอข้อมูลแบบข้อความ */
-                @Override
-                public Object getTransferData(DataFlavor flavor) throws UnsupportedFlavorException {
-                    if (!DataFlavor.stringFlavor.equals(flavor)) {
-                        throw new UnsupportedFlavorException(flavor);
-                    }
-                    return shapeName;
-                }
-            };
         }
     }
 }
