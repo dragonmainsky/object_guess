@@ -135,7 +135,6 @@ public class GameServer {
      * คืนค่า true หากเปิดพอร์ตสำเร็จ หรือ false หากพอร์ตถูกโปรแกรมอื่นใช้งานอยู่
      */
     public boolean start() {
-        startError = "";
         try {
             serverSocket = new ServerSocket(port);
         } catch (IOException e) {
@@ -144,7 +143,12 @@ public class GameServer {
             return false;
         }
         running = true;
-        acceptThread = new Thread(this::acceptLoop, "GameServer-Accept");
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                acceptLoop();
+            }
+        });
         acceptThread.setDaemon(true);
         acceptThread.start();
         return true;
