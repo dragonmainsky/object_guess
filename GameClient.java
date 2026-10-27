@@ -33,8 +33,8 @@ public class GameClient {
     private Socket socket;                  // ซ็อกเก็ตการเชื่อมต่อ
     private DataInputStream in;             // สตรีมสำหรับอ่านข้อมูลแบบมีโครงสร้าง
     private DataOutputStream out;           // สตรีมสำหรับเขียนข้อมูลแบบมีโครงสร้าง
-    private volatile boolean connected;     // สถานะการเชื่อมต่อ (เชื่อมต่ออยู่หรือไม่)
-    private volatile boolean closing;       // สถานะว่ากำลังอยู่ในกระบวนการปิดหรือไม่
+    private boolean connected;     // สถานะการเชื่อมต่อ (เชื่อมต่ออยู่หรือไม่)
+    private boolean closing;       // สถานะว่ากำลังอยู่ในกระบวนการปิดหรือไม่
 
     /**
      * คอนสตรักเตอร์สำหรับสร้าง GameClient กำหนดที่อยู่โฮสต์ พอร์ต และ Listener
