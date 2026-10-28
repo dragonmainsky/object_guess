@@ -2,12 +2,7 @@ import java.awt.Point;
 import java.awt.event.*;
 import java.util.*;
 
-/**
- * QuestionerScreen: หน้าจอของผู้ตั้งโจทย์ (หน้าจอที่ 3)
- * ผู้ตั้งโจทย์จะเลือกลวดลายรูปทรงความลับสำหรับรอบนี้
- * โดยสามารถลากรูปทรงจากรายการ Objects ไปวางบนผืนผ้าใบ (Canvas),
- * ลากจัดตำแหน่งบน Canvas หรือลากรูปทรงกลับไปยังรายการ Objects เพื่อลบออกได้
- */
+/** หน้าจอผู้ตั้งโจทย์ */
 public class QuestionerScreen extends QuestionerScreen_UI {
 
     // ===== ข้อมูลสถานะการเลือกรูปทรง (State) =====
@@ -19,9 +14,7 @@ public class QuestionerScreen extends QuestionerScreen_UI {
     private boolean roundActive;                         // สถานะว่ารอบกำลังดำเนินอยู่หรือไม่
     private String myName = "";                          // ชื่อของผู้เล่นเครื่องนี้
 
-    /**
-     * คอนสตรักเตอร์สร้างหน้าจอผู้ตั้งโจทย์ จัดวาง 3 คอลัมน์ (ซ้าย: สกอร์บอร์ด & ขั้นตอน, กลาง: Canvas, ขวา: รายการ Objects)
-     */
+    /** สร้างหน้าจอผู้ตั้งโจทย์ */
     public QuestionerScreen(ActionListener onConfirmAction) {
         super();
         this.onConfirmAction = onConfirmAction;
@@ -32,15 +25,15 @@ public class QuestionerScreen extends QuestionerScreen_UI {
     //  การเชื่อมเหตุการณ์จาก UI (Event hooks)
     // =====================================================================
 
-    /** ผู้เล่นกดปุ่มยืนยันชุดรูปทรงความลับ */
+    /** ปุ่มยืนยันชุดรูปทรง */
     @Override
-    protected void onConfirmClicked() {
+    public void onConfirmClicked() {
         confirmSelection();
     }
 
-    /** ผู้เล่นกดปุ่มล้างรูปทรงทั้งหมดบน Canvas */
+    /** ปุ่มล้าง Canvas */
     @Override
-    protected void onClearClicked() {
+    public void onClearClicked() {
         if (selectionLocked) {
             return;
         }
@@ -49,9 +42,9 @@ public class QuestionerScreen extends QuestionerScreen_UI {
         refreshUI();
     }
 
-    /** ผู้เล่นลากรูปทรงจากรายการ Objects มาวางบน Canvas */
+    /** วางรูปทรงบน Canvas */
     @Override
-    protected void onShapeDroppedToCanvas(String shapeName, Point where) {
+    public void onShapeDroppedToCanvas(String shapeName, Point where) {
         if (selectionLocked) {
             return; // หากล็อกแล้ว ไม่อนุญาตให้แก้ไข
         }
@@ -59,46 +52,44 @@ public class QuestionerScreen extends QuestionerScreen_UI {
             return; // ไม่ให้เลือกเกินจำนวนที่กำหนด
         }
         selectedShapes.add(shapeName);
-        // คำนวณพิกัดกึ่งกลางตามจุดที่เมาส์ปล่อยวาง
+        // พิกัดกึ่งกลางจากจุดวาง
         double fx = where.x / (double) Math.max(1, canvas.getWidth());
         double fy = where.y / (double) Math.max(1, canvas.getHeight());
         shapeSpots.put(shapeName, new double[] {clamp(fx), clamp(fy)});
         refreshUI();
     }
 
-    /** ผู้เล่นลากรูปทรงออกจาก Canvas */
+    /** ลากรูปทรงออกจาก Canvas */
     @Override
-    protected void onShapeRemoved(String shapeName) {
+    public void onShapeRemoved(String shapeName) {
         selectedShapes.remove(shapeName);
         shapeSpots.remove(shapeName);
         refreshUI();
     }
 
-    /** ตรวจสอบว่ายังสามารถรับรูปทรงนี้มาวางบน Canvas ได้หรือไม่ */
+    /** เงื่อนไขการรับรูปทรงบน Canvas */
     @Override
-    protected boolean canAcceptDrop(String shapeName) {
+    public boolean canAcceptDrop(String shapeName) {
         return selectedShapes.contains(shapeName) || selectedShapes.size() < requiredShapes;
     }
 
-    /** ล็อกการแก้ไขหลังจากยืนยันชุดรูปทรงแล้ว */
+    /** สถานะล็อกหลังยืนยัน */
     @Override
-    protected boolean isInputLocked() {
+    public boolean isInputLocked() {
         return selectionLocked;
     }
 
-    /** คืนตำแหน่งของรูปทรงบน Canvas ในรูปแบบ {x, y} */
+    /** ตำแหน่งรูปทรงบน Canvas */
     @Override
-    protected double[] shapeSpot(String shapeName) {
+    public double[] shapeSpot(String shapeName) {
         return shapeSpots.get(shapeName);
     }
 
     // =====================================================================
-    //  การอัปเดตการแสดงผลเมื่อสถานะเปลี่ยน (State changes)
+    // การอัปเดตการแสดงผล
     // =====================================================================
 
-    /**
-     * วาดรูปทรงบน Canvas ใหม่ และรีเฟรชคอมโพเนนต์ทั้งหมดที่เกี่ยวข้องกับจำนวนที่เลือก
-     */
+    /** วาด Canvas ใหม่ */
     private void refreshUI() {
         int count = selectedShapes.size();
         int activeStep;
@@ -115,7 +106,7 @@ public class QuestionerScreen extends QuestionerScreen_UI {
     }
 
     // =====================================================================
-    //  การเชื่อมต่อระบบมัลติเพลเยอร์ (Multiplayer hooks เรียกโดย MainApp)
+    // Multiplayer hooks (เรียกโดย MainApp)
     // =====================================================================
 
     // กำหนดชื่อของผู้เล่นเครื่องนี้
@@ -123,9 +114,7 @@ public class QuestionerScreen extends QuestionerScreen_UI {
         myName = name;
     }
 
-    /**
-     * เริ่มต้นรอบใหม่ ล้าง Canvas และตั้งค่าเป้าหมายจำนวนรูปทรงตามที่เซิร์ฟเวอร์สุ่มมา
-     */
+    /** เริ่มรอบใหม่ */
     public void startRound(int roundNumber, int totalRounds, int requiredShapes) {
         if (requiredShapes >= GameServer.MIN_SHAPES && requiredShapes <= GameServer.MAX_SHAPES) {
             this.requiredShapes = requiredShapes;
@@ -149,19 +138,17 @@ public class QuestionerScreen extends QuestionerScreen_UI {
         renderStep(1);
     }
 
-    /** ดึงจำนวนรูปทรงที่ต้องเลือกในรอบนี้ */
+    /** จำนวนรูปทรงเป้าหมาย */
     public int getRequiredPicks() {
         return requiredShapes;
     }
 
-    /** ดึงรายการรูปทรงที่เลือกไว้เรียงตามลำดับที่เลือก */
+    /** รายการรูปทรงที่เลือก */
     public List<String> getSelectedShapes() {
         return new ArrayList<>(selectedShapes);
     }
 
-    /**
-     * ล็อกการเลือกหลังจากส่งข้อมูลไปยังเซิร์ฟเวอร์แล้ว และเข้าสู่สถานะรอคนอื่นทาย
-     */
+    /** ล็อกหลังส่งข้อมูลแล้ว */
     public void lockSelection() {
         selectionLocked = true;
         renderConfirmEnabled(false);
@@ -169,16 +156,12 @@ public class QuestionerScreen extends QuestionerScreen_UI {
         renderStep(3);
     }
 
-    /**
-     * อัปเดตรายการคะแนนสดของผู้เล่นทุกคนจากเซิร์ฟเวอร์
-     */
+    /** อัปเดตสกอร์บอร์ด */
     public void setScoreboard(String[] names, int[] scores) {
         renderScoreboard(names, scores, myName);
     }
 
-    /**
-     * ตรวจสอบว่าเลือกรูปทรงครบตามเป้าหมายหรือไม่ ก่อนส่งเหตุการณ์ยืนยัน (Confirm)
-     */
+    /** ตรวจสอบก่อนยืนยัน */
     private void confirmSelection() {
         if (selectionLocked) {
             return;
@@ -198,7 +181,7 @@ public class QuestionerScreen extends QuestionerScreen_UI {
         onConfirmAction.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "confirm"));
     }
 
-    // จำกัดค่าให้อยู่ในช่วง 0.0 ถึง 1.0
+    // จำกัดช่วง 0.0-1.0
     private static double clamp(double value) {
         return Math.max(0, Math.min(1, value));
     }

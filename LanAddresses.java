@@ -1,20 +1,14 @@
 import java.net.*;
 import java.util.*;
 
-/**
- * LanAddresses: ฟังก์ชันช่วยค้นหาที่อยู่ IP ในเครือข่าย LAN / Wi-Fi ของเครื่องนี้
- * ใช้สำหรับแสดง IP ให้เพื่อนนำไปกรอกเพื่อเชื่อมต่อกับเครื่องโฮสต์
- */
+/** ฟังก์ชันช่วยค้นหา IP ในวง LAN */
 public final class LanAddresses {
 
-    // คลาสนี้มีแต่เมธอดแบบ static จึงไม่ต้องสร้างออบเจกต์
+    // ป้องกันการสร้างออบเจกต์
     private LanAddresses() {
     }
 
-    /**
-     * ค้นหาที่อยู่ IPv4 ในวง LAN / Wi-Fi ทั้งหมดของเครื่องนี้
-     * ข้าม Loopback, Link-local และการ์ดเครือข่ายเสมือน
-     */
+    /** รายการ IPv4 ของเครื่องนี้ในวง LAN */
     public static List<String> getLanAddresses() {
         LinkedHashMap<String, Integer> ranks = new LinkedHashMap<String, Integer>();
 
@@ -41,7 +35,7 @@ public final class LanAddresses {
                         continue;
                     }
 
-                    // เกมนี้ใช้เฉพาะ IPv4 จึงข้าม IPv6
+                    // ข้าม IPv6
                     if (address instanceof Inet4Address) {
                         String ip = address.getHostAddress();
                         ranks.put(ip, addressRank(ip));
@@ -49,14 +43,14 @@ public final class LanAddresses {
                 }
             }
         } catch (SocketException e) {
-            // ไม่สามารถดึงรายชื่อการ์ดเครือข่ายได้ ให้คืนรายการว่าง
+            // การ์ดเครือข่ายอ่านไม่ได้
         }
 
         ArrayList<String> result = new ArrayList<String>(ranks.keySet());
 
-        // เรียง IP ที่เหมาะสมที่สุดขึ้นก่อน ถ้าลำดับเท่ากันให้เรียงตามตัวอักษร
+        // เรียง IP ตามความเหมาะสม
         Collections.sort(result, new Comparator<String>() {
-            /** เปรียบเทียบ IP จาก rank ก่อน แล้วจึงเปรียบเทียบชื่อ */
+            /** เปรียบเทียบ IP ตาม rank แล้วตามชื่อ */
             @Override
             public int compare(String first, String second) {
                 int firstRank = ranks.get(first).intValue();
@@ -75,11 +69,7 @@ public final class LanAddresses {
         return result;
     }
 
-    /**
-     * จัดลำดับความเหมาะสมของ IP (ค่าน้อยคือเหมาะสมกว่า)
-     * ให้ความสำคัญกับวง 192.168.x.x และ 10.x.x.x ก่อน
-     * และลดความสำคัญของ Virtual Adapter (เช่น VirtualBox, VMware, Docker)
-     */
+    /** คะแนนความเหมาะสมของ IP (น้อย = เหมาะกว่า) */
     private static int addressRank(String ip) {
         int rank;
 
@@ -107,7 +97,7 @@ public final class LanAddresses {
             rank = 3;
         }
 
-        // วง Host-only ที่มักใช้โดย VirtualBox (192.168.56.x, 192.168.99.x)
+        // วง Host-only ของ VirtualBox
         if (ip.startsWith("192.168.56.") || ip.startsWith("192.168.99.")) {
             rank += 10;
         }
@@ -115,9 +105,7 @@ public final class LanAddresses {
         return rank;
     }
 
-    /**
-     * ดึงที่อยู่ IP วง LAN ที่ดีที่สุดสำหรับแสดงแนะนำให้เพื่อนเชื่อมต่อ
-     */
+    /** IP ที่แนะนำให้เพื่อนเชื่อมต่อ */
     public static String getPreferredLanAddress() {
         List<String> addresses = getLanAddresses();
         if (addresses.isEmpty()) {

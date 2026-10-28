@@ -3,12 +3,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * GuesserScreen: หน้าจอของผู้ทาย (หน้าจอที่ 4)
- * ผู้เล่นที่ทำหน้าที่ทายจะต้องเลือกรูปทรงให้ตรงกับที่ Questioner เลือกไว้
- * สามารถลากรูปทรงจากรายการ Objects มาวางในช่องทาย (Guess slots),
- * สลับตำแหน่งระหว่างช่อง หรือลากกลับไปยัง Objects เพื่อลบออกได้
- */
+/** หน้าจอของผู้ทาย */
 public class GuesserScreen extends GuesserScreen_UI {
 
     // ===== ข้อมูลสถานะการทาย (State) =====
@@ -20,9 +15,7 @@ public class GuesserScreen extends GuesserScreen_UI {
     private String myName = "";         // ชื่อของผู้เล่นเครื่องนี้
     private String questionerName = ""; // ชื่อของ Questioner ในรอบนี้
 
-    /**
-     * คอนสตรักเตอร์สร้างหน้าจอผู้ทาย จัดวางแบบ 3 คอลัมน์ และผูกปุ่ม ENTER สำหรับส่งคำตอบ
-     */
+    /** สร้างหน้าจอผู้ทาย */
     public GuesserScreen(ActionListener onSubmitAction) {
         super();
         this.onSubmitAction = onSubmitAction;
@@ -33,25 +26,25 @@ public class GuesserScreen extends GuesserScreen_UI {
     //  การเชื่อมเหตุการณ์จาก UI (Event hooks)
     // =====================================================================
 
-    /** ผู้เล่นกดปุ่มส่งคำตอบทาย */
+    /** ปุ่มส่งคำตอบ */
     @Override
     public void onSubmitClicked() {
         submitGuess();
     }
 
-    /** ผู้เล่นลากรูปทรงมาวางในช่องทาย */
+    /** วางรูปทรงในช่องทาย */
     @Override
     public void onShapeDroppedToSlot(String shapeName, int slotIndex) {
         placeShape(shapeName, slotIndex);
     }
 
-    /** ผู้เล่นลากรูปทรงออกจากช่องทาย */
+    /** ลากรูปทรงออกจากช่องทาย */
     @Override
     public void onShapeRemoved(String shapeName) {
         removeShape(shapeName);
     }
 
-    /** ล็อกการแก้ไขเมื่อผู้เล่นส่งคำตอบของรอบนี้แล้ว */
+    /** สถานะล็อกหลังส่งคำตอบ */
     @Override
     public boolean isInputLocked() {
         return submitted;
@@ -61,9 +54,7 @@ public class GuesserScreen extends GuesserScreen_UI {
     //  การจัดการรายการรูปทรงที่ทาย (Guess handling)
     // =====================================================================
 
-    /**
-     * วางรูปทรงลงในช่องตาม slotIndex หากรูปทรงมีอยู่แล้วจะสลับตำแหน่ง หากเป็นช่องว่างจะต่อท้าย
-     */
+    /** จัดการรูปทรงที่วางในช่อง */
     private void placeShape(String shapeName, int slotIndex) {
         if (submitted) {
             return;   // ส่งคำตอบแล้ว ไม่อนุญาตให้แก้ไข
@@ -91,13 +82,13 @@ public class GuesserScreen extends GuesserScreen_UI {
         }
     }
 
-    /** อัปเดตคอมโพเนนต์ทั้งหมดที่ขึ้นอยู่กับจำนวนรูปทรงที่ทาย */
+    /** อัปเดต UI ตามจำนวนรูปที่ทาย */
     private void refreshSelection() {
         renderSelection(new ArrayList<>(guessedShapes), requiredPicks);
     }
 
     // =====================================================================
-    //  การเชื่อมต่อระบบมัลติเพลเยอร์ (Multiplayer hooks เรียกโดย MainApp)
+    // Multiplayer hooks
     // =====================================================================
 
     // ตั้งชื่อผู้เล่นเครื่องนี้
@@ -105,9 +96,7 @@ public class GuesserScreen extends GuesserScreen_UI {
         myName = name;
     }
 
-    /**
-     * เริ่มต้นรอบใหม่ ล้างคำตอบเดิม และรอให้ Questioner ล็อกรูปทรงก่อนเริ่มนับเวลา
-     */
+    /** เริ่มรอบใหม่ */
     public void startRound(int roundNumber, int totalRounds, String questioner, int requiredShapes) {
         submitted = false;
         secretLocked = false;
@@ -127,10 +116,7 @@ public class GuesserScreen extends GuesserScreen_UI {
         renderSubmitEnabled(false);
     }
 
-    /**
-     * ทำงานเมื่อเซิร์ฟเวอร์แจ้งว่า Questioner ได้ล็อกรูปทรงแล้ว
-     * ปลดล็อกปุ่มส่งคำตอบ และเริ่มเปิดให้ทายได้
-     */
+    /** ปลดล็อกเมื่อ Questioner ล็อกรูปทรง */
     public void onSecretLocked(String questioner, int count) {
         secretLocked = true;
         questionerName = questioner;
@@ -146,19 +132,17 @@ public class GuesserScreen extends GuesserScreen_UI {
         setStatus("The questioner locked in " + requiredPicks + " shape" + shapeWord
                 + ". Pick yours, then press SUBMIT GUESS.");
         renderSubmitEnabled(!submitted);
-        // เซิร์ฟเวอร์ส่ง SECRET_LOCKED ครั้งเดียวต่อรอบ ก่อนรับคำตอบแรก
-        // และ startRound() ตั้ง submitted = false ไว้แล้ว
-        // ดังนั้น ณ จุดนี้ submitted เป็น false เสมอ
+        // SECRET_LOCKED มาก่อนคำตอบแรก และ submitted = false แล้ว
         renderSubmitted(false);
         refreshSelection();
     }
 
-    /** ดึงจำนวนรูปทรงที่ต้องทายในรอบนี้ */
+    /** จำนวนรูปที่ต้องทาย */
     public int getRequiredPicks() {
         return requiredPicks;
     }
 
-    /** ล็อกการทายหลังจากเซิร์ฟเวอร์ตอบรับคำตอบแล้ว ป้องกันการส่งซ้ำ */
+    /** ล็อกหลังส่งคำตอบ */
     public void markSubmitted() {
         submitted = true;
         renderSubmitEnabled(false);
@@ -166,19 +150,17 @@ public class GuesserScreen extends GuesserScreen_UI {
         renderSubmitted(true);
     }
 
-    /** รีเฟรชสกอร์บอร์ดคะแนนสดฝั่งซ้าย */
+    /** สกอร์บอร์ดฝั่งซ้าย */
     public void setScoreboard(String[] names, int[] scores) {
         renderScoreboard(names, scores, myName);
     }
 
-    /** ดึงรายการรูปทรงที่ทาย */
+    /** รายการรูปที่ทาย */
     public List<String> getGuessedShapes() {
         return new ArrayList<>(guessedShapes);
     }
 
-    /**
-     * ตรวจสอบความถูกต้องก่อนส่งคำตอบทายไปยังเซิร์ฟเวอร์
-     */
+    /** ตรวจสอบก่อนส่งคำตอบ */
     private void submitGuess() {
         if (submitted) {
             AppDialog.showInfo(this, "Already submitted", "You already submitted a guess this round.");

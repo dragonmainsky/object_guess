@@ -23,15 +23,7 @@ import java.util.function.Supplier;
 import javax.swing.*;
 import javax.swing.border.*;
 
-/**
- * UiPreview: หน้าต่างสำหรับดู UI ของทุกหน้าจอโดยไม่ต้องเริ่มเกมจริง
- * ใช้คลาสหน้าจอเดิมทั้งหมดแบบอ่านอย่างเดียว (ไม่แก้ไฟล์หน้าจอ)
- * ข้อมูลผู้เล่น/คะแนน/แชตเป็นข้อมูลตัวอย่างสำหรับ preview เท่านั้น
- *
- * วิธีรัน:
- *   javac -encoding UTF-8 *.java
- *   java UiPreview
- */
+/** หน้าต่างพรีวิว UI ทุกหน้าจอ (รัน: java UiPreview) */
 public class UiPreview extends JFrame {
 
     private static final String[] SAMPLE_NAMES = {"Mhee", "Nina", "Ton", "Fah"};
@@ -43,7 +35,7 @@ public class UiPreview extends JFrame {
     private final List<NavButton> navButtons = new ArrayList<>();
     private ScreenSpec current;
 
-    /** สร้างหน้าต่าง preview และเริ่มแสดงหน้าจอตัวอย่างแรก */
+    /** สร้างหน้าต่างพรีวิว */
     public UiPreview() {
         super("UI Preview - Guess What It Looks Like?");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -63,7 +55,7 @@ public class UiPreview extends JFrame {
 
         selectSpec(specs.get(0));
         addWindowListener(new WindowAdapter() {
-            /** หยุด Timer ของหน้าจอตัวอย่างทั้งหมดก่อนปิดหน้าต่าง */
+            /** หยุด Timer ทั้งหมด */
             @Override
             public void windowClosing(WindowEvent event) {
                 stopCountdowns();
@@ -76,7 +68,7 @@ public class UiPreview extends JFrame {
     //  รายการหน้าจอตัวอย่าง
     // =====================================================================
 
-    /** ลงทะเบียนรายการหน้าจอตัวอย่างทั้งหมด */
+    /** รายการหน้าจอตัวอย่าง */
     private void buildSpecs() {
         specs.add(new ScreenSpec("join", "Join screen", "Host or join a room", () -> buildJoin()));
         specs.add(new ScreenSpec("lobby", "Lobby", "Players, readiness and chat", () -> buildLobby()));
@@ -86,7 +78,7 @@ public class UiPreview extends JFrame {
         specs.add(new ScreenSpec("scoreboard", "Scoreboard", "Final tournament ranking", () -> buildScoreboard()));
     }
 
-    /** สร้างแถบเมนูด้านบนสำหรับสลับหน้าจอและเปิดหน้าจอขนาดเต็ม */
+    /** แถบเมนูสลับหน้าจอ */
     private JPanel buildHeader() {
         JPanel bar = new JPanel(new BorderLayout(12, 0));
         bar.setBackground(AppDialog.CARD_BG);
@@ -127,7 +119,7 @@ public class UiPreview extends JFrame {
         return bar;
     }
 
-    /** เปลี่ยนไปแสดงหน้าจอที่เลือก โดยสร้างครั้งแรกแล้วเก็บไว้ใน cache */
+    /** สลับหน้าจอที่แสดง */
     private void selectSpec(ScreenSpec spec) {
         if (spec == null) {
             return;
@@ -144,7 +136,7 @@ public class UiPreview extends JFrame {
         setTitle("UI Preview - " + spec.title);
     }
 
-    /** สร้างหน้าจอปัจจุบันใหม่เพื่อล้างสถานะตัวอย่าง */
+    /** สร้างหน้าจอปัจจุบันใหม่ */
     private void reloadCurrent() {
         if (current == null) {
             return;
@@ -159,7 +151,7 @@ public class UiPreview extends JFrame {
         stage.repaint();
     }
 
-    /** เปิดหน้าจอปัจจุบันในหน้าต่างใหม่ขนาดใหญ่ */
+    /** เปิดหน้าจอปัจจุบันแบบเต็มหน้าต่าง */
     private void openFullSize() {
         if (current == null) {
             return;
@@ -174,7 +166,7 @@ public class UiPreview extends JFrame {
         frame.setMinimumSize(new Dimension(1000, 640));
         frame.setLocationRelativeTo(this);
         frame.addWindowListener(new WindowAdapter() {
-            /** หยุด Timer ของหน้าจอที่เปิดแบบเต็มจอเมื่อปิดหน้าต่าง */
+            /** หยุด Timer ของหน้าต่างเต็มจอ */
             @Override
             public void windowClosing(WindowEvent event) {
                 stopCountdown(screen);
@@ -183,14 +175,14 @@ public class UiPreview extends JFrame {
         frame.setVisible(true);
     }
 
-    /** หยุด Timer นับถอยหลังหากหน้าจอเป็น RoundResultScreen */
+    /** หยุด Timer ของ RoundResultScreen */
     private static void stopCountdown(JPanel screen) {
         if (screen instanceof RoundResultScreen) {
             ((RoundResultScreen) screen).stopCountdown();
         }
     }
 
-    /** หยุด Timer ของทุกหน้าจอที่เก็บไว้ใน cache */
+    /** หยุด Timer ของทุกหน้าจอใน cache */
     private void stopCountdowns() {
         for (JPanel screen : cache.values()) {
             stopCountdown(screen);
@@ -201,11 +193,11 @@ public class UiPreview extends JFrame {
     //  หน้าจอตัวอย่าง
     // =====================================================================
 
-    /** สร้างหน้าจอ Join ด้วยข้อมูลตัวอย่าง */
+    /** สร้างหน้าจอ Join ตัวอย่าง */
     private JPanel buildJoin() {
         AtomicReference<JoinScreen> ref = new AtomicReference<JoinScreen>();
         JoinScreen screen = new JoinScreen(new JoinScreen.JoinListener() {
-            /** แสดงข้อความตัวอย่างเมื่อกดสร้างห้อง */
+            /** handler ปุ่มสร้างห้อง */
             @Override
             public void onCreateGame(String playerName, int port) {
                 if (ref.get() != null) {
@@ -213,7 +205,7 @@ public class UiPreview extends JFrame {
                 }
             }
 
-            /** แสดงข้อความตัวอย่างเมื่อกดเข้าร่วมห้อง */
+            /** handler ปุ่มเข้าร่วมห้อง */
             @Override
             public void onJoinGame(String playerName, String serverIp, int port) {
                 if (ref.get() != null) {
@@ -227,7 +219,7 @@ public class UiPreview extends JFrame {
         return screen;
     }
 
-    /** สร้างหน้าจอ Lobby พร้อมผู้เล่นและข้อความแชตตัวอย่าง */
+    /** สร้างหน้าจอ Lobby ตัวอย่าง */
     private JPanel buildLobby() {
         Map<String, Boolean> ready = readyMap();
         LobbyScreen screen = new LobbyScreen(event -> {
@@ -254,7 +246,7 @@ public class UiPreview extends JFrame {
         return screen;
     }
 
-    /** สร้างหน้าจอ Questioner พร้อมรูปทรงที่เลือกไว้ล่วงหน้า */
+    /** สร้างหน้าจอ Questioner ตัวอย่าง */
     private JPanel buildQuestioner() {
         AtomicReference<QuestionerScreen> ref = new AtomicReference<QuestionerScreen>();
         QuestionerScreen screen = new QuestionerScreen(event -> {
@@ -272,7 +264,7 @@ public class UiPreview extends JFrame {
         return screen;
     }
 
-    /** สร้างหน้าจอ Guesser พร้อมคำตอบตัวอย่างในช่องทาย */
+    /** สร้างหน้าจอ Guesser ตัวอย่าง */
     private JPanel buildGuesser() {
         AtomicReference<GuesserScreen> ref = new AtomicReference<GuesserScreen>();
         GuesserScreen screen = new GuesserScreen(event -> {
@@ -291,7 +283,7 @@ public class UiPreview extends JFrame {
         return screen;
     }
 
-    /** สร้างหน้าจอสรุปผลรอบด้วยข้อมูลตัวอย่าง */
+    /** สร้างหน้าจอ RoundResult ตัวอย่าง */
     private JPanel buildRoundResult() {
         RoundResultScreen screen = new RoundResultScreen();
         screen.showResult(2, 8, false,
@@ -307,7 +299,7 @@ public class UiPreview extends JFrame {
         return screen;
     }
 
-    /** สร้างหน้าจอสกอร์บอร์ดด้วยคะแนนตัวอย่าง */
+    /** สร้างหน้าจอ Scoreboard ตัวอย่าง */
     private JPanel buildScoreboard() {
         ScoreboardScreen screen = new ScoreboardScreen(event -> {
         }, event -> {
@@ -318,10 +310,10 @@ public class UiPreview extends JFrame {
     }
 
     // =====================================================================
-    //  ข้อมูลตัวอย่างและ reflection สำหรับเติมสถานะที่ไม่มี public setter
+    // ข้อมูลตัวอย่างและ reflection
     // =====================================================================
 
-    /** สร้างแผนที่สถานะพร้อมสำหรับข้อมูลตัวอย่าง */
+    /** แผนที่สถานะพร้อม */
     private static Map<String, Boolean> readyMap() {
         LinkedHashMap<String, Boolean> ready = new LinkedHashMap<String, Boolean>();
         ready.put("Mhee", false);
@@ -331,7 +323,7 @@ public class UiPreview extends JFrame {
         return ready;
     }
 
-    /** ใส่รูปทรงตัวอย่างให้ Questioner ผ่าน reflection (ใช้เฉพาะหน้า preview) */
+    /** เติมรูปทรงให้ Questioner ผ่าน reflection */
     @SuppressWarnings("unchecked")
     private static void setQuestionerPicks(QuestionerScreen screen, String... shapes) {
         try {
@@ -356,7 +348,7 @@ public class UiPreview extends JFrame {
         }
     }
 
-    /** ใส่รูปทรงตัวอย่างให้ Guesser ผ่าน reflection (ใช้เฉพาะหน้า preview) */
+    /** เติมรูปทรงให้ Guesser ผ่าน reflection */
     @SuppressWarnings("unchecked")
     private static void setGuesserPicks(GuesserScreen screen, String... shapes) {
         try {
@@ -377,14 +369,14 @@ public class UiPreview extends JFrame {
     //  คลาสช่วยเหลือของ preview
     // =====================================================================
 
-    /** ข้อมูลของหน้าจอตัวอย่างหนึ่งรายการ */
+    /** ข้อมูลหน้าจอตัวอย่าง */
     private static final class ScreenSpec {
         final String key;
         final String title;
         final String subtitle;
         final Supplier<JPanel> factory;
 
-        /** เก็บชื่อและฟังก์ชันสร้างหน้าจอตัวอย่าง */
+        /** ชื่อและตัวสร้างหน้าจอ */
         ScreenSpec(String key, String title, String subtitle, Supplier<JPanel> factory) {
             this.key = key;
             this.title = title;
@@ -392,19 +384,19 @@ public class UiPreview extends JFrame {
             this.factory = factory;
         }
 
-        /** ใช้ชื่อหน้าจอเป็นข้อความแทนออบเจกต์ */
+        /** แสดงชื่อหน้าจอ */
         @Override
         public String toString() {
             return title;
         }
     }
 
-    /** ปุ่มเมนูด้านบนสำหรับสลับหน้าจอตัวอย่าง */
+    /** ปุ่มเมนูด้านบน */
     private static final class NavButton extends JButton {
         private boolean active;
         private boolean over;
 
-        /** ตั้งค่าปุ่มนำทางและเอฟเฟกต์เมื่อเมาส์ชี้ */
+        /** ตั้งค่าปุ่มนำทาง */
         NavButton(String text) {
             super(text);
             setFont(AppDialog.SMALL_BOLD_12);
@@ -416,14 +408,14 @@ public class UiPreview extends JFrame {
             setOpaque(false);
             setCursor(new Cursor(Cursor.HAND_CURSOR));
             addMouseListener(new MouseAdapter() {
-                // เมื่อเมาส์เข้าปุ่ม ให้แสดงสถานะ hover
+                // เมาส์เข้าปุ่ม
                 @Override
                 public void mouseEntered(MouseEvent event) {
                     over = true;
                     repaint();
                 }
 
-                // เมื่อเมาส์ออกจากปุ่ม ให้ยกเลิกสถานะ hover
+                // เมาส์ออกจากปุ่ม
                 @Override
                 public void mouseExited(MouseEvent event) {
                     over = false;
@@ -432,7 +424,7 @@ public class UiPreview extends JFrame {
             });
         }
 
-        /** เปลี่ยนสถานะปุ่มที่กำลังถูกเลือก */
+        /** เปลี่ยนปุ่มที่เลือก */
         void setActive(boolean active) {
             this.active = active;
             if (active) {
@@ -443,7 +435,7 @@ public class UiPreview extends JFrame {
             repaint();
         }
 
-        /** วาดพื้นหลังปุ่มตามสถานะ active / hover / pressed */
+        /** วาดพื้นหลังปุ่ม */
         @Override
         protected void paintComponent(Graphics g) {
             Color fill;
@@ -466,7 +458,7 @@ public class UiPreview extends JFrame {
         }
     }
 
-    /** เปิดหน้าต่าง preview */
+    /** เปิดหน้าต่างพรีวิว */
     public static void main(String[] args) {
         new UiPreview();
     }

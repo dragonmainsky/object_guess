@@ -1,26 +1,12 @@
 import java.io.*;
 
-/**
- * GameMessage: โครงสร้างข้อความตามโปรโตคอลของเกม
- * ประกอบด้วยประเภทข้อความ (type) และชุดข้อความอาร์กิวเมนต์ (args)
- *
- * รูปแบบที่ส่งบนเครือข่าย:
- *   writeUTF(type)
- *   writeInt(จำนวนอาร์กิวเมนต์)
- *   writeUTF(อาร์กิวเมนต์) จำนวนครั้งตามที่ระบุ
- *
- * การระบุความยาวไว้ล่วงหน้าทำให้ฝั่งรับรู้ว่าต้องอ่านกี่ค่า
- * และป้องกันข้อมูลของข้อความถัดไปปะปนกันบน TCP Stream
- */
+/** ข้อความโปรโตคอล: type, จำนวน args, ตามด้วย args */
 public class GameMessage {
 
     public final String type;       // ประเภทข้อความ
     public final String[] args;     // รายการข้อมูลพารามิเตอร์
 
-    /**
-     * สร้างข้อความใหม่
-     * ถ้าอาร์เรย์เป็น null จะเก็บเป็นอาร์เรย์ว่างแทน
-     */
+    /** สร้างข้อความใหม่ (args null = อาเรย์ว่าง) */
     public GameMessage(String type, String[] args) {
         this.type = type;
         if (args == null) {
@@ -30,10 +16,7 @@ public class GameMessage {
         }
     }
 
-    /**
-     * ดึงค่าอาร์กิวเมนต์ตามตำแหน่งที่ระบุ
-     * ถ้าตำแหน่งเกินช่วง จะคืนค่าสตริงว่างเพื่อให้ผู้เรียกใช้งานต่อได้ปลอดภัย
-     */
+    /** อาร์กิวเมนต์ตามตำแหน่ง (ค่าว่างถ้าเกินช่วง) */
     public String arg(int index) {
         if (index < 0 || index >= args.length) {
             return "";
@@ -41,9 +24,7 @@ public class GameMessage {
         return args[index];
     }
 
-    /**
-     * เขียนข้อความลงในสตรีม
-     */
+    /** เขียนข้อความลงสตรีม */
     public void writeTo(DataOutputStream out) throws IOException {
         out.writeUTF(type);
         out.writeInt(args.length);
@@ -58,10 +39,7 @@ public class GameMessage {
         out.flush();
     }
 
-    /**
-     * อ่านข้อความจากสตรีม
-     * จำกัดจำนวนอาร์กิวเมนต์ไว้ที่ 1024 ค่า เพื่อไม่ให้อ่านข้อมูลผิดรูปแบบจนค้าง
-     */
+    /** อ่านข้อความจากสตรีม (สูงสุด 1024 args) */
     public static GameMessage readFrom(DataInputStream in) throws IOException {
         String type = in.readUTF();
         int count = in.readInt();

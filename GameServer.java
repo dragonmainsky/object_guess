@@ -2,12 +2,7 @@ import java.io.*;
 import java.net.*;
 import java.util.*;
 
-/**
- * GameServer: เซิร์ฟเวอร์หลักของเกม (Authoritative LAN server)
- * เป็นศูนย์กลางในการควบคุมกฎการเล่น ดูแลรายชื่อผู้เล่น สถานะของเกม และการคำนวณคะแนนทั้งหมด
- * ข้อมูลที่เปลี่ยนแปลงได้ทั้งหมดจะถูกปกป้องด้วย Object Monitor ตัวเดียว (lock)
- * เพื่อป้องกันการเกิด Race Condition ระหว่าง Accept thread, Reader thread ของแต่ละ Client และ Round timer
- */
+/** เซิร์ฟเวอร์หลักของเกมสำหรับเล่นผ่าน LAN */
 public class GameServer {
 
     // ===== การกำหนดค่าพื้นฐานของเกม (Configuration) =====
@@ -19,12 +14,10 @@ public class GameServer {
     public static final int BONUS_WINDOW_SECONDS = 10;   // ช่วงเวลาได้โบนัส +2 (ทายถูกหมดภายใน 10 วินาทีแรก)
     public static final int INTERMISSION_SECONDS = 10;   // เวลานับถอยหลังช่วงพักรอบก่อนเริ่มรอบถัดไป
     public static final int MAX_NAME_LENGTH = 16;        // ความยาวสูงสุดของชื่อผู้เล่น
-    /** จำนวนรอบที่ผู้เล่นแต่ละคนจะได้เป็นผู้ตั้งโจทย์ (Questioner) ใน 1 ทัวร์นาเมนต์ */
+    /** จำนวนรอบต่อคนในบทบาท Questioner */
     public static final int ROUNDS_PER_PLAYER = 2;
 
-    /**
-     * ชื่อรูปทรงทั้ง 8 รูป เรียงตามลำดับในเมนูเลือก
-     */
+    /** ชื่อรูปทรงทั้ง 8 แบบ */
     public static final String[] SHAPE_NAMES = {
         "Circle", "Triangle", "Rectangle", "Oval", "Hexagon", "Diamond", "Star", "Square"
     };
@@ -47,7 +40,7 @@ public class GameServer {
     private boolean running;            // สถานะว่าเซิร์ฟเวอร์กำลังทำงานอยู่หรือไม่
     private Thread acceptThread;                 // เธรดสำหรับรอรับการเชื่อมต่อจาก Client ใหม่
 
-    /** มอนิเตอร์ล็อกตัวเดียวสำหรับปกป้องตัวแปรสถานะทั้งหมดด้านล่าง */
+    /** ล็อกของสถานะเซิร์ฟเวอร์ */
     private final Object lock = new Object();
     private final List<ClientHandler> clients = new ArrayList<>();   // รายการ Client เรียงตามลำดับเข้าห้อง (ดัชนี 0 คือโฮสต์)
     private final Map<String, Boolean> ready = new LinkedHashMap<>(); // สถานะความพร้อมของผู้เล่นแต่ละคน
@@ -78,10 +71,7 @@ public class GameServer {
     private int lastCycleShapes;          // จำนวนรูปทรงที่ใช้ในรอบใหญ่ก่อนหน้า
     private final List<String> cycleOrder = new ArrayList<>(); // ลำดับผู้เล่นที่รอเป็น Questioner ในรอบใหญ่นี้
 
-    /**
-     * สร้างออบเจกต์เซิร์ฟเวอร์สำหรับพอร์ตที่กำหนด
-     * ยังไม่เปิดพอร์ตจริงจนกว่าจะเรียกเมธอด start()
-     */
+    /** สร้างเซิร์ฟเวอร์สำหรับพอร์ตที่ระบุ */
     public GameServer(int port) {
         this.port = port;
     }
@@ -90,10 +80,7 @@ public class GameServer {
     //  วงจรการทำงานของเซิร์ฟเวอร์ (Lifecycle)
     // =====================================================================
 
-    /**
-     * ผูกพอร์ตและเริ่มเธรดรอรับการเชื่อมต่อ (Accept loop)
-     * คืนค่า true หากเปิดพอร์ตสำเร็จ หรือ false หากพอร์ตถูกโปรแกรมอื่นใช้งานอยู่
-     */
+    /** เปิดพอร์ตและเริ่มรับการเชื่อมต่อ (คืนค่า true เมื่อสำเร็จ) */
     public boolean start() {
         try {
             serverSocket = new ServerSocket(port);
@@ -104,7 +91,7 @@ public class GameServer {
         }
         running = true;
         acceptThread = new Thread(new Runnable() {
-            /** เธรดนี้รอรับผู้เล่นใหม่ไปตลอดจนกว่าเซิร์ฟเวอร์จะหยุดทำงาน */
+            /** เธรดรับผู้เล่นใหม่ */
             @Override
             public void run() {
                 acceptLoop();
@@ -115,19 +102,17 @@ public class GameServer {
         return true;
     }
 
-    /** คืนข้อความผิดพลาดจากการเรียก start() ครั้งล่าสุด (ว่างหากเปิดพอร์ตสำเร็จ) */
+    /** ข้อความผิดพลาดจากการเรียก start() ครั้งล่าสุด */
     public String getStartError() {
         return startError;
     }
 
-    // ตรวจสอบว่าเซิร์ฟเวอร์กำลังทำงานอยู่หรือไม่
+    // สถานะการทำงานของเซิร์ฟเวอร์
     public boolean isRunning() {
         return running;
     }
 
-    /**
-     * ปิดห้องเซิร์ฟเวอร์: ส่งข้อความแจ้งเตือนผู้เล่นทุกคน ปิดพอร์ต และหยุดเธรดทั้งหมด
-     */
+    /** ปิดเซิร์ฟเวอร์และหยุดทุกเธรด */
     public void shutdown() {
         if (!running) {
             return;
@@ -140,7 +125,6 @@ public class GameServer {
         try {
             serverSocket.close();
         } catch (IOException ignored) {
-            // ปิดเรียบร้อยแล้ว
         }
 
         List<ClientHandler> snapshot;
@@ -154,9 +138,7 @@ public class GameServer {
         acceptThread.interrupt();
     }
 
-    /**
-     * ลูปสำหรับรอรับการเชื่อมต่อจาก Client เข้ามาอย่างต่อเนื่อง
-     */
+    /** ลูปหลักของเซิร์ฟเวอร์ */
     private void acceptLoop() {
         while (running) {
             try {
@@ -175,38 +157,34 @@ public class GameServer {
     //  การกระจายข้อความ (Broadcasting)
     // =====================================================================
 
-    /** ส่งข้อความประเภทเดียว โดยไม่มีข้อมูลเพิ่มเติม */
+    /** ข้อความประเภทเดียว */
     private void broadcast(String type) {
         broadcast(type, new String[0]);
     }
 
-    /** ส่งข้อความที่มีข้อมูลเพิ่มเติมหนึ่งค่า */
+    /** ข้อความหนึ่งค่า */
     private void broadcast(String type, String arg) {
         broadcast(type, new String[] {arg});
     }
 
-    /** ส่งข้อความที่มีข้อมูลเพิ่มเติมสองค่า */
+    /** ข้อความสองค่า */
     private void broadcast(String type, String arg1, String arg2) {
         broadcast(type, new String[] {arg1, arg2});
     }
 
-    /** ห่อข้อมูลเป็น GameMessage แล้วส่งให้ผู้เล่นทุกคน */
+    /** ส่ง GameMessage ให้ทุกคน */
     private void broadcast(String type, String[] args) {
         broadcast(new GameMessage(type, args));
     }
 
-    /**
-     * ส่งข้อความไปยัง Client ทุกคนที่อยู่ในห้อง
-     */
+    /** ส่งข้อความให้ทุกคนในห้อง */
     private void broadcast(GameMessage message) {
         for (ClientHandler client : clientsSnapshot()) {
             client.send(message);
         }
     }
 
-    /**
-     * กระจายรายชื่อผู้เล่นและสถานะความพร้อมไปยังทุกคนในห้อง
-     */
+    /** กระจายรายชื่อและสถานะพร้อม */
     private void broadcastPlayerList() {
         String[] payload;
         synchronized (lock) {
@@ -215,17 +193,14 @@ public class GameServer {
         broadcast(new GameMessage(PLAYER_LIST, payload));
     }
 
-    // ดึง Snapshot ของรายการ Client เพื่อใช้ส่งข้อมูลนอกบล็อกล็อก
+    // Snapshot รายชื่อ Client
     private List<ClientHandler> clientsSnapshot() {
         synchronized (lock) {
             return new ArrayList<>(clients);
         }
     }
 
-    /**
-     * สร้างชุดข้อมูลรายชื่อผู้เล่น: [จำนวนคน, ชื่อ, สถานะพร้อม, เป็นโฮสต์หรือไม่, ...]
-     * ผู้เรียกต้องถือล็อก lock อยู่
-     */
+    /** ข้อมูล PLAYER_LIST (ผู้เรียกต้องถือ lock) */
     private String[] buildPlayerListPayload() {
         ArrayList<String> out = new ArrayList<String>();
         out.add(String.valueOf(clients.size()));
@@ -253,7 +228,7 @@ public class GameServer {
     //  การจัดการผู้เล่นเข้าและออกจากห้อง (Join and Leave)
     // =====================================================================
 
-    /** ค้นหา ClientHandler ตามชื่อผู้เล่น (ผู้เรียกต้องถือล็อก lock อยู่) */
+    /** ClientHandler ตามชื่อ (ผู้เรียกต้องถือ lock) */
     private ClientHandler findByNameLocked(String name) {
         for (ClientHandler client : clients) {
             if (client.playerName.equalsIgnoreCase(name)) {
@@ -263,10 +238,7 @@ public class GameServer {
         return null;
     }
 
-    /**
-     * ตรวจสอบและแปลงชื่อรูปทรงให้เป็นตัวพิมพ์มาตรฐาน
-     * คืนค่า null หากชื่อไม่ถูกต้อง หรือมีรูปทรงซ้ำกัน
-     */
+    /** แปลงชื่อรูปทรงเป็นรูปแบบมาตรฐาน (null = ไม่ถูกต้อง/ซ้ำ) */
     private static String[] normalizeShapes(String[] raw, int expectedCount) {
         if (raw.length != expectedCount) {
             return null;
@@ -293,9 +265,7 @@ public class GameServer {
         return canonical;
     }
 
-    /**
-     * ดำเนินการเมื่อมีคำขอเข้าร่วมห้อง (JOIN) จากผู้เล่น
-     */
+    /** จัดการคำขอ JOIN */
     private void handleJoin(ClientHandler handler, String rawName) {
         String name = rawName.trim();
 
@@ -318,7 +288,7 @@ public class GameServer {
                 return;
             }
 
-            // ตรวจสอบว่ากำลังแข่งทัวร์นาเมนต์อยู่หรือไม่
+            // สถานะทัวร์นาเมนต์
             if (tournamentActive) {
                 handler.send(JOIN_FAILED, "A tournament is in progress. Please wait until it finishes.");
                 handler.closeQuietly();
@@ -329,9 +299,7 @@ public class GameServer {
             handler.joined = true;
             clients.add(handler);
             ready.put(name, false);
-            // ผู้เล่นที่ join ได้จะไม่อยู่ในทัวร์นาเมนต์ที่กำลังแข่ง (ตรวจ tournamentActive ด้านบน)
-            // คะแนนจะถูกนำไปใช้จริงเมื่อเริ่มทัวร์นาเมนต์ใหม่
-            // และ resetScoresLocked() จะเซ็ตคะแนนของทุกคนเป็น 0 อยู่แล้ว
+            // คะแนนเริ่มต้นของผู้เล่นใหม่
             scores.put(name, 0);
             isHost = clients.get(0) == handler;
         }
@@ -347,9 +315,7 @@ public class GameServer {
         broadcast(SYSTEM, name + " joined the room.");
     }
 
-    /**
-     * ดำเนินการเมื่อผู้เล่นหลุดการเชื่อมต่อหรือออกจากห้อง
-     */
+    /** จัดการผู้เล่นออกจากห้อง */
     private void handleDisconnect(ClientHandler handler) {
         boolean wasJoined;
         boolean wasHost;
@@ -373,14 +339,14 @@ public class GameServer {
             return;
         }
 
-        // หากโฮสต์ออกจากห้อง ให้ปิดห้องทันที
+        // โฮสต์ออกจากห้อง
         if (wasHost) {
             broadcast(SYSTEM, name + " (host) closed the room.");
             shutdown();
             return;
         }
 
-        // ตรวจสอบสถานะการแข่งขันเมื่อมีคนออกจากห้องระหว่างเล่น
+        // สถานะการแข่งขันหลังมีคนออก
         boolean finishTournament = false, restartRound = false, endRoundNow = false;
         synchronized (lock) {
             if (tournamentActive) {
@@ -414,9 +380,7 @@ public class GameServer {
     //  ขั้นตอนการดำเนินเกม (Game flow)
     // =====================================================================
 
-    /**
-     * ดำเนินการเมื่อโฮสต์กดเริ่มเกม (START_GAME)
-     */
+    /** จัดการคำขอ START_GAME */
     private void handleStartGame(ClientHandler requester) {
         boolean newTournament;
         synchronized (lock) {
@@ -455,9 +419,7 @@ public class GameServer {
         nextRound();
     }
 
-    /**
-     * คำขอเริ่มทัวร์นาเมนต์ใหม่ (NEW_GAME) จากหน้าจอสุดท้าย
-     */
+    /** จัดการคำขอ NEW_GAME */
     private void handleNewGame(ClientHandler requester) {
         synchronized (lock) {
             if (clients.isEmpty() || clients.get(0) != requester) {
@@ -486,7 +448,7 @@ public class GameServer {
         broadcastPlayerList();
     }
 
-    /** ตรวจสอบว่าผู้เล่นคนอื่นทุกคนกดพร้อมแล้วหรือไม่ (โฮสต์ไม่ต้องกด) */
+    /** สถานะพร้อมของผู้เล่นคนอื่น */
     private boolean othersReadyLocked(ClientHandler host) {
         for (ClientHandler client : clients) {
             if (client != host) {
@@ -498,7 +460,7 @@ public class GameServer {
         return true;
     }
 
-    // รีเซ็ตคะแนนและสถานะรอบทั้งหมด
+    // รีเซ็ตคะแนนและสถานะรอบ
     private void resetScoresLocked() {
         round = 0;
         for (ClientHandler client : clients) {
@@ -519,9 +481,7 @@ public class GameServer {
         bonusFlags.clear();
     }
 
-    /**
-     * เริ่มต้นรอบถัดไป: สุ่มจำนวนรูปทรง สลับคนเป็น Questioner และแจ้งเตือนทุกคน
-     */
+    /** เริ่มรอบถัดไป */
     private void nextRound() {
         stopIntermission();
         stopRoundTimer();
@@ -544,7 +504,7 @@ public class GameServer {
             correctCounts.clear();
             bonusFlags.clear();
 
-            // ตรวจสอบว่าขึ้นรอบใหญ่ (Cycle) ใหม่หรือไม่
+            // รอบใหญ่ (Cycle) ใหม่
             int cycle;
             if (cycleSize > 0) {
                 cycle = (round - 1) / cycleSize;
@@ -556,9 +516,7 @@ public class GameServer {
             }
             expectedShapes = lastCycleShapes;
 
-            // ดึง Questioner คนถัดไปจากลำดับที่สุ่มไว้
-            // ด้านบนตรวจแล้วว่า clients ไม่ว่าง และ takeNextQuestionerLocked()
-            // จะคืนชื่อผู้เล่นคนแรกเสมอเมื่อคิวว่าง จึงไม่มีทางเป็น null
+            // Questioner คนถัดไป (ไม่เป็น null)
             selectedQuestioner = takeNextQuestionerLocked();
             questioner = selectedQuestioner;
             currentRound = round;
@@ -568,7 +526,7 @@ public class GameServer {
                 ready.put(client.playerName, false);
             }
         }
-        // ประกาศข้อมูลรอบใหม่ไปยังทุกคน (นาฬิกาจะยังไม่เริ่มนับจนกว่า Questioner จะล็อกรูป)
+        // ประกาศข้อมูลรอบใหม่
         broadcast(ROUND_INFO, new String[] {
             String.valueOf(currentRound),
             String.valueOf(lockedTotal),
@@ -577,9 +535,7 @@ public class GameServer {
         });
     }
 
-    /**
-     * เริ่มต้นรอบใหญ่ใหม่: สุ่มจำนวนรูปทรงที่ไม่ซ้ำกับรอบใหญ่ก่อนหน้า และสับเปลี่ยนลำดับ Questioner
-     */
+    /** เริ่มรอบใหญ่ใหม่ */
     private void startNewCycleLocked(int cycle) {
         cycleIndex = cycle;
         lastCycleShapes = drawCycleShapeCountLocked();
@@ -592,7 +548,7 @@ public class GameServer {
         cycleOrder.addAll(names);
     }
 
-    /** สุ่มจำนวนรูปทรงระหว่าง MIN_SHAPES ถึง MAX_SHAPES โดยไม่ให้ซ้ำกับรอบก่อนหน้า */
+    /** จำนวนรูปทรงของรอบใหญ่ */
     private int drawCycleShapeCountLocked() {
         int range = MAX_SHAPES - MIN_SHAPES + 1;
         int count = MIN_SHAPES + random.nextInt(range);
@@ -604,7 +560,7 @@ public class GameServer {
         return count;
     }
 
-    /** ดึง Questioner คนถัดไปจากลำดับที่เรียงไว้ */
+    /** Questioner คนถัดไป */
     private String takeNextQuestionerLocked() {
         while (!cycleOrder.isEmpty()) {
             String candidate = cycleOrder.remove(0);
@@ -618,7 +574,7 @@ public class GameServer {
         return clients.get(0).playerName;
     }
 
-    /** เริ่มรอบใหม่เมื่อ Questioner คนเดิมออกจากห้องไป */
+    /** เริ่มรอบใหม่หลัง Questioner ออก */
     private void restartRoundAfterQuestionerLeft() {
         boolean restart;
         synchronized (lock) {
@@ -638,16 +594,13 @@ public class GameServer {
     //  เธรดนับถอยหลังของรอบ (Round timer thread)
     // =====================================================================
 
-    /**
-     * เธรดนับถอยหลังของรอบ ส่งข้อความ TICK(round, remaining) ทุกๆ 1 วินาที
-     * ใช้ System.nanoTime() เพื่อให้เวลาแม่นยำไม่คลาดเคลื่อน
-     */
+    /** เธรดนับถอยหลังของรอบ */
     private class RoundTimerThread extends Thread {
         private final int roundNumber;
         private final long deadlineNanos;
         private volatile boolean stopped;
 
-        /** เก็บหมายเลขรอบและเวลาสิ้นสุดของรอบนี้ พร้อมตั้งเป็นเธรด daemon */
+        /** ข้อมูลเธรดนับถอยหลัง */
         RoundTimerThread(int roundNumber, int seconds) {
             super("GameServer-RoundTimer");
             setDaemon(true);
@@ -655,13 +608,13 @@ public class GameServer {
             this.deadlineNanos = System.nanoTime() + seconds * 1000000000L;
         }
 
-        /** ขอให้เธรดนับถอยหลังหยุดทำงาน แล้วปลุกเธรดให้ออกจาก sleep ทันที */
+        /** หยุดเธรดนับถอยหลัง */
         void requestStop() {
             stopped = true;
             interrupt();
         }
 
-        /** ส่งเวลา TICK ทุกวินาที และสั่งจบรอบเมื่อเวลาหมด */
+        /** ลูปส่ง TICK */
         @Override
         public void run() {
             while (!stopped) {
@@ -687,7 +640,7 @@ public class GameServer {
             }
         }
 
-        /** คำนวณจำนวนวินาทีที่เหลือแบบปัดขึ้น เพื่อไม่ให้แสดง 0 ก่อนหมดเวลาจริง */
+        /** วินาทีที่เหลือ (ปัดขึ้น) */
         private int remainingSeconds() {
             long nanos = deadlineNanos - System.nanoTime();
             if (nanos <= 0) {
@@ -702,7 +655,7 @@ public class GameServer {
             return (int) seconds;
         }
 
-        // คำนวณมิลลิวินาทีจนกว่าจะครบวินาทีถัดไป เพื่อให้ส่ง TICK ตรงวินาทีพอดี
+        // เวลาถึงวินาทีถัดไป
         private long millisToNextWholeSecond() {
             long nanos = deadlineNanos - System.nanoTime();
             if (nanos <= 0) {
@@ -717,7 +670,7 @@ public class GameServer {
         }
     }
 
-    /** หยุดตัวนับรอบเดิม (ถ้ามี) แล้วเริ่มตัวนับรอบใหม่ */
+    /** เริ่มตัวนับรอบใหม่ */
     private void startRoundTimer(int roundNumber, int seconds) {
         stopRoundTimer();
         RoundTimerThread timer = new RoundTimerThread(roundNumber, seconds);
@@ -727,7 +680,7 @@ public class GameServer {
         timer.start();
     }
 
-    /** หยุดเธรดนับถอยหลังของรอบปัจจุบัน และรอให้เธรดเดิมจบอย่างสั้น ๆ */
+    /** หยุดตัวนับรอบปัจจุบัน */
     private void stopRoundTimer() {
         RoundTimerThread timer;
         synchronized (lock) {
@@ -754,9 +707,7 @@ public class GameServer {
     //  การกระทำในรอบการเล่น (Round actions)
     // =====================================================================
 
-    /**
-     * ดำเนินการเมื่อ Questioner ส่งชุดรูปทรงความลับ (SECRET)
-     */
+    /** จัดการ SECRET จาก Questioner */
     private void handleSecret(ClientHandler sender, String[] shapes) {
         String[] canonical;
         int count;
@@ -800,7 +751,7 @@ public class GameServer {
             count = canonical.length;
             currentRound = round;
 
-            // เริ่มนับเวลาของรอบเมื่อล็อกรูปทรงความลับ
+            // เริ่มนับเวลาเมื่อล็อกรูปทรง
             roundStartMillis = System.currentTimeMillis();
         }
         broadcast(SECRET_LOCKED, questioner, String.valueOf(count));
@@ -815,9 +766,7 @@ public class GameServer {
         startRoundTimer(currentRound, ROUND_SECONDS);
     }
 
-    /**
-     * ดำเนินการเมื่อผู้ทายส่งคำตอบ (GUESS)
-     */
+    /** จัดการ GUESS จากผู้ทาย */
     private void handleGuess(ClientHandler sender, String[] shapes) {
         int submitted;
         int totalGuessers;
@@ -828,9 +777,7 @@ public class GameServer {
                 return;
             }
 
-            // secretLocked เป็น true ได้หลัง secret ถูกกำหนดใน handleSecret() เท่านั้น
-            // ทั้งสองค่าถูกตั้งเป็น null/false พร้อมกันใน resetScoresLocked() และ nextRound()
-            // จึงไม่ต้องเช็ก secret == null ซ้ำ
+            // secretLocked = true แปลว่า secret ไม่เป็น null
             if (!secretLocked) {
                 sender.send(ERROR, "Wait for the questioner to lock the secret shapes first.");
                 return;
@@ -875,13 +822,13 @@ public class GameServer {
             String.valueOf(submitted),
             String.valueOf(totalGuessers)
         });
-        // หากผู้ทายทุกคนส่งคำตอบครบแล้ว ให้จบรอบทันที
+        // ผู้ทายส่งครบทุกคน
         if (submitted >= totalGuessers) {
             endRound("all");
         }
     }
 
-    /** นับจำนวนผู้เล่นที่ทำหน้าที่ทายทั้งหมด (ยกเว้น Questioner) */
+    /** จำนวนผู้ทายทั้งหมด */
     private int countGuessersLocked() {
         int count = 0;
 
@@ -894,7 +841,7 @@ public class GameServer {
         return count;
     }
 
-    /** นับจำนวนผู้เล่นที่ส่งคำตอบทายเข้ามาแล้ว */
+    /** จำนวนผู้ทายที่ส่งแล้ว */
     private int countSubmittedLocked() {
         int count = 0;
 
@@ -907,9 +854,7 @@ public class GameServer {
         return count;
     }
 
-    /**
-     * จบรอบการเล่น คำนวณคะแนน และส่งผล ROUND_RESULT ไปยังทุกคน
-     */
+    /** จบรอบและส่งผล ROUND_RESULT */
     private void endRound(String reason) {
         String[] payload;
         boolean isFinal;
@@ -931,13 +876,11 @@ public class GameServer {
         if (isFinal) {
             broadcast(SYSTEM, "That was the last round. Final results are ready.");
         }
-        // เริ่มนับถอยหลังช่วงพักรอบ (Intermission) ก่อนเริ่มรอบถัดไปหรือเปิดหน้าสรุปคะแนนสุดท้าย
+        // เริ่มพักระหว่างรอบ
         startIntermission(isFinal);
     }
 
-    /**
-     * จบทัวร์นาเมนต์ก่อนกำหนด (เช่น ผู้เล่นเหลือน้อยกว่า 2 คน)
-     */
+    /** จบทัวร์นาเมนต์ก่อนกำหนด */
     private void finishTournament(String reason) {
         String[] payload;
         synchronized (lock) {
@@ -959,16 +902,13 @@ public class GameServer {
     //  การพักระหว่างรอบ (Intermission)
     // =====================================================================
 
-    /**
-     * หน่วงเวลา INTERMISSION_SECONDS (10 วินาที) เพื่อแสดงผลสรุปของรอบ
-     * จากนั้นจะเริ่มรอบถัดไปหรือสั่งเปิดหน้าตารางคะแนนสุดท้าย
-     */
+    /** พักระหว่างรอบ */
     private void startIntermission(boolean isFinal) {
         stopIntermission();
 
-        // ใช้ anonymous class แทน lambda เพื่อให้อ่านลำดับการทำงานได้ง่าย
+        // เธรดพักระหว่างรอบ
         Thread thread = new Thread(new Runnable() {
-            /** รอตามเวลาพักรอบ แล้วเริ่มรอบถัดไปหรือเปิดหน้าสกอร์บอร์ด */
+            /** รอเวลาพักแล้วเริ่มรอบถัดไป */
             @Override
             public void run() {
                 try {
@@ -997,7 +937,7 @@ public class GameServer {
         thread.start();
     }
 
-    /** ยกเลิกเธรดพักระหว่างรอบหากยังทำงานอยู่ */
+    /** ยกเลิกเธรดพักระหว่างรอบ */
     private void stopIntermission() {
         Thread thread;
         synchronized (lock) {
@@ -1013,11 +953,7 @@ public class GameServer {
     //  การคำนวณคะแนน (Scoring)
     // =====================================================================
 
-    /**
-     * คำนวณคะแนนที่ได้ในรอบนี้ (ทำงานฝั่งเซิร์ฟเวอร์เท่านั้น):
-     * +1 ต่อรูปที่ทายถูก, +2 โบนัสพิเศษหากทายถูกทั้งหมดภายใน 10 วินาทีแรก
-     * Questioner จะไม่ได้คะแนน
-     */
+    /** คำนวณคะแนนของรอบ (+1 ต่อรูปที่ถูก, +2 โบนัส) */
     private void computeScoresLocked() {
         deltas.clear();
         correctCounts.clear();
@@ -1067,7 +1003,7 @@ public class GameServer {
             bonusFlags.put(name, bonus);
         }
 
-        // รวมคะแนนรอบนี้เข้ากับคะแนนสะสม
+        // รวมคะแนนเข้ากับคะแนนสะสม
         for (Map.Entry<String, Integer> entry : deltas.entrySet()) {
             Integer current = scores.get(entry.getKey());
             int baseTotal;
@@ -1081,10 +1017,10 @@ public class GameServer {
         }
     }
 
-    // นับจำนวนรูปทรงที่ตรงกัน
+    // จำนวนรูปที่ตรงกัน
     private int countMatching(String[] target, String[] guess) {
         int matches = 0;
-        // target คือ secret ที่ผ่าน normalizeShapes() แล้ว จึงไม่มีค่า null
+        // target ไม่เป็น null
         for (String wanted : target) {
             for (String picked : guess) {
                 if (wanted.equalsIgnoreCase(picked)) {
@@ -1096,11 +1032,7 @@ public class GameServer {
         return matches;
     }
 
-    /**
-     * สร้างชุดข้อมูลผลสรุปของรอบ ROUND_RESULT:
-     * [round, totalRounds, isFinal, secretCsv, reason, questioner, playerCount,
-     * (name, delta, total, guessCsv, correctCount, bonus) * playerCount]
-     */
+    /** เพย์โหลด ROUND_RESULT: round, total, final, secret, reason, questioner, playerCount, ข้อมูลผู้เล่น */
     private String[] buildRoundResultPayload(int roundNumber, boolean isFinal, String reason) {
         ArrayList<String> out = new ArrayList<String>();
         out.add(String.valueOf(roundNumber));
@@ -1119,7 +1051,7 @@ public class GameServer {
             secretCsv = String.join(",", secret);
         }
         out.add(secretCsv);
-        // reason มาจาก endRound()/finishTournament() ซึ่งส่งค่าคงที่ที่ไม่เป็น null
+        // reason ไม่เป็น null
         out.add(reason);
         String questionerName;
         if (questioner == null) {
@@ -1131,8 +1063,7 @@ public class GameServer {
         out.add(String.valueOf(clients.size()));
         for (ClientHandler client : clients) {
             String name = client.playerName;
-            // computeScoresLocked() เติมค่าให้ผู้เล่นทุกคนใน clients แล้ว
-            // ก่อน buildRoundResultPayload() ถูกเรียก จึงอ่านค่าออกมาใช้ได้เลย
+            // คะแนนถูกเติมครบทุกคนแล้ว
             String[] guess = guesses.get(name);
             int deltaValue = deltas.get(name).intValue();
             int totalValue = scores.get(name).intValue();
@@ -1150,7 +1081,7 @@ public class GameServer {
             out.add(guessCsv);
             out.add(String.valueOf(correctValue));
 
-            // bonusFlags ถูกเติมครบทุกคนใน computeScoresLocked() เช่นกัน
+            // bonus ถูกเติมครบทุกคนแล้ว
             if (bonusFlags.get(name).booleanValue()) {
                 out.add("1");
             } else {
@@ -1164,7 +1095,7 @@ public class GameServer {
     //  ระบบข้อความแชต (Chat)
     // =====================================================================
 
-    /** ตรวจและตัดข้อความแชตให้อยู่ในขอบเขต แล้วกระจายให้ทุกคนในห้อง */
+    /** ตรวจและส่งข้อความแชต */
     private void handleChat(ClientHandler sender, String text) {
         String clean = text.trim();
         if (clean.isEmpty()) {
@@ -1180,9 +1111,7 @@ public class GameServer {
     //  คลาสจัดการการเชื่อมต่อของผู้เล่นแต่ละคน (Per-client handler)
     // =====================================================================
 
-    /**
-     * เธรดอ่านข้อมูลสำหรับแต่ละ Socket ที่เชื่อมต่อเข้ามา
-     */
+    /** เธรดอ่านข้อมูลของ Client */
     private class ClientHandler extends Thread {
         private final Socket socket;
         private final Object writeLock = new Object();
@@ -1191,14 +1120,14 @@ public class GameServer {
         private String playerName;
         private boolean joined;
 
-        /** สร้างตัวจัดการสำหรับซ็อกเก็ตของผู้เล่นที่เพิ่งเชื่อมต่อเข้ามา */
+        /** สร้าง ClientHandler สำหรับ Socket ใหม่ */
         ClientHandler(Socket socket) {
             super("GameServer-Client");
             this.socket = socket;
             setDaemon(true);
         }
 
-        /** อ่านข้อความจากผู้เล่นคนนี้ไปเรื่อย ๆ จนกว่าการเชื่อมต่อจะปิด */
+        /** ลูปอ่านข้อความจาก Client */
         @Override
         public void run() {
             try {
@@ -1208,7 +1137,7 @@ public class GameServer {
                     dispatch(GameMessage.readFrom(in));
                 }
             } catch (EOFException | SocketException e) {
-                // ไคลเอนต์ปิดการเชื่อมต่อตามปกติหรือเน็ตเวิร์กหลุด
+                // การเชื่อมต่อปิด
             } catch (IOException e) {
                 if (running) {
                     System.out.println("[server] connection error: " + e.getMessage());
@@ -1218,10 +1147,7 @@ public class GameServer {
             }
         }
 
-        /**
-         * กระจายข้อความที่ได้รับจาก Client ไปยังเมธอดที่เกี่ยวข้อง
-         * ใช้ if / else if เพื่อให้เห็นลำดับการตรวจสอบได้ชัดเจน
-         */
+        /** แยกข้อความตามประเภท */
         private void dispatch(GameMessage message) {
             if (!joined) {
                 if (JOIN.equals(message.type)) {
@@ -1258,27 +1184,27 @@ public class GameServer {
             }
         }
 
-        /** ส่งข้อความประเภทเดียว โดยไม่มีข้อมูลเพิ่มเติม */
+        /** ข้อความประเภทเดียว */
         void send(String type) {
             send(type, new String[0]);
         }
 
-        /** ส่งข้อความที่มีข้อมูลเพิ่มเติมหนึ่งค่า */
+        /** ข้อความหนึ่งค่า */
         void send(String type, String arg) {
             send(type, new String[] {arg});
         }
 
-        /** ส่งข้อความที่มีข้อมูลเพิ่มเติมสองค่า */
+        /** ข้อความสองค่า */
         void send(String type, String arg1, String arg2) {
             send(type, new String[] {arg1, arg2});
         }
 
-        /** ห่อข้อมูลเป็น GameMessage แล้วส่งไปยังผู้เล่นคนนี้ */
+        /** ส่ง GameMessage ไปยัง Client คนนี้ */
         void send(String type, String[] args) {
             send(new GameMessage(type, args));
         }
 
-        /** ส่งข้อความผ่าน OutputStream พร้อมล็อกไม่ให้หลายเธรดเขียนพร้อมกัน */
+        /** เขียนข้อความพร้อมล็อก OutputStream */
         void send(GameMessage message) {
             synchronized (writeLock) {
                 try {
@@ -1289,14 +1215,13 @@ public class GameServer {
             }
         }
 
-        /** ปิดซ็อกเก็ตโดยไม่ให้ Exception รบกวนการทำงานส่วนอื่น */
+        /** ปิด Socket โดยไม่โยน Exception */
         void closeQuietly() {
             try {
                 if (!socket.isClosed()) {
                     socket.close();
                 }
             } catch (IOException ignored) {
-                // ปิดเรียบร้อยแล้ว
             }
         }
     }

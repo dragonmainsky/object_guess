@@ -2,18 +2,10 @@ import java.io.*;
 import java.net.*;
 import java.util.List;
 
-/**
- * GameClient: คลาสจัดการระบบเครือข่ายฝั่ง Client สำหรับผู้เล่นแต่ละคน
- * ดูแลการเชื่อมต่อผ่าน TCP Socket ไปยังเครื่องโฮสต์ (GameServer)
- * มีเธรดทำงานเบื้องหลัง (Background Reader Thread) เพื่อรอรับข้อความจากเซิร์ฟเวอร์
- * แล้วส่งต่อให้กับ {@link Listener} โดยส่วนนี้จะไม่ยุ่งเกี่ยวกับ Swing UI โดยตรง
- */
+/** ไคลเอนต์เครือข่ายสำหรับเชื่อมต่อกับ GameServer */
 public class GameClient {
 
-    /**
-     * อินเตอร์เฟสสำหรับรับข้อความและการแจ้งเตือนเมื่อการเชื่อมต่อสิ้นสุด
-     * เมธอดที่ทำงานในนี้ต้องทำงานอย่างรวดเร็วและไม่บล็อกการทำงานของเธรด
-     */
+    /** Listener ของข้อความและการตัดการเชื่อมต่อ */
     public interface Listener {
         // ทำงานเมื่อได้รับข้อความใหม่จากเซิร์ฟเวอร์
         void onMessage(String type, String[] args);
@@ -22,7 +14,7 @@ public class GameClient {
         void onDisconnected(String reason);
     }
 
-    // เวลาจำกัดในการพยายามเชื่อมต่อเซิร์ฟเวอร์ (5 วินาที)
+    // เวลารอเชื่อมต่อ (5 วินาที)
     private static final int CONNECT_TIMEOUT_MS = 5000;
 
     private final String host;              // ไอพีหรือที่อยู่ของเครื่องโฮสต์
@@ -36,30 +28,23 @@ public class GameClient {
     private boolean connected;     // สถานะการเชื่อมต่อ (เชื่อมต่ออยู่หรือไม่)
     private boolean closing;       // สถานะว่ากำลังอยู่ในกระบวนการปิดหรือไม่
 
-    /**
-     * คอนสตรักเตอร์สำหรับสร้าง GameClient กำหนดที่อยู่โฮสต์ พอร์ต และ Listener
-     */
+    /** สร้าง GameClient สำหรับโฮสต์และพอร์ตที่ระบุ */
     public GameClient(String host, int port, Listener listener) {
         this.host = host;
         this.port = port;
         this.listener = listener;
     }
 
-    /**
-     * ตรวจสอบว่าขณะนี้กำลังเชื่อมต่อกับเซิร์ฟเวอร์อยู่หรือไม่
-     */
+    /** สถานะการเชื่อมต่อ */
     public boolean isConnected() {
         return connected;
     }
 
-    /**
-     * เปิดการเชื่อมต่อ Socket และเริ่มเธรดสำหรับอ่านข้อมูล
-     * จะบล็อกการทำงานไม่เกิน CONNECT_TIMEOUT_MS
-     */
+    /** เปิด Socket และเริ่มเธรดอ่านข้อมูล */
     public void connect() throws IOException {
         Socket newSocket = new Socket();
         try {
-            // เชื่อมต่อไปยัง IP และ Port ที่ระบุ พร้อมกำหนด Timeout
+            // เชื่อมต่อพร้อม Timeout
             newSocket.connect(new InetSocketAddress(host, port), CONNECT_TIMEOUT_MS);
             newSocket.setTcpNoDelay(true); // ปิด Nagle's algorithm เพื่อให้ส่งแพ็กเก็ตทันทีโดยไม่หน่วง
             in = new DataInputStream(new BufferedInputStream(newSocket.getInputStream()));
@@ -72,9 +57,9 @@ public class GameClient {
         connected = true;
         closing = false;
 
-        // เริ่มเธรดเบื้องหลังสำหรับรอรับข้อมูลจากเซิร์ฟเวอร์ตลอดเวลา
+        // เธรดอ่านข้อมูล
         Thread reader = new Thread(new Runnable() {
-            /** เริ่มลูปอ่านข้อความจากเซิร์ฟเวอร์ในเธรดเบื้องหลัง */
+            /** ลูปอ่านข้อความจากเซิร์ฟเวอร์ */
             @Override
             public void run() {
                 readLoop();
@@ -84,9 +69,7 @@ public class GameClient {
         reader.start();
     }
 
-    /**
-     * ลูปอ่านข้อความจาก Socket ต่อเนื่องจนกว่าการเชื่อมต่อจะสิ้นสุด แล้วแจ้งเตือนเมื่อหลุด
-     */
+    /** ลูปอ่านข้อความจาก Socket */
     private void readLoop() {
         try {
             while (connected) {
@@ -109,9 +92,7 @@ public class GameClient {
         }
     }
 
-    /**
-     * แจ้งเตือนไปยัง Listener เมื่อการเชื่อมต่อสิ้นสุดลง (ป้องกันการแจ้งซ้ำ)
-     */
+    /** แจ้งเมื่อการเชื่อมต่อสิ้นสุด */
     private void notifyDisconnected(String reason) {
         if (!closing) {
             closing = true;
@@ -119,19 +100,17 @@ public class GameClient {
         }
     }
 
-    /** ส่งข้อความประเภทเดียว โดยไม่มีข้อมูลเพิ่มเติม */
+    /** ข้อความประเภทเดียว */
     public void send(String type) {
         send(type, new String[0]);
     }
 
-    /** ส่งข้อความที่มีข้อมูลเพิ่มเติมหนึ่งค่า */
+    /** ข้อความหนึ่งค่า */
     public void send(String type, String arg) {
         send(type, new String[] {arg});
     }
 
-    /**
-     * ส่งข้อความ Protocol ไปยังเซิร์ฟเวอร์ มีการป้องกันการเขียนข้อมูลพร้อมกัน (Thread-safe)
-     */
+    /** ส่งข้อความโปรโตคอล (Thread-safe) */
     public void send(String type, String[] args) {
         if (!connected) {
             return;
@@ -146,15 +125,15 @@ public class GameClient {
     }
 
     // =====================================================================
-    //  เมธอดสำเร็จรูปสำหรับส่งคำสั่งต่างๆ (Request shortcuts)
+    // คำสั่งสำเร็จรูป
     // =====================================================================
 
-    /** ส่งคำขอเข้าร่วมห้องพร้อมระบุชื่อผู้เล่น */
+    /** ส่งคำขอ JOIN */
     public void join(String playerName) {
         send(GameServer.JOIN, playerName);
     }
 
-    /** ส่งสถานะความพร้อมของผู้เล่น (พร้อม = "1", ไม่พร้อม = "0") */
+    /** ส่งสถานะพร้อม */
     public void setReady(boolean ready) {
         String readyValue;
         if (ready) {
@@ -165,60 +144,50 @@ public class GameClient {
         send(GameServer.READY, readyValue);
     }
 
-    /** ส่งคำขอเริ่มเกม (สำหรับโฮสต์) */
+    /** ส่งคำขอ START_GAME */
     public void requestStartGame() {
         send(GameServer.START_GAME);
     }
 
-    /** ส่งคำขอเริ่มเกมใหม่หลังจากจบเกม */
+    /** ส่งคำขอ NEW_GAME */
     public void requestNewGame() {
         send(GameServer.NEW_GAME);
     }
 
-    /**
-     * ส่งชุดรูปทรงความลับที่ผู้ตั้งโจทย์ (Questioner) เลือก
-     */
+    /** ส่งชุดรูปทรงความลับ */
     public void submitSecret(List<String> shapes) {
         if (shapes != null && shapes.size() >= GameServer.MIN_SHAPES && shapes.size() <= GameServer.MAX_SHAPES) {
             send(GameServer.SECRET, shapes.toArray(new String[0]));
         }
     }
 
-    /**
-     * ส่งชุดรูปทรงที่ผู้ทาย (Guesser) ทาย
-     */
+    /** ส่งคำตอบทาย */
     public void submitGuess(List<String> shapes) {
         if (shapes != null && !shapes.isEmpty() && shapes.size() <= GameServer.MAX_SHAPES) {
             send(GameServer.GUESS, shapes.toArray(new String[0]));
         }
     }
 
-    /** ส่งข้อความแชตไปยังห้อง */
+    /** ส่งข้อความแชต */
     public void sendChat(String text) {
         send(GameServer.CHAT, text);
     }
 
-    /**
-     * แจ้งเตือนเซิร์ฟเวอร์ว่ากำลังออกจากห้อง แล้วปิด Socket
-     */
+    /** แจ้งออกจากห้องและปิด Socket */
     public void leave() {
         closing = true;
         send(GameServer.LEAVE_ROOM);
         close();
     }
 
-    /**
-     * ปิดการเชื่อมต่อ Socket ทันที ปลอดภัยต่อการเรียกจากทุกเธรด
-     */
+    /** ปิด Socket ทันที */
     public void close() {
         closing = true;
         connected = false;
         closeQuietly(socket);
     }
 
-    /**
-     * ฟังก์ชันช่วยปิด Socket โดยดักจับและละเว้น Exception
-     */
+    /** ปิด Socket โดยไม่โยน Exception */
     private static void closeQuietly(Socket socket) {
         try {
             if (socket != null && !socket.isClosed()) {

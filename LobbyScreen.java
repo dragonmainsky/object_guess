@@ -3,11 +3,7 @@ import java.awt.event.ActionListener;
 import java.util.*;
 import java.util.function.Consumer;
 
-/**
- * LobbyScreen: หน้าจอห้องพักคอย (หน้าจอที่ 2)
- * แสดงรายชื่อผู้เล่นที่อยู่ในห้อง สถานะความพร้อม (Ready) ข้อมูลการเชื่อมต่อ ระบบแชต และปุ่มเริ่มเกม
- * ข้อมูลทั้งหมดบนหน้าจอนี้จะถูกส่งมาจาก MainApp ตามข้อมูลที่ได้รับจาก GameServer
- */
+/** หน้าจอห้องพักคอย */
 public class LobbyScreen extends LobbyScreen_UI {
 
     private final ActionListener onStartGameAction; // ตัวจัดการเมื่อกดปุ่มเริ่มเกม
@@ -22,9 +18,7 @@ public class LobbyScreen extends LobbyScreen_UI {
     private ActionListener readyAction;             // การทำงานเมื่อกดปุ่มสลับสถานะพร้อม
     private Consumer<String> chatAction;            // การทำงานเมื่อส่งข้อความแชต
 
-    /**
-     * คอนสตรักเตอร์สร้างหน้าจอล็อบบี้ จัดวางแบบ 3 คอลัมน์ (ซ้าย, กลาง, ขวา)
-     */
+    /** สร้างหน้าจอ Lobby */
     public LobbyScreen(ActionListener onStartGameAction, ActionListener onLeaveAction) {
         super();
         this.onStartGameAction = onStartGameAction;
@@ -66,23 +60,18 @@ public class LobbyScreen extends LobbyScreen_UI {
         return value.booleanValue();
     }
 
-    /**
-     * อัปเดตรายชื่อผู้เล่น สถานะความพร้อม และชื่อโฮสต์จากข้อมูลล่าสุดของเซิร์ฟเวอร์
-     */
+    /** อัปเดตข้อมูลห้อง */
     public void setPlayers(List<String> names, Map<String, Boolean> ready, String host) {
         playerNames.clear();
         readyStates.clear();
         playerNames.addAll(names);
         readyStates.putAll(ready);
         hostName = host;
-        // MainApp เริ่มต้น hostName เป็นค่าว่างก่อนอ่านรายชื่อ
-        // ถ้าไม่มีผู้เล่นก็จะส่งค่าว่างมาให้อยู่แล้ว จึงไม่ต้องเช็กซ้ำ
+        // hostName เริ่มเป็นค่าว่าง
         refreshPlayers();
     }
 
-    /**
-     * รีเฟรชและสร้างคอมโพเนนต์แสดงผลใหม่ตามรายชื่อผู้เล่นล่าสุด
-     */
+    /** รีเฟรชรายชื่อผู้เล่น */
     private void refreshPlayers() {
         int total = playerNames.size();
 
@@ -136,7 +125,7 @@ public class LobbyScreen extends LobbyScreen_UI {
     //  ระบบข้อความแชต (Chat)
     // =====================================================================
 
-    /** เพิ่มข้อความใหม่ลงในกล่องแชต */
+    /** เพิ่มข้อความแชต */
     public void addChatMessage(String sender, String text) {
         boolean isUser = sender != null && sender.equals(myName);
         boolean isSystem = "System".equalsIgnoreCase(sender);
@@ -147,25 +136,25 @@ public class LobbyScreen extends LobbyScreen_UI {
     //  การเชื่อมเหตุการณ์จากปุ่มและแชต (Event hooks)
     // =====================================================================
 
-    /** ผู้เล่นกดปุ่มสลับสถานะพร้อม */
+    /** ปุ่ม Ready */
     @Override
     protected void onReadyClicked(ActionEvent event) {
         readyAction.actionPerformed(event);
     }
 
-    /** โฮสต์กดปุ่มเริ่มเกม */
+    /** ปุ่มเริ่มเกม */
     @Override
     protected void onStartClicked(ActionEvent event) {
         onStartGameAction.actionPerformed(event);
     }
 
-    /** ผู้เล่นกดปุ่มออกจากห้อง */
+    /** ปุ่มออกจากห้อง */
     @Override
     protected void onLeaveClicked(ActionEvent event) {
         onLeaveAction.actionPerformed(event);
     }
 
-    /** ส่งข้อความแชตที่ผู้เล่นพิมพ์ */
+    /** ส่งข้อความแชต */
     @Override
     protected void onChatSend(String text) {
         chatAction.accept(text);

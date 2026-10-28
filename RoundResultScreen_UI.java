@@ -2,10 +2,7 @@ import java.awt.*;
 import javax.swing.*;
 import javax.swing.border.*;
 
-/**
- * RoundResultScreen_UI: ส่วนหน้าตาของหน้าจอสรุปผลแต่ละรอบ
- * เก็บคอมโพเนนต์และเมธอดสร้าง/วาด UI ทั้งหมด โดยไม่ถือสถานะของเกม
- */
+/** ส่วนหน้าตาของหน้าจอสรุปผลรอบ */
 public class RoundResultScreen_UI extends JPanel {
 
     private static final Color SUCCESS_LINE = new Color(22, 163, 74);  // สีกรอบสีเขียวสำหรับรูปทรงที่ทายถูก
@@ -27,9 +24,7 @@ public class RoundResultScreen_UI extends JPanel {
     protected JPanel rowsPanel;           // พาเนลรายการแถวผลคะแนนของผู้เล่นแต่ละคน
     protected JLabel countdownLabel;      // ป้ายนับถอยหลังก่อนเข้ารอบถัดไป
 
-    /**
-     * คอนสตรักเตอร์สร้างหน้าจอสรุปผลของรอบ แบ่งเป็น ส่วนหัว (Header), เนื้อหา (Body), และส่วนท้าย (Footer)
-     */
+    /** สร้างหน้าจอสรุปผลรอบ */
     public RoundResultScreen_UI() {
         setLayout(new BorderLayout());
         setBackground(AppDialog.BG_LIGHT);
@@ -46,9 +41,7 @@ public class RoundResultScreen_UI extends JPanel {
     //  ส่วนหัว (Header)
     // =====================================================================
 
-    /**
-     * สร้างส่วนหัวด้านบน: แสดงหมายเลขรอบ, ชื่อ Questioner และป้ายเหตุผลที่จบรอบ
-     */
+    /** ส่วนหัว: รอบ, Questioner, เหตุผล */
     private JPanel buildHeader() {
         tagLabel = AppDialog.label("ROUND SUMMARY", AppDialog.SUBTITLE, AppDialog.PRIMARY_BLUE);
         titleLabel = AppDialog.label("Round 1", AppDialog.TITLE_LARGE, AppDialog.TEXT_DARK);
@@ -63,10 +56,10 @@ public class RoundResultScreen_UI extends JPanel {
     }
 
     // =====================================================================
-    //  ส่วนเนื้อหา: รูปทรงเฉลยความลับด้านบน และตารางผลคะแนนด้านล่าง (Body)
+    // ส่วนเนื้อหา
     // =====================================================================
 
-    /** สร้างส่วนเนื้อหา: การ์ดเฉลยรูปทรงด้านบน และตารางผลคะแนนด้านล่าง */
+    /** ส่วนเนื้อหา: เฉลยและตารางคะแนน */
     private JPanel buildBody() {
         JPanel body = AppDialog.panel(new BorderLayout(0, 16));
         body.add(buildSecretCard(), BorderLayout.NORTH);
@@ -74,24 +67,20 @@ public class RoundResultScreen_UI extends JPanel {
         return body;
     }
 
-    /**
-     * การ์ดแสดงรูปทรงเฉลยความลับของรอบนี้
-     */
+    /** การ์ดเฉลยรูปทรง */
     private JPanel buildSecretCard() {
         JPanel card = AppDialog.card(new BorderLayout(0, 14), 18, 20);
 
         secretTitleLabel = AppDialog.label("Secret shapes", AppDialog.SUBTITLE, AppDialog.TEXT_DARK);
         card.add(secretTitleLabel, BorderLayout.NORTH);
 
-        // แถวแสดงรูปทรงเฉลยเรียงกึ่งกลางแนวนอน
+        // แถวรูปทรงเฉลย
         secretRow = AppDialog.panel(new FlowLayout(FlowLayout.CENTER, SECRET_GAP, 8));
         card.add(secretRow, BorderLayout.CENTER);
         return card;
     }
 
-    /**
-     * แสดงแต่ละรูปทรงเฉลย: รูปภาพพร้อมชื่อรูปทรงตัวอักษรเล็กด้านล่าง
-     */
+    /** รูปทรงเฉลยหนึ่งรูป */
     private JPanel buildSecretItem(String shapeName) {
         JPanel item = AppDialog.panel(new BorderLayout(0, 6));
         item.add(shapeIcon(shapeName, SECRET_ICON, AppDialog.CARD_BORDER, 1), BorderLayout.CENTER);
@@ -99,9 +88,7 @@ public class RoundResultScreen_UI extends JPanel {
         return item;
     }
 
-    /**
-     * การ์ดตารางแสดงคะแนนของผู้เล่นทุกคนในรอบนี้
-     */
+    /** การ์ดตารางคะแนน */
     private JPanel buildResultsCard() {
         JPanel card = AppDialog.card(new BorderLayout(0, 14), 18, 20);
 
@@ -113,7 +100,7 @@ public class RoundResultScreen_UI extends JPanel {
         titles.add(badgeHolder, BorderLayout.EAST);
         card.add(titles, BorderLayout.NORTH);
 
-        // แถวคะแนนของผู้เล่น รองรับการเลื่อน (Scroll) เมื่อมีผู้เล่นหลายคน
+        // พื้นที่เลื่อนของตาราง
         rowsPanel = AppDialog.stack(AppDialog.panel());
         JScrollPane scroll = new JScrollPane(rowsPanel);
         scroll.setBorder(null);
@@ -128,9 +115,7 @@ public class RoundResultScreen_UI extends JPanel {
         return card;
     }
 
-    /**
-     * ส่วนหัวของตาราง: คอลัมน์ PLAYER, GUESSED, ROUND, TOTAL
-     */
+    /** หัวตาราง: PLAYER, GUESSED, ROUND, TOTAL */
     private JPanel buildTableHeader() {
         JPanel header = AppDialog.panel(new BorderLayout(10, 0));
         header.setBorder(new EmptyBorder(0, 15, 0, 15));
@@ -145,10 +130,10 @@ public class RoundResultScreen_UI extends JPanel {
     }
 
     // =====================================================================
-    //  ส่วนท้าย: เวลานับถอยหลังก่อนเริ่มรอบต่อไป (Footer)
+    // ส่วนท้าย
     // =====================================================================
 
-    /** สร้างส่วนท้ายที่มีป้ายเวลานับถอยหลังก่อนเริ่มรอบต่อไป */
+    /** ส่วนท้าย: เวลานับถอยหลัง */
     private JPanel buildFooter() {
         JPanel footer = AppDialog.panel(new BorderLayout(12, 0));
         countdownLabel = AppDialog.label("", AppDialog.BODY_BOLD, AppDialog.PRIMARY_BLUE);
@@ -157,12 +142,10 @@ public class RoundResultScreen_UI extends JPanel {
     }
 
     // =====================================================================
-    //  เมธอดแสดงผลข้อมูลที่เรียกโดย RoundResultScreen
+    // เมธอดแสดงผลข้อมูล
     // =====================================================================
 
-    /**
-     * วาดส่วนหัวของรอบ: หมายเลขรอบ, สถานะรอบสุดท้าย และชื่อ Questioner
-     */
+    /** วาดส่วนหัวของรอบ */
     protected void renderHeader(int round, int totalRounds, boolean isFinal, String questioner) {
         String questionerName;
         if (questioner == null) {
@@ -185,9 +168,7 @@ public class RoundResultScreen_UI extends JPanel {
         }
     }
 
-    /**
-     * ปรับข้อความและสีของป้ายเหตุผลที่จบรอบ
-     */
+    /** อัปเดตป้ายเหตุผล */
     protected void renderReason(String text, boolean danger) {
         if (danger) {
             AppDialog.paintBadge(reasonBadge, text, AppDialog.DANGER_BG, AppDialog.DANGER_TEXT,
@@ -198,13 +179,10 @@ public class RoundResultScreen_UI extends JPanel {
         }
     }
 
-    /**
-     * แสดงรูปทรงเฉลยความลับ
-     */
+    /** แสดงรูปทรงเฉลย */
     protected void renderSecret(String[] secret) {
         secretRow.removeAll();
-        // secret มาจาก splitCsv() ใน MainApp หรืออาเรย์ตัวอย่างใน UiPreview
-        // ทั้งสองทางไม่คืนค่า null จึงเหลือเพียงตรวจว่ามีรูปทรงหรือไม่
+        // secret ไม่เป็น null (เหลือตรวจว่ามีรูปทรงหรือไม่)
         if (secret.length > 0) {
             for (String shapeName : secret) {
                 secretRow.add(buildSecretItem(shapeName));
@@ -219,12 +197,10 @@ public class RoundResultScreen_UI extends JPanel {
         secretRow.repaint();
     }
 
-    /**
-     * สร้างแถวแสดงผลสำหรับผู้เล่นแต่ละคน
-     */
+    /** สร้างแถวผลของผู้เล่นหนึ่งคน */
     protected void renderResults(String[] names, int[] deltas, int[] totals, String[][] guesses,
                                  int[] correctCounts, boolean[] bonuses, String questioner, String[] secret) {
-        // showResult() ส่งค่าที่ไม่เป็น null มาจาก MainApp/UiPreview แล้ว
+        // ค่าจาก showResult() ไม่เป็น null
         String questionerName = questioner;
         String playerWord;
         if (names.length == 1) {
@@ -234,7 +210,7 @@ public class RoundResultScreen_UI extends JPanel {
         }
         resultsBadge.setText(names.length + playerWord);
 
-        // สร้างแถวแสดงผลสำหรับผู้เล่นแต่ละคน
+        // แถวผลของผู้เล่น
         rowsPanel.removeAll();
         for (int i = 0; i < names.length; i++) {
             int delta = deltas[i];
@@ -255,9 +231,7 @@ public class RoundResultScreen_UI extends JPanel {
         rowsPanel.repaint();
     }
 
-    /**
-     * วาดข้อความนับถอยหลัง โดยเลือกคำนำหน้าตามว่าเป็นรอบสุดท้ายหรือไม่
-     */
+    /** วาดข้อความนับถอยหลัง */
     protected void renderCountdown(int seconds, boolean isFinal) {
         String prefix;
         if (isFinal) {
@@ -269,19 +243,17 @@ public class RoundResultScreen_UI extends JPanel {
     }
 
     // =====================================================================
-    //  การสร้างแถวผู้เล่นและคอมโพเนนต์ย่อย (Rows and Small Factories)
+    // ฟังก์ชันช่วยสร้างแถว
     // =====================================================================
 
-    /**
-     * สร้างแถวผลงานของผู้เล่นแต่ละคน: แสดง Avatar, คำตอบที่ทาย (สีกรอบเขียวถ้าถูก, แดงถ้าผิด), โบนัส, คะแนนรอบนี้ และคะแนนรวม
-     */
+    /** แถวผลงานผู้เล่น */
     private JPanel buildPlayerRow(int index, String name, int delta, int total, String[] guess, int correct,
                                   boolean bonus, boolean isQuestioner, String[] secret) {
         JPanel row = new JPanel(new BorderLayout(10, 0));
         row.setBackground(AppDialog.ROW_BG);
         row.setBorder(new CompoundBorder(new LineBorder(AppDialog.ROW_BG, 1), new EmptyBorder(10, 14, 10, 14)));
 
-        // ข้อมูลผู้เล่นฝั่งซ้าย (Avatar, ชื่อ, ป้าย Questioner)
+        // ข้อมูลผู้เล่น
         JLabel questionerBadge;
         if (isQuestioner) {
             questionerBadge = AppDialog.badge("Questioner", AppDialog.CARD_BORDER, AppDialog.TEXT_DARK,
@@ -292,7 +264,7 @@ public class RoundResultScreen_UI extends JPanel {
         row.add(AppDialog.playerWho(AppDialog.initialOf(name), AppDialog.avatarColor(index), name,
                 AVATAR_SIZE, 8, questionerBadge), BorderLayout.WEST);
 
-        // ส่วนแสดงรูปทรงที่ผู้เล่นทายตรงกลาง (พร้อมสีกรอบเขียว/แดง)
+        // รูปทรงที่ทาย
         JPanel guessed = AppDialog.panel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         if (isQuestioner) {
             guessed.add(mutedLabel("picked the secret"));
@@ -312,7 +284,7 @@ public class RoundResultScreen_UI extends JPanel {
         }
         row.add(guessed, BorderLayout.CENTER);
 
-        // ส่วนแสดงคะแนนฝั่งขวา (ป้ายโบนัส, คะแนนที่ได้เพิ่มในรอบนี้, คะแนนรวม)
+        // คะแนน
         JPanel score = AppDialog.panel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         if (bonus) {
             score.add(AppDialog.badge("BONUS +2", AppDialog.GOLD_BG, AppDialog.GOLD_TEXT, AppDialog.GOLD_BORDER, 3, 8));
@@ -337,10 +309,9 @@ public class RoundResultScreen_UI extends JPanel {
         return row;
     }
 
-    /** ตรวจสอบว่ารูปทรงที่ระบุมีอยู่ในชุดเฉลยหรือไม่ */
+    /** ตรวจว่ารูปทรงอยู่ในชุดเฉลย */
     private static boolean containsShape(String[] shapes, String wanted) {
-        // shapes คือ secret ที่ showResult() ส่งมา และ wanted มาจาก splitCsv()
-        // ทั้งคู่ไม่เป็น null จึงไม่ต้องมี guard นี้
+        // shapes และ wanted ไม่เป็น null
         for (String shape : shapes) {
             if (wanted.equalsIgnoreCase(shape)) {
                 return true;
@@ -349,12 +320,12 @@ public class RoundResultScreen_UI extends JPanel {
         return false;
     }
 
-    /** สร้างข้อความสีเทาสำหรับข้อมูลรอง */
+    /** ข้อความสีเทา */
     private static JLabel mutedLabel(String text) {
         return AppDialog.label(text, AppDialog.SMALL, AppDialog.TEXT_MUTED);
     }
 
-    /** สร้างรูปภาพรูปทรงพร้อมใส่สีกรอบตามที่กำหนด */
+    /** รูปภาพรูปทรงพร้อมกรอบสี */
     private static JPanel shapeIcon(String shapeName, int size, Color line, int width) {
         JPanel picture = ShapeImages.shape(shapeName, size);
         picture.setToolTipText(shapeName);

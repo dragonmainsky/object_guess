@@ -5,10 +5,7 @@ import java.util.List;
 import javax.swing.*;
 import javax.swing.border.*;
 
-/**
- * GuesserScreen_UI: ส่วนหน้าตาของหน้าจอผู้ทาย
- * เก็บคอมโพเนนต์ ระบบลากวาง และเมธอดสร้าง/วาด UI ทั้งหมด โดยไม่ถือสถานะของเกม
- */
+/** ส่วนหน้าตาของหน้าจอผู้ทาย */
 public class GuesserScreen_UI extends JPanel {
 
     private static final int GHOST_SIZE = 64;        // ขนาดรูปทรงที่ลอยตามเคอร์เซอร์เมาส์ขณะลาก
@@ -20,7 +17,7 @@ public class GuesserScreen_UI extends JPanel {
     protected final List<ShapeImages.Picker> pickers = new ArrayList<>(); // รายการช่องเลือกรูปทรง
     protected JPanel guessSlotsPanel;     // พาเนลแสดงช่องทายรูปทรง
     protected JLabel pickCounterLabel;    // ป้ายนับจำนวนที่เลือกบนการ์ด Objects
-    protected JButton submitBtn;          // ปุ่มกดยืนยันส่งคำตอบ (SUBMIT GUESS)
+    protected JButton submitBtn;          // ปุ่ม SUBMIT GUESS
     protected JPanel scoreRowsPanel;      // พาเนลแสดงรายการคะแนนสด
     protected JLabel roundLabel;          // ป้ายบอกหมายเลขรอบ
     protected JLabel scoreBadge;          // ป้ายแสดงคะแนนปัจจุบันของผู้เล่น
@@ -29,9 +26,7 @@ public class GuesserScreen_UI extends JPanel {
     protected JLabel targetBadge;         // ป้ายแสดงจำนวนเป้าหมายรูปทรง
     protected JLabel timeBadge;           // ป้ายเวลานับถอยหลัง
 
-    /**
-     * คอนสตรักเตอร์สร้างหน้าจอผู้ทาย จัดวางแบบ 3 คอลัมน์ และผูกปุ่ม ENTER สำหรับส่งคำตอบ
-     */
+    /** สร้างหน้าจอผู้ทาย */
     public GuesserScreen_UI() {
         drag = new ShapeImages.DragBoard(this, GHOST_SIZE);
         setLayout(new BorderLayout());
@@ -43,7 +38,7 @@ public class GuesserScreen_UI extends JPanel {
         mainContent.add(createColumns(), BorderLayout.CENTER);
         add(mainContent, BorderLayout.CENTER);
 
-        // รองรับการกดปุ่ม ENTER บนคีย์บอร์ดเพื่อส่งคำตอบทันที หากหน้าจอนี้แสดงอยู่และไม่มี Dialog บัง
+        // รองรับปุ่ม ENTER
         KeyboardFocusManager manager = KeyboardFocusManager.getCurrentKeyboardFocusManager();
         manager.addKeyEventDispatcher(event -> {
             boolean submitNow = isShowing() && event.getID() == KeyEvent.KEY_PRESSED
@@ -56,9 +51,7 @@ public class GuesserScreen_UI extends JPanel {
         });
     }
 
-    /**
-     * วาดรูปทรงโปร่งแสงที่กำลังลากตามตำแหน่งเคอร์เซอร์เมาส์ทับบนหน้าจอ
-     */
+    /** วาดรูปทรงที่ลอยตามเมาส์ */
     @Override
     public void paint(Graphics g) {
         super.paint(g);
@@ -69,19 +62,19 @@ public class GuesserScreen_UI extends JPanel {
     //  การเชื่อมเหตุการณ์จาก UI (Event hooks)
     // =====================================================================
 
-    /** เรียกเมื่อผู้เล่นกดปุ่ม SUBMIT GUESS */
+    /** ปุ่ม SUBMIT GUESS */
     protected void onSubmitClicked() {
     }
 
-    /** เรียกเมื่อมีการวางรูปทรงลงในช่องทาย */
+    /** วางรูปทรงในช่องทาย */
     protected void onShapeDroppedToSlot(String shapeName, int slotIndex) {
     }
 
-    /** เรียกเมื่อมีการลากรูปทรงกลับไปยังรายการ Objects */
+    /** ลากรูปทรงกลับไปยัง Objects */
     protected void onShapeRemoved(String shapeName) {
     }
 
-    /** ตรวจสอบว่าอินพุตถูกล็อกอยู่หรือไม่ */
+    /** สถานะล็อกอินพุต */
     protected boolean isInputLocked() {
         return false;
     }
@@ -90,9 +83,7 @@ public class GuesserScreen_UI extends JPanel {
     //  ส่วนหัวและคอลัมน์ (Sub header and Columns)
     // =====================================================================
 
-    /**
-     * สร้างแถบส่วนหัวด้านบน: แสดงคำแนะนำการเล่น พร้อมป้ายเป้าหมาย เวลา คะแนน และสถานะส่งคำตอบ
-     */
+    /** แถบหัวข้อด้านบน */
     private JPanel createSubHeader() {
         JPanel titles = AppDialog.titleStack(2,
                 AppDialog.label("Guess what the Questioner selected!", AppDialog.TITLE_LARGE, AppDialog.TEXT_DARK),
@@ -110,9 +101,7 @@ public class GuesserScreen_UI extends JPanel {
         return AppDialog.pageHeader(titles, badges, BorderLayout.CENTER, 4, 0, 6, 0);
     }
 
-    /**
-     * รวมคอลัมน์ซ้าย, กลาง, ขวา เข้าด้วยกัน
-     */
+    /** รวมสามคอลัมน์ */
     private JPanel createColumns() {
         JPanel left = createLeftPanel();
         left.setPreferredSize(new Dimension(240, 0));
@@ -127,10 +116,10 @@ public class GuesserScreen_UI extends JPanel {
     }
 
     // =====================================================================
-    //  คอลัมน์ซ้าย: สกอร์บอร์ดและกติกาการให้คะแนน (Left Column)
+    // คอลัมน์ซ้าย: สกอร์บอร์ดและกติกา
     // =====================================================================
 
-    /** สร้างคอลัมน์ซ้าย ประกอบด้วยการ์ดสกอร์บอร์ดและกติกาการให้คะแนน */
+    /** คอลัมน์ซ้าย */
     private JPanel createLeftPanel() {
         scoreRowsPanel = AppDialog.panel(new GridLayout(0, 1, 0, 8));
         roundLabel = AppDialog.label("Waiting to start", AppDialog.SMALL, AppDialog.TEXT_MUTED);
@@ -142,7 +131,7 @@ public class GuesserScreen_UI extends JPanel {
         scoreCard.add(scoreHeader, BorderLayout.NORTH);
         scoreCard.add(scoreRowsPanel, BorderLayout.CENTER);
 
-        // การ์ดแสดงกติกาคะแนน: +1 ถูกต้อง, +2 ถูกหมดใน 10 วิ, 0 ผิด
+        // กติกาคะแนน
         JPanel ruleRows = AppDialog.panel(new GridLayout(0, 1, 0, 8));
         ruleRows.add(createRuleRow("+1", AppDialog.SUCCESS_BG, AppDialog.SUCCESS_TEXT, AppDialog.SUCCESS_BORDER,
                 "for each correct shape"));
@@ -160,7 +149,7 @@ public class GuesserScreen_UI extends JPanel {
         return left;
     }
 
-    // สร้างแถวแสดงกติกาคะแนน
+    // แถวกติกาคะแนน
     private JPanel createRuleRow(String badgeText, Color bg, Color fg, Color border, String ruleText) {
         JLabel badge = AppDialog.badge(badgeText, bg, fg, border, 2, 6);
         badge.setPreferredSize(new Dimension(34, 22));
@@ -172,17 +161,17 @@ public class GuesserScreen_UI extends JPanel {
     }
 
     // =====================================================================
-    //  คอลัมน์กลาง: สเตจและช่องวางรูปทาย (Center Column)
+    // คอลัมน์กลาง: ช่องทาย
     // =====================================================================
 
-    /** สร้างคอลัมน์กลาง: การ์ดช่องวางรูปทาย พร้อมแถบคำแนะนำและสถานะ */
+    /** คอลัมน์กลาง */
     private JPanel createCenterPanel() {
         JPanel centerCard = AppDialog.card(new BorderLayout(0, 12));
         centerCard.add(AppDialog.header("Your guess", AppDialog.TITLE, "Drag shapes here from Objects",
                 AppDialog.BODY, null), BorderLayout.NORTH);
         centerCard.add(createStagePanel(), BorderLayout.CENTER);
 
-        // แถบคำแนะนำด้านล่างการ์ดทำหน้าที่เป็นป้ายแสดงสถานะรอบด้วย
+        // แถบสถานะใต้การ์ด
         JPanel hintRow = AppDialog.panel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         hintRow.add(AppDialog.label("TIP", AppDialog.SMALL_BOLD, AppDialog.WARNING_TEXT));
         statusLabel = AppDialog.label("Waiting for the questioner to lock in the secret shapes...",
@@ -195,9 +184,7 @@ public class GuesserScreen_UI extends JPanel {
         return center;
     }
 
-    /**
-     * สเตจกลาง: ช่องวางรูปทาย
-     */
+    /** สเตจกลาง: ช่องทาย */
     private JPanel createStagePanel() {
         guessSlotsPanel = AppDialog.panel();
         JPanel middleRow = AppDialog.panel(new BorderLayout());
@@ -211,9 +198,7 @@ public class GuesserScreen_UI extends JPanel {
         return stage;
     }
 
-    /**
-     * สร้างช่องทายตามจำนวนเป้าหมายของรอบ
-     */
+    /** สร้างช่องทายตามจำนวนเป้าหมาย */
     protected void renderGuessSlots(List<String> guessedShapes, int requiredPicks) {
         guessSlotsPanel.removeAll();
         guessSlotsPanel.setLayout(new GridLayout(1, Math.max(1, requiredPicks), 14, 0));
@@ -229,7 +214,7 @@ public class GuesserScreen_UI extends JPanel {
         guessSlotsPanel.repaint();
     }
 
-    // กำหนดขนาดรูปภาพในช่องทาย ถ้าต้องการเกิน 3 รูป จะย่อขนาดลงเพื่อให้พอดีแถว
+    // ขนาดรูปในช่องทาย
     private int slotIconSize(int requiredPicks) {
         if (requiredPicks > 3) {
             return SLOT_ICON_TIGHT;
@@ -237,10 +222,7 @@ public class GuesserScreen_UI extends JPanel {
         return SLOT_ICON_WIDE;
     }
 
-    /**
-     * สร้างแต่ละช่องสำหรับใส่รูปทาย: หากมีรูปแล้วจะเป็นการ์ดพร้อมรูปและลากได้ หากว่างจะเป็นกล่องคำว่า "Empty"
-     * ทั้งสองแบบรองรับการปล่อยวางรูปทรง (Drop zone)
-     */
+    /** สร้างช่องทายหนึ่งช่อง */
     private JPanel createSlot(int index, List<String> guessedShapes, int requiredPicks) {
         boolean filled = index < guessedShapes.size();
         int verticalGap;
@@ -276,7 +258,7 @@ public class GuesserScreen_UI extends JPanel {
             slot.setBorder(AppDialog.box(AppDialog.SLOT_BORDER, 2, 0, 0));
             slot.add(AppDialog.label("Empty", AppDialog.SMALL, AppDialog.TEXT_MUTED, JLabel.CENTER), BorderLayout.CENTER);
         }
-        // กำหนดให้ช่องนี้เป็น Drop zone
+        // Drop zone
         drag.dropZone(slot, () -> true, on -> {
             if (on) {
                 slot.setBackground(AppDialog.BLUE_LIGHT_BG);
@@ -298,10 +280,10 @@ public class GuesserScreen_UI extends JPanel {
     }
 
     // =====================================================================
-    //  คอลัมน์ขวา: รายการ Objects และปุ่มส่งคำตอบ (Right Column)
+    // คอลัมน์ขวา: Objects และปุ่มส่ง
     // =====================================================================
 
-    /** สร้างคอลัมน์ขวา: การ์ดรายการ Objects สำหรับลาก และปุ่มส่งคำตอบ */
+    /** คอลัมน์ขวา */
     private JPanel createRightPanel() {
         pickCounterLabel = AppDialog.label(picksCountText(0, 0), AppDialog.BODY_BOLD, AppDialog.PRIMARY_BLUE);
         JPanel objectsCard = AppDialog.card(new BorderLayout(0, 12));
@@ -318,14 +300,14 @@ public class GuesserScreen_UI extends JPanel {
         }
         objectsCard.add(grid, BorderLayout.CENTER);
 
-        // ปุ่มกดยืนยันส่งคำตอบ (SUBMIT GUESS)
+        // ปุ่ม SUBMIT GUESS
         submitBtn = AppDialog.button("SUBMIT GUESS", AppDialog.PRIMARY_BLUE, AppDialog.PRIMARY_HOVER,
                 AppDialog.PRIMARY_PRESS, Color.WHITE, null, 10, 18);
         submitBtn.setPreferredSize(new Dimension(0, 44));
         submitBtn.addActionListener(event -> onSubmitClicked());
         objectsCard.add(submitBtn, BorderLayout.SOUTH);
 
-        // การ์ด Objects ทั้งหมดทำหน้าที่เป็น Drop Zone สำหรับลากรูปออกจากช่องทายเพื่อลบออก
+        // การ์ด Objects เป็นพื้นที่ลบรูปทรง
         drag.dropZone(objectsCard, () -> drag.fromBoard(), on -> {
             if (on) {
                 objectsCard.setBackground(AppDialog.DANGER_BG);
@@ -347,10 +329,10 @@ public class GuesserScreen_UI extends JPanel {
     }
 
     // =====================================================================
-    //  การวาดข้อมูลจากสถานะของ GuesserScreen (Render state)
+    // การวาดข้อมูลจากสถานะ
     // =====================================================================
 
-    /** อัปเดตคอมโพเนนต์ทั้งหมดที่ขึ้นอยู่กับจำนวนรูปทรงที่ทาย */
+    /** อัปเดต UI ตามจำนวนรูปที่ทาย */
     protected void renderSelection(List<String> guessedShapes, int requiredPicks) {
         renderGuessSlots(guessedShapes, requiredPicks);
         pickCounterLabel.setText(picksCountText(guessedShapes.size(), requiredPicks));
@@ -359,7 +341,7 @@ public class GuesserScreen_UI extends JPanel {
         }
     }
 
-    /** สร้างข้อความจำนวนรูปที่เลือก เช่น "2 / 4" */
+    /** ข้อความจำนวนรูปที่เลือก */
     private static String picksCountText(int selected, int requiredPicks) {
         if (requiredPicks == 0) {
             return selected + " / ?";
@@ -367,17 +349,17 @@ public class GuesserScreen_UI extends JPanel {
         return selected + " / " + requiredPicks;
     }
 
-    /** อัปเดตป้ายจำนวนเป้าหมายรูปทรง */
+    /** ป้ายจำนวนเป้าหมาย */
     protected void renderTarget(int requiredPicks) {
         targetBadge.setText(AppDialog.targetText(requiredPicks));
     }
 
-    /** อัปเดตข้อมูลรอบบนป้ายหมายเลขรอบ */
+    /** ป้ายหมายเลขรอบ */
     protected void renderRoundLabel(int roundNumber, int totalRounds) {
         roundLabel.setText("Round " + roundNumber + " of " + totalRounds);
     }
 
-    /** เปิด/ปิดการใช้งานปุ่มส่งคำตอบ พร้อมเปลี่ยนสี */
+    /** ปุ่มส่งคำตอบ */
     protected void renderSubmitEnabled(boolean enabled) {
         submitBtn.setEnabled(enabled);
         if (enabled) {
@@ -387,7 +369,7 @@ public class GuesserScreen_UI extends JPanel {
         }
     }
 
-    /** อัปเดตป้ายสถานะการส่งคำตอบ */
+    /** ป้ายสถานะการส่ง */
     protected void renderSubmitted(boolean submitted) {
         String badgeText;
         Color badgeBackground;
@@ -408,12 +390,12 @@ public class GuesserScreen_UI extends JPanel {
                 badgeBorder, false);
     }
 
-    /** แสดงเวลารอโดยยังไม่เริ่มนับถอยหลัง */
+    /** เวลารอก่อนเริ่ม */
     protected void renderTimeWaiting() {
         AppDialog.showWaitingTime(timeBadge);
     }
 
-    /** รีเฟรชสกอร์บอร์ดคะแนนสดฝั่งซ้าย */
+    /** สกอร์บอร์ดฝั่งซ้าย */
     protected void renderScoreboard(String[] names, int[] scores, String myName) {
         scoreRowsPanel.removeAll();
         for (int i = 0; i < names.length; i++) {
@@ -433,12 +415,12 @@ public class GuesserScreen_UI extends JPanel {
         scoreRowsPanel.repaint();
     }
 
-    /** อัปเดตเวลานับถอยหลังตาม TICK ของเซิร์ฟเวอร์ (10 วิสุดท้ายเป็นสีแดง) */
+    /** เวลานับถอยหลัง */
     public void setTimeLeft(int seconds) {
         AppDialog.setTimeLeft(timeBadge, seconds);
     }
 
-    /** อัปเดตข้อความแนะนำสถานะใต้การ์ด */
+    /** ข้อความสถานะใต้การ์ด */
     public void setStatus(String text) {
         statusLabel.setText(text);
     }

@@ -1,14 +1,7 @@
-/**
- * JoinScreen: หน้าจอแรก (หน้าจอที่ 1) ของเกม
- * ใช้สำหรับสร้างห้อง (Host) บนเครื่องนี้ หรือเข้าร่วมห้อง (Join) ของเพื่อนผ่านเครือข่าย LAN เดียวกัน
- * หน้านี้จะไม่เปิด Socket เองโดยตรง แต่จะตรวจสอบความถูกต้องของข้อมูลแล้วส่งต่อผ่าน {@link JoinListener}
- */
+/** หน้าจอสร้างหรือเข้าร่วมห้อง */
 public class JoinScreen extends JoinScreen_UI {
 
-    /**
-     * อินเตอร์เฟสสำหรับแจ้งเตือนเมื่อผู้เล่นเลือกสร้างห้องหรือเข้าร่วมห้อง
-     * เมธอดเหล่านี้จะทำงานบน Event Dispatch Thread (UI Thread)
-     */
+    /** Listener ของการสร้าง/เข้าร่วมห้อง */
     public interface JoinListener {
         // ทำงานเมื่อผู้เล่นเลือกสร้างห้อง (เป็นโฮสต์)
         void onCreateGame(String playerName, int port);
@@ -19,9 +12,7 @@ public class JoinScreen extends JoinScreen_UI {
 
     private final JoinListener listener;    // ตัวรับเหตุการณ์การสร้าง/เข้าร่วมเกม
 
-    /**
-     * คอนสตรักเตอร์สำหรับสร้างหน้าจอ JoinScreen แบ่งการจัดวางออกเป็น 2 ฝั่ง (ซ้าย-ขวา)
-     */
+    /** สร้างหน้าจอ JoinScreen */
     public JoinScreen(JoinListener listener) {
         super();
         this.listener = listener;
@@ -29,34 +20,31 @@ public class JoinScreen extends JoinScreen_UI {
     }
 
     // =====================================================================
-    //  การทำงานและการตรวจสอบความถูกต้องของข้อมูล (Actions and Validation)
+    // การทำงานและการตรวจสอบข้อมูล
     // =====================================================================
 
-    /** ผู้เล่นกดปุ่มสร้างห้อง (Host) */
+    /** ปุ่มสร้างห้อง */
     @Override
-    protected void onCreateClicked() {
+    public void onCreateClicked() {
         onCreateGame();
     }
 
-    /** ผู้เล่นกดปุ่มเข้าร่วมห้อง (Join) */
+    /** ปุ่มเข้าร่วมห้อง */
     @Override
-    protected void onJoinClicked() {
+    public void onJoinClicked() {
         onJoinGame();
     }
 
-    /** ผู้เล่นกดปุ่มออกจากโปรแกรม พร้อมยืนยันก่อนปิด */
+    /** ปุ่มออกจากโปรแกรม */
     @Override
-    protected void onLeaveAppClicked() {
+    public void onLeaveAppClicked() {
         boolean confirmed = AppDialog.showConfirm(this, "Exit Game", "Are you sure you want to exit?");
         if (confirmed) {
             System.exit(0);
         }
     }
 
-    /**
-     * ดำเนินการเมื่อผู้เล่นกดปุ่ม CREATE GAME (HOST)
-     * ตรวจสอบว่ากรอกชื่อและพอร์ตถูกต้องหรือไม่ก่อนส่งให้ listener
-     */
+    /** จัดการ CREATE GAME */
     private void onCreateGame() {
         String name = getPlayerName();
         if (name.isEmpty()) {
@@ -74,10 +62,7 @@ public class JoinScreen extends JoinScreen_UI {
         }
     }
 
-    /**
-     * ดำเนินการเมื่อผู้เล่นกดปุ่ม JOIN GAME
-     * ตรวจสอบความถูกต้องของชื่อผู้เล่น, IP เซิร์ฟเวอร์ และพอร์ต ก่อนส่งให้ listener
-     */
+    /** จัดการ JOIN GAME */
     private void onJoinGame() {
         String name = getPlayerName();
         String ip = getServerIp();
@@ -97,9 +82,7 @@ public class JoinScreen extends JoinScreen_UI {
         }
     }
 
-    /**
-     * แปลงข้อความพอร์ตเป็นตัวเลข พร้อมตรวจสอบให้อยู่ระหว่าง 1 ถึง 65535
-     */
+    /** แปลงพอร์ตเป็นตัวเลข (1-65535) */
     private int parsePort() {
         String text = getServerPortText();
         if (text.isEmpty()) {
@@ -120,17 +103,13 @@ public class JoinScreen extends JoinScreen_UI {
         return port;
     }
 
-    /**
-     * แสดงข้อความแจ้งเตือนข้อผิดพลาดทั้งบนแถบสถานะและกล่องข้อความ Dialog
-     */
+    /** แสดงข้อผิดพลาด */
     private void fail(String status, String dialogTitle) {
         showStatus(status, true);
         AppDialog.showWarning(this, dialogTitle, status);
     }
 
-    /**
-     * ตรวจสอบรูปแบบของที่อยู่ IPv4 หรือชื่อโฮสต์ เพื่อรองรับทั้ง IP จริงและ localhost
-     */
+    /** ตรวจสอบ IPv4 หรือชื่อโฮสต์ */
     private static boolean isValidAddress(String value) {
         if (value.isEmpty() || value.length() > 253 || value.indexOf(' ') >= 0) {
             return false;
@@ -160,7 +139,7 @@ public class JoinScreen extends JoinScreen_UI {
         return true;
     }
 
-    // ฟังก์ชันตรวจสอบว่าข้อความประกอบด้วยตัวเลขทั้งหมดหรือไม่
+    // ตรวจสอบว่าข้อความเป็นตัวเลขทั้งหมด
     private static boolean isNumeric(String value) {
         if (value.isEmpty()) {
             return false;

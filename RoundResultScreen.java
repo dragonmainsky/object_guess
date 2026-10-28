@@ -2,11 +2,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import javax.swing.*;
 
-/**
- * RoundResultScreen: หน้าจอแสดงผลคะแนนและเฉลยของแต่ละรอบ (หน้าจอคั่นระหว่างรอบ)
- * สร้างขึ้นจากข้อมูล ROUND_RESULT ที่ได้รับจากเซิร์ฟเวอร์เท่านั้น
- * ทำให้ทุกเครื่องในห้องแสดงผลรูปทรงเฉลยความลับและตัวเลขคะแนนตรงกันทั้งหมด
- */
+/** หน้าจอสรุปผลแต่ละรอบ */
 public class RoundResultScreen extends RoundResultScreen_UI {
 
     private static final int COUNTDOWN_SECONDS = GameServer.INTERMISSION_SECONDS; // เวลานับถอยหลังช่วงพักรอบ (10 วินาที)
@@ -14,9 +10,7 @@ public class RoundResultScreen extends RoundResultScreen_UI {
     private Timer countdown;            // ตัวนับถอยหลัง 1 ตัวต่อรอบ จะหยุดเมื่อเริ่มรอบใหม่
     private int secondsLeft;            // จำนวนวินาทีที่เหลือก่อนเปลี่ยนหน้าจอ
 
-    /**
-     * คอนสตรักเตอร์สร้างหน้าจอสรุปผลของรอบ แบ่งเป็น ส่วนหัว (Header), เนื้อหา (Body), และส่วนท้าย (Footer)
-     */
+    /** สร้างหน้าจอสรุปผลรอบ */
     public RoundResultScreen() {
         super();
         renderCountdown(COUNTDOWN_SECONDS, false);
@@ -26,19 +20,15 @@ public class RoundResultScreen extends RoundResultScreen_UI {
     //  เมธอดแสดงผลข้อมูลที่เรียกโดย MainApp
     // =====================================================================
 
-    /**
-     * วาดเนื้อหาทั้งหมดของหน้าจอจากชุดข้อมูล ROUND_RESULT ที่ได้รับจากเซิร์ฟเวอร์
-     * ข้อมูลทุกอาเรย์มีความยาวเท่ากัน โดยแต่ละดัชนีแทนผู้เล่น 1 คน
-     */
+    /** วาดเนื้อหาจากข้อมูล ROUND_RESULT (อาเรย์ทุกตัวยาวเท่ากัน) */
     public void showResult(int round, int totalRounds, boolean isFinal, String[] secret, String reason,
                            String questioner, String[] names, int[] deltas, int[] totals,
                            String[][] guesses, int[] correctCounts, boolean[] bonuses) {
-        // MainApp ส่ง questioner มาจาก arg() ซึ่งคืนสตริงว่างแทน null
-        // UiPreview ก็ส่งชื่อจริง จึงใช้ค่าที่ได้รับได้เลย
+        // questioner จาก arg() เป็นค่าว่าง ไม่ใช่ null
         String questionerName = questioner;
         renderHeader(round, totalRounds, isFinal, questionerName);
 
-        // ปรับข้อความและสีของป้ายเหตุผลที่จบรอบ
+        // ป้ายเหตุผลที่จบรอบ
         if ("time".equals(reason)) {
             renderReason("Time is up", true);
         } else {
@@ -51,13 +41,13 @@ public class RoundResultScreen extends RoundResultScreen_UI {
             renderReason(badgeText, false);
         }
 
-        // แสดงรูปทรงเฉลยความลับ
+        // รูปทรงเฉลย
         renderSecret(secret);
 
-        // สร้างแถวแสดงผลสำหรับผู้เล่นแต่ละคน
+        // แถวผลของผู้เล่น
         renderResults(names, deltas, totals, guesses, correctCounts, bonuses, questionerName, secret);
 
-        // เริ่มเวลานับถอยหลังก่อนเปิดรอบใหม่หรือหน้าตารางคะแนนสุดท้าย
+        // เริ่มนับถอยหลังก่อนไปหน้าถัดไป
         startCountdown(isFinal);
         revalidate();
         repaint();
@@ -67,15 +57,13 @@ public class RoundResultScreen extends RoundResultScreen_UI {
     //  การนับถอยหลังระหว่างพักรอบ (Countdown)
     // =====================================================================
 
-    /**
-     * เริ่มนับถอยหลังจาก INTERMISSION_SECONDS ลงไปจนถึง 0
-     */
+    /** เริ่มนับถอยหลัง */
     private void startCountdown(boolean isFinal) {
         stopCountdown();
         secondsLeft = COUNTDOWN_SECONDS;
         renderCountdown(secondsLeft, isFinal);
         countdown = new Timer(1000, new ActionListener() {
-            /** ลดเวลาถอยหลังลงหนึ่งวินาที และหยุดเมื่อครบศูนย์ */
+            /** ลดเวลาลงหนึ่งวินาที */
             @Override
             public void actionPerformed(ActionEvent event) {
                 if (event.getSource() != countdown) {
@@ -96,9 +84,7 @@ public class RoundResultScreen extends RoundResultScreen_UI {
         countdown.start();
     }
 
-    /**
-     * สั่งหยุดการนับถอยหลัง
-     */
+    /** หยุดนับถอยหลัง */
     public void stopCountdown() {
         if (countdown != null) {
             countdown.stop();

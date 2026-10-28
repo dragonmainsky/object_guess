@@ -3,10 +3,7 @@ import java.awt.event.*;
 import javax.swing.*;
 import javax.swing.border.*;
 
-/**
- * ScoreboardScreen_UI: ส่วนหน้าตาของหน้าจอตารางคะแนนรวมสุดท้าย
- * เก็บคอมโพเนนต์และเมธอดสร้าง UI ทั้งหมด โดยไม่ถือสถานะของเกม
- */
+/** ส่วนหน้าตาของหน้าจอสกอร์บอร์ด */
 public class ScoreboardScreen_UI extends JPanel {
 
     private static final Color BG_DARK_HEADER = new Color(24, 34, 53); // สีกรมท่าเข้มสำหรับป้าย GAME OVER
@@ -22,9 +19,7 @@ public class ScoreboardScreen_UI extends JPanel {
     protected JLabel playersValue;         // ป้ายแสดงจำนวนผู้เล่น
     protected JButton nextBtn;             // ปุ่มเริ่มเกมใหม่
 
-    /**
-     * คอนสตรักเตอร์สร้างหน้าจอสกอร์บอร์ด จัดวางแบบ 2 คอลัมน์ (ซ้าย: ถ้วยรางวัลและผู้ชนะ, ขวา: ตารางอันดับ)
-     */
+    /** สร้างหน้าจอสกอร์บอร์ด */
     public ScoreboardScreen_UI() {
         setLayout(new BorderLayout());
         setBackground(AppDialog.BG_LIGHT);
@@ -43,11 +38,11 @@ public class ScoreboardScreen_UI extends JPanel {
     //  การเชื่อมเหตุการณ์จากปุ่ม (Button hooks)
     // =====================================================================
 
-    /** เรียกเมื่อผู้เล่นกดปุ่ม NEW GAME */
+    /** ปุ่ม NEW GAME */
     protected void onNewGameClicked(ActionEvent event) {
     }
 
-    /** เรียกเมื่อผู้เล่นกดปุ่ม QUIT */
+    /** ปุ่ม QUIT */
     protected void onQuitClicked(ActionEvent event) {
     }
 
@@ -55,9 +50,7 @@ public class ScoreboardScreen_UI extends JPanel {
     //  การวาดข้อมูลผลการแข่งขัน (Render results)
     // =====================================================================
 
-    /**
-     * วาดเนื้อหาทั้งหมดใหม่ตามคะแนนและสถานะรอบล่าสุด
-     */
+    /** วาดเนื้อหาทั้งหมดใหม่ */
     protected void renderResults(String[] playerNames, int[] playerScores, int roundsPlayed, int totalRounds) {
         if (playerNames.length > 0) {
             congratsLabel.setText("Congratulations, " + playerNames[0] + "!");
@@ -85,9 +78,7 @@ public class ScoreboardScreen_UI extends JPanel {
         repaint();
     }
 
-    /**
-     * เปิด/ปิดการทำงานของปุ่ม NEW GAME (เฉพาะโฮสต์เท่านั้นที่สามารถกดได้)
-     */
+    /** เปิด/ปิดปุ่ม NEW GAME */
     public void setNextEnabled(boolean enabled) {
         nextBtn.setEnabled(enabled);
         String tooltip;
@@ -100,10 +91,10 @@ public class ScoreboardScreen_UI extends JPanel {
     }
 
     // =====================================================================
-    //  คอลัมน์ซ้าย: ถ้วยรางวัล, ผู้ชนะ และคะแนนสูงสุด (Left Column)
+    // คอลัมน์ซ้าย
     // =====================================================================
 
-    /** สร้างคอลัมน์ซ้าย: ถ้วยรางวัล ป้ายจบเกม คำแสดงความยินดี และคะแนนสูงสุด */
+    /** คอลัมน์ซ้าย: ถ้วยรางวัลและผู้ชนะ */
     private JPanel buildLeftColumn() {
         JPanel left = AppDialog.panel(new BorderLayout());
         left.setBorder(new EmptyBorder(40, 0, 0, 0));
@@ -122,7 +113,7 @@ public class ScoreboardScreen_UI extends JPanel {
         return left;
     }
 
-    /** กล่องสีทองแสดงรูปถ้วยรางวัล (Trophy) */
+    /** กล่องถ้วยรางวัล */
     private JPanel buildTrophyPanel() {
         JPanel trophy = new JPanel(new BorderLayout());
         trophy.setBackground(AppDialog.GOLD_BG);
@@ -132,7 +123,7 @@ public class ScoreboardScreen_UI extends JPanel {
         return trophy;
     }
 
-    /** การ์ดสีฟ้าแสดงคะแนนรวมของผู้ชนะ */
+    /** การ์ดคะแนนผู้ชนะ */
     private JPanel buildScoreCard() {
         JPanel card = new JPanel(new GridLayout(3, 1, 0, 0));
         card.setBackground(AppDialog.PRIMARY_BLUE);
@@ -148,10 +139,10 @@ public class ScoreboardScreen_UI extends JPanel {
     }
 
     // =====================================================================
-    //  คอลัมน์ขวา: ตารางอันดับและสถิติ (Right Column)
+    // คอลัมน์ขวา
     // =====================================================================
 
-    /** สร้างคอลัมน์ขวา: การ์ดตารางอันดับ สรุปสถิติ และปุ่มดำเนินการ */
+    /** คอลัมน์ขวา: ตารางอันดับและสถิติ */
     private JPanel buildRightColumn() {
         JPanel card = AppDialog.card(new BorderLayout(0, 16), 24, 28);
 
@@ -169,13 +160,13 @@ public class ScoreboardScreen_UI extends JPanel {
         card.add(stackItems(new JPanel[] {buildTableHeader(), buildRowsPanel(), buildDivider(), buildStatsRow()}, 12),
                 BorderLayout.CENTER);
 
-        // ปุ่ม NEW GAME สำหรับเริ่มทัวร์นาเมนต์ใหม่
+        // ปุ่ม NEW GAME
         nextBtn = AppDialog.button("NEW GAME", AppDialog.PRIMARY_BLUE, AppDialog.PRIMARY_HOVER, AppDialog.PRIMARY_PRESS,
                 Color.WHITE, AppDialog.PRIMARY_BLUE, 10, 18);
         nextBtn.setPreferredSize(new Dimension(160, 44));
         nextBtn.addActionListener(event -> onNewGameClicked(event));
 
-        // ปุ่ม QUIT สำหรับออกจากห้องกลับไปหน้าแรก
+        // ปุ่ม QUIT
         JButton quitBtn = AppDialog.button("QUIT", Color.WHITE, AppDialog.BG_LIGHT, AppDialog.CARD_BORDER,
                 AppDialog.TEXT_DARK, AppDialog.CARD_BORDER, 10, 18);
         quitBtn.setPreferredSize(new Dimension(160, 44));
@@ -188,7 +179,7 @@ public class ScoreboardScreen_UI extends JPanel {
         return card;
     }
 
-    /** ส่วนหัวตาราง: RANK, PLAYER, SCORE */
+    /** หัวตาราง: RANK, PLAYER, SCORE */
     private JPanel buildTableHeader() {
         JPanel header = AppDialog.panel(new BorderLayout(10, 0));
         header.setBorder(new EmptyBorder(0, 13, 0, 13));
@@ -199,15 +190,13 @@ public class ScoreboardScreen_UI extends JPanel {
         return header;
     }
 
-    /** สร้างพาเนลสำหรับใส่แถวอันดับ และเก็บอ้างอิงไว้สำหรับอัปเดตภายหลัง */
+    /** พาเนลแถวอันดับ */
     private JPanel buildRowsPanel() {
         rowsPanel = AppDialog.panel();
         return rowsPanel;
     }
 
-    /**
-     * สร้างแถวอันดับแต่ละแถว: อันดับ, Avatar, ชื่อผู้เล่น (มีป้าย WINNER หากเป็นอันดับ 1) และคะแนนรวม
-     */
+    /** แถวอันดับหนึ่งแถว */
     private JPanel buildLeaderboardRow(int rank, String name, int score) {
         boolean winner = rank == 1;
         Color rowBg;
@@ -249,7 +238,7 @@ public class ScoreboardScreen_UI extends JPanel {
         return row;
     }
 
-    /** กำหนดสีของอวาตาร์ตามลำดับอันดับ (1: ทอง, 2: ฟ้า, 3: ม่วง) */
+    /** สี Avatar ตามอันดับ */
     private static Color rankColor(int rank) {
         if (rank == 1) {
             return new Color(234, 179, 8);
@@ -263,7 +252,7 @@ public class ScoreboardScreen_UI extends JPanel {
         return DANGER_AVATAR;
     }
 
-    /** สร้างแถวแสดงสถิติสรุป: จำนวนรอบที่เล่น, จำนวนผู้เล่น */
+    /** แถวสถิติสรุป */
     private JPanel buildStatsRow() {
         roundsValue = AppDialog.label("", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
         playersValue = AppDialog.label("", AppDialog.BODY_BOLD, AppDialog.TEXT_DARK);
@@ -274,7 +263,7 @@ public class ScoreboardScreen_UI extends JPanel {
         return stats;
     }
 
-    /** สร้างช่องสถิติสองบรรทัด (หัวข้อและค่า) */
+    /** ช่องสถิติหนึ่งช่อง */
     private static JPanel statItem(String title, JLabel value) {
         JPanel item = AppDialog.panel(new GridLayout(2, 1, 0, 2));
         item.add(AppDialog.label(title, AppDialog.SMALL, AppDialog.TEXT_LIGHT));
@@ -282,7 +271,7 @@ public class ScoreboardScreen_UI extends JPanel {
         return item;
     }
 
-    /** เส้นคั่นแนวนอน 1px */
+    /** เส้นคั่นแนวนอน */
     private static JPanel buildDivider() {
         JPanel line = new JPanel();
         line.setBackground(AppDialog.CARD_BORDER);
@@ -290,7 +279,7 @@ public class ScoreboardScreen_UI extends JPanel {
         return line;
     }
 
-    /** ซ้อนคอมโพเนนต์เรียงจากบนลงล่างตามระยะห่างที่กำหนด */
+    /** ซ้อนคอมโพเนนต์แนวตั้ง */
     private static JPanel stackItems(JPanel[] items, int gap) {
         JPanel root = AppDialog.panel(new BorderLayout(0, gap));
         JPanel current = root;

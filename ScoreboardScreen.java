@@ -1,10 +1,6 @@
 import java.awt.event.*;
 
-/**
- * ScoreboardScreen: หน้าจอตารางคะแนนรวมสุดท้าย (หน้าจอที่ 5)
- * แสดงอันดับและผลคะแนนรวมทั้งหมดเมื่อจบทัวร์นาเมนต์
- * MainApp จะส่งข้อมูลคะแนนเข้ามาผ่านเมธอด setResults()
- */
+/** หน้าจอตารางคะแนนรวมสุดท้าย */
 public class ScoreboardScreen extends ScoreboardScreen_UI {
 
     private final ActionListener onNewGameAction; // ตัวจัดการเมื่อกดปุ่มเริ่มเกมใหม่
@@ -16,9 +12,7 @@ public class ScoreboardScreen extends ScoreboardScreen_UI {
     private int roundsPlayed;            // จำนวนรอบที่เล่นไปแล้ว
     private int totalRounds;             // จำนวนรอบทั้งหมด (จำนวนผู้เล่น x 2)
 
-    /**
-     * คอนสตรักเตอร์สร้างหน้าจอสกอร์บอร์ด จัดวางแบบ 2 คอลัมน์ (ซ้าย: ถ้วยรางวัลและผู้ชนะ, ขวา: ตารางอันดับ)
-     */
+    /** สร้างหน้าจอสกอร์บอร์ด */
     public ScoreboardScreen(ActionListener onNewGameAction, ActionListener onQuitAction) {
         super();
         this.onNewGameAction = onNewGameAction;
@@ -27,17 +21,12 @@ public class ScoreboardScreen extends ScoreboardScreen_UI {
     }
 
     // =====================================================================
-    //  การรับข้อมูลผลการแข่งขันจากเซิร์ฟเวอร์ (Results from Server)
+    // ข้อมูลผลการแข่งขัน
     // =====================================================================
 
-    /**
-     * รับข้อมูลคะแนนล่าสุดจากเซิร์ฟเวอร์ จัดเรียงคะแนนจากมากไปน้อย (Insertion Sort) แล้วรีเฟรชหน้าจอ
-     */
+    /** รับผลคะแนนและเรียงอันดับ */
     public void setResults(String[] names, int[] scores, int rounds, int totalRounds) {
-        // MainApp สร้าง names และ scores พร้อมกันจาก playerCount เดียวกัน
-        // และผู้ที่ได้รับ ROUND_RESULT ต้องเป็นผู้เล่นในห้องอย่างน้อย 1 คน
-        // จึงไม่ต้องเช็ก null, อาเรย์ว่าง, หรือความยาวของ scores อีก
-        // ใช้ Insertion Sort เพื่อให้ผู้เล่นที่คะแนนเท่ากันคงลำดับเดิมตามที่เซิร์ฟเวอร์ส่งมา
+        // names/scores สร้างคู่กันและไม่เป็น null; เรียงแบบคงลำดับเมื่อคะแนนเท่ากัน
         String[] sortedNames = new String[names.length];
         int[] sortedScores = new int[names.length];
         for (int i = 0; i < names.length; i++) {
@@ -67,15 +56,15 @@ public class ScoreboardScreen extends ScoreboardScreen_UI {
     //  การเชื่อมเหตุการณ์จากปุ่ม (Button hooks)
     // =====================================================================
 
-    /** โฮสต์กดปุ่มเริ่มเกมใหม่ */
+    /** ปุ่ม NEW GAME */
     @Override
-    protected void onNewGameClicked(ActionEvent event) {
+    public void onNewGameClicked(ActionEvent event) {
         onNewGameAction.actionPerformed(event);
     }
 
-    /** ผู้เล่นกดปุ่มออกจากห้อง */
+    /** ปุ่ม QUIT */
     @Override
-    protected void onQuitClicked(ActionEvent event) {
+    public void onQuitClicked(ActionEvent event) {
         onQuitAction.actionPerformed(event);
     }
 

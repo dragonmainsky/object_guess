@@ -3,11 +3,7 @@ import java.net.*;
 import java.util.*;
 import java.util.concurrent.*;
 
-/**
- * MainApp: หน้าต่างหลักของแอปพลิเคชัน (Master window)
- * ทำหน้าที่เป็นศูนย์กลางถือครองหน้าจอทั้ง 6 หน้าจอ (screens), วัตถุด้านเครือข่าย (GameClient, GameServer)
- * และเป็นจุดเดียวที่จัดการแปลงข้อความที่ได้รับจากเซิร์ฟเวอร์เพื่อสลับหรืออัปเดตหน้าจอ UI
- */
+/** หน้าต่างหลักของแอปพลิเคชัน */
 public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
 
     // วัตถุหน้าจอทั้ง 6 หน้าจอ
@@ -18,9 +14,9 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
     private final ScoreboardScreen scoreboardScreen;
     private final RoundResultScreen roundResultScreen;
 
-    /** เธรดพูลสำหรับจัดการงานด้านเครือข่าย เพื่อไม่ให้บล็อกการทำงานของ UI Thread */
+    /** เธรดสำหรับงานเครือข่าย */
     private final ExecutorService netExecutor = Executors.newSingleThreadExecutor(new ThreadFactory() {
-        /** สร้างเธรด daemon สำหรับงานเครือข่าย */
+        /** สร้างเธรด daemon */
         @Override
         public Thread newThread(Runnable task) {
             Thread thread = new Thread(task, "MainApp-Net");
@@ -36,7 +32,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
     private String connectAddress = ""; // ที่อยู่ IP:Port ที่ใช้เชื่อมต่อ
     private boolean intentionalLeave;   // สถานะว่าเป็นการกดออกจากห้องเองโดยเจตนาหรือไม่
 
-    /** ระยะเวลาที่รอการตอบรับ JOIN_SUCCESS / JOIN_FAILED จากโฮสต์ ก่อนจะหมดเวลา (8 วินาที) */
+    /** เวลารอผล JOIN (8 วินาที) */
     private static final int JOIN_REPLY_TIMEOUT_MS = 8000;
     private Thread joinTimeout;
 
@@ -49,9 +45,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
     private int knownTotalRounds;      // จำนวนรอบทั้งหมดตามที่เซิร์ฟเวอร์แจ้ง
     private boolean roundInProgress;   // มีรอบที่กำลังเล่นอยู่หรือไม่
 
-    /**
-     * คอนสตรักเตอร์เริ่มต้น MainApp: กำหนดขนาดหน้าต่าง สร้างหน้าจอทั้ง 6 และแสดงหน้าจอแรก (JoinScreen)
-     */
+    /** สร้างหน้าต่างหลักและหน้าจอทั้งหมด */
     public MainApp() {
         super();
 
@@ -71,9 +65,9 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         questionerScreen = new QuestionerScreen(event -> submitSecret());
         // หน้าจอที่ 4: หน้าจอผู้ทาย (Guesser)
         guesserScreen = new GuesserScreen(event -> submitGuess());
-        // หน้าจอที่ 5: หน้าจอตารางคะแนนรวมสุดท้าย (Scoreboard)
+        // หน้าจอที่ 5: Scoreboard
         scoreboardScreen = new ScoreboardScreen(event -> requestNewGame(), event -> leaveRoom());
-        // หน้าจอที่ 6: หน้าจอสรุปผลของแต่ละรอบ (Round Result)
+        // หน้าจอที่ 6: Round Result
         roundResultScreen = new RoundResultScreen();
 
         // บันทึกหน้าจอทั้งหมดลงใน Map
@@ -88,18 +82,16 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         setVisible(true);
     }
 
-    /** ตรวจสอบว่าหน้าจอปัจจุบันคือหน้าจอ JoinScreen แล้วหรือไม่ */
+    /** หน้าจอปัจจุบันเป็น JoinScreen */
     private boolean alreadyAtJoinScreen() {
         return SCREEN_JOIN.equals(getCurrentScreen());
     }
 
     // =====================================================================
-    //  อินเตอร์เฟส JoinScreen.JoinListener (ทำงานบน UI Thread)
+    // JoinScreen.JoinListener
     // =====================================================================
 
-    /**
-     * ดำเนินการเมื่อผู้เล่นกดสร้างห้อง (Host) จากหน้า JoinScreen
-     */
+    /** จัดการการสร้างห้อง */
     @Override
     public void onCreateGame(String playerName, int port) {
         if (server != null && server.isRunning()) {
@@ -111,7 +103,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         joinScreen.setHostInfo(port);
         joinScreen.showStatus("Starting the room on port " + port + "...");
         netExecutor.submit(new Runnable() {
-            /** เริ่มเซิร์ฟเวอร์ในเธรดเครือข่าย เพื่อไม่ให้ UI ค้าง */
+            /** เริ่มเซิร์ฟเวอร์บนเธรดเครือข่าย */
             @Override
             public void run() {
                 startHost(playerName, port);
@@ -119,9 +111,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         });
     }
 
-    /**
-     * ดำเนินการเมื่อผู้เล่นกดเข้าร่วมห้อง (Join) จากหน้า JoinScreen
-     */
+    /** จัดการการเข้าร่วมห้อง */
     @Override
     public void onJoinGame(String playerName, String serverIp, int port) {
         if (client != null && client.isConnected()) {
@@ -132,7 +122,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         joinScreen.setBusy(true);
         joinScreen.showStatus("Connecting to " + serverIp + ":" + port + "...");
         netExecutor.submit(new Runnable() {
-            /** เชื่อมต่อและส่งคำขอ JOIN ในเธรดเครือข่าย */
+            /** เชื่อมต่อและส่งคำขอ JOIN */
             @Override
             public void run() {
                 connectAndJoin(playerName, serverIp, port, false);
@@ -141,12 +131,10 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
     }
 
     // =====================================================================
-    //  การจัดการวงจรชีวิตระบบเครือข่าย (ทำงานบน Network Thread)
+    // วงจรชีวิตระบบเครือข่าย
     // =====================================================================
 
-    /**
-     * เริ่มการทำงานของ GameServer บนเครื่องนี้ จากนั้นเชื่อมต่อ GameClient ในฐานะโฮสต์ผ่าน 127.0.0.1
-     */
+    /** เริ่ม GameServer และเชื่อมต่อในฐานะโฮสต์ */
     private void startHost(String playerName, int port) {
         GameServer newServer = new GameServer(port);
         if (!newServer.start()) {
@@ -161,13 +149,11 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         server = newServer;
         joinScreen.showStatus("Room is up on port " + port + ". Joining as host...");
 
-        // โฮสต์จะเชื่อมต่อไปยังเซิร์ฟเวอร์ผ่าน Loopback (127.0.0.1) เหมือนกับผู้เล่นคนอื่นๆ
+        // โฮสต์เชื่อมต่อผ่าน 127.0.0.1
         connectAndJoin(playerName, "127.0.0.1", port, true);
     }
 
-    /**
-     * เริ่มการเชื่อมต่อ GameClient ไปยังเซิร์ฟเวอร์ปลายทาง
-     */
+    /** เชื่อมต่อ GameClient ไปยังเซิร์ฟเวอร์ */
     private void connectAndJoin(String playerName, String ip, int port, boolean host) {
         GameClient newClient = new GameClient(ip, port, new NetworkListener());
         try {
@@ -203,13 +189,11 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         startJoinTimeout();
     }
 
-    /**
-     * เริ่มเวลานับถอยหลังรอการตอบรับการเข้าห้อง หากโฮสต์ไม่ตอบรับภายใน 8 วินาทีจะยกเลิก
-     */
+    /** เริ่มเวลารอผล JOIN */
     private void startJoinTimeout() {
         cancelJoinTimeout();
         joinTimeout = new Thread(new Runnable() {
-            /** รอตามเวลาที่กำหนด แล้วแจ้งเตือนหากยังไม่ได้รับคำตอบจากโฮสต์ */
+            /** เธรดรอผล JOIN */
             @Override
             public void run() {
                 try {
@@ -236,7 +220,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         joinTimeout.start();
     }
 
-    /** ยกเลิกการรอคำตอบ JOIN ที่ค้างอยู่ (ถ้ามี) */
+    /** ยกเลิกการรอผล JOIN */
     private void cancelJoinTimeout() {
         if (joinTimeout != null) {
             joinTimeout.interrupt();
@@ -244,9 +228,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         }
     }
 
-    /**
-     * แปลง Exception ของการเชื่อมต่อเป็นข้อความภาษาที่เข้าใจง่าย
-     */
+    /** แปลง Exception เป็นข้อความ */
     private String describeConnectionFailure(IOException e, String ip, int port) {
         if (e instanceof UnknownHostException) {
             return "Server address not found: \"" + ip + "\". Check the IP the host showed you.";
@@ -262,9 +244,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         return "Could not connect to " + ip + ":" + port + ": " + e.getMessage();
     }
 
-    /**
-     * ออกจากห้อง: ปิดการเชื่อมต่อไคลเอนต์และเซิร์ฟเวอร์ แล้วกลับไปยังหน้า JoinScreen
-     */
+    /** ออกจากห้องและกลับไปหน้า JoinScreen */
     private void leaveRoom() {
         intentionalLeave = true;
         if (client != null) {
@@ -332,7 +312,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         guesserScreen.markSubmitted();
     }
 
-    // ขอเริ่มทัวร์นาเมนต์ใหม่ไปยังเซิร์ฟเวอร์ (สำหรับโฮสต์)
+    // ขอเริ่มทัวร์นาเมนต์ใหม่
     private void requestNewGame() {
         if (client == null) {
             return;
@@ -345,12 +325,10 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
     }
 
     // =====================================================================
-    //  การประมวลผลข้อความจากเซิร์ฟเวอร์ (Server message handling)
+    // การประมวลผลข้อความจากเซิร์ฟเวอร์
     // =====================================================================
 
-    /**
-     * แยกแยะและจัดการข้อความตามประเภทที่ได้รับจากเซิร์ฟเวอร์
-     */
+    /** แยกข้อความตามประเภท */
     private void handleMessage(String type, String[] args) {
         if (GameServer.JOIN_SUCCESS.equals(type)) {
             handleJoinSuccess(args);
@@ -393,7 +371,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         }
     }
 
-    /** จัดการเมื่อเข้าห้องสำเร็จ (JOIN_SUCCESS) สลับไปหน้าจอ Lobby */
+    /** จัดการ JOIN_SUCCESS */
     private void handleJoinSuccess(String[] args) {
         cancelJoinTimeout();
         myName = arg(args, 0);
@@ -422,7 +400,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         showScreen(SCREEN_LOBBY);
     }
 
-    /** จัดการเมื่อเข้าห้องไม่สำเร็จ (JOIN_FAILED) */
+    /** จัดการ JOIN_FAILED */
     private void handleJoinFailed(String[] args) {
         String rawReason = arg(args, 0);
         String reason;
@@ -438,7 +416,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         showScreen(SCREEN_JOIN);
     }
 
-    /** จัดการข้อมูลรายชื่อและสถานะความพร้อมของผู้เล่น (PLAYER_LIST) */
+    /** จัดการ PLAYER_LIST */
     private void handlePlayerList(String[] args) {
         int count = parseInt(arg(args, 0), 0);
         playerNames.clear();
@@ -463,9 +441,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         pushScoreboards();
     }
 
-    /**
-     * จัดการข้อมูลรอบใหม่ (ROUND_INFO) สลับไปยังหน้า Questioner หรือ Guesser ตามบทบาท
-     */
+    /** จัดการ ROUND_INFO */
     private void handleRoundInfo(String[] args) {
         int round = parseInt(arg(args, 0), 1);
         int total = parseInt(arg(args, 1), 0);
@@ -487,7 +463,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         }
     }
 
-    /** จัดการเมื่อ Questioner ล็อกรูปทรงเรียบร้อยแล้ว (SECRET_LOCKED) */
+    /** จัดการ SECRET_LOCKED */
     private void handleSecretLocked(String[] args) {
         String questioner = arg(args, 0);
         int count = parseInt(arg(args, 1), 1);
@@ -498,7 +474,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         }
     }
 
-    /** จัดการเวลานับถอยหลัง (TICK) จากเซิร์ฟเวอร์ */
+    /** จัดการ TICK */
     private void handleTick(String[] args) {
         int tickRound = parseInt(arg(args, 0), -1);
         int remaining = parseInt(arg(args, 1), -1);
@@ -509,7 +485,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         guesserScreen.setTimeLeft(remaining);
     }
 
-    /** จัดการเมื่อมีผู้เล่นส่งคำตอบทาย (GUESS_SUBMITTED) */
+    /** จัดการ GUESS_SUBMITTED */
     private void handleGuessSubmitted(String[] args) {
         String who = arg(args, 0);
         String submitted = arg(args, 1);
@@ -526,9 +502,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         }
     }
 
-    /**
-     * จัดการผลสรุปของรอบ (ROUND_RESULT) และสลับไปยังหน้าจอ RoundResultScreen
-     */
+    /** จัดการ ROUND_RESULT */
     private void handleRoundResult(String[] args) {
         int round = parseInt(arg(args, 0), 1);
         int total = parseInt(arg(args, 1), knownTotalRounds);
@@ -564,7 +538,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
 
         pushScoreboards();
 
-        // อัปเดตข้อมูลตารางคะแนนสุดท้ายเตรียมไว้
+        // ข้อมูลสกอร์บอร์ดสุดท้าย
         scoreboardScreen.setResults(names, totals, round, total);
         scoreboardScreen.setNextEnabled(isHost);
 
@@ -574,26 +548,23 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         showScreen(SCREEN_ROUND_RESULT);
     }
 
-    /** แยกชุดชื่อรูปทรงที่คั่นด้วยจุลภาค */
+    /** แยก CSV เป็นอาเรย์ */
     private static String[] splitCsv(String csv) {
-        // ผู้เรียกทุกจุดส่งค่าจาก arg() ซึ่งคืนสตริงว่างแทน null
-        // จึงเหลือเพียงการตรวจว่าข้อความว่างหรือไม่
+        // arg() คืนสตริงว่างแทน null
         if (csv.isEmpty()) {
             return new String[0];
         }
         return csv.split(",");
     }
 
-    /** กลับไปยังหน้าห้องพักคอย (TO_LOBBY) */
+    /** จัดการ TO_LOBBY */
     private void handleToLobby() {
         roundInProgress = false;
         pushScoreboards();
         showScreen(SCREEN_LOBBY);
     }
 
-    /**
-     * เซิร์ฟเวอร์แจ้งว่าจบทัวร์นาเมนต์แล้ว ให้เปิดหน้าตารางคะแนนรวมสุดท้าย (SHOW_SCOREBOARD)
-     */
+    /** จัดการ SHOW_SCOREBOARD */
     private void handleShowScoreboard() {
         roundResultScreen.stopCountdown();
         roundInProgress = false;
@@ -601,19 +572,17 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         showScreen(SCREEN_SCOREBOARD);
     }
 
-    /** เรียกเมื่อเซิร์ฟเวอร์แจ้งว่าห้องถูกปิด */
+    /** จัดการเมื่อห้องถูกปิด */
     private void handleServerClosed() {
         endSession("Room closed", "The host closed the room. You have been returned to the join screen.");
     }
 
-    /** เรียกเมื่อการเชื่อมต่อกับโฮสต์หลุด */
+    /** จัดการเมื่อการเชื่อมต่อหลุด */
     private void handleDisconnected(String reason) {
         endSession("Disconnected", reason);
     }
 
-    /**
-     * ปิดเซสชันเมื่อการเชื่อมต่อสิ้นสุดลง แล้วกลับไปหน้า JoinScreen
-     */
+    /** จบเซสชันและกลับไปหน้า JoinScreen */
     private void endSession(String title, String message) {
         if (intentionalLeave || alreadyAtJoinScreen()) {
             return;
@@ -624,7 +593,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         showError(title, message);
     }
 
-    /** ปิดไคลเอนต์และเซิร์ฟเวอร์ พร้อมล้างสถานะห้อง */
+    /** ปิดไคลเอนต์และเซิร์ฟเวอร์ */
     private void teardownSession() {
         cancelJoinTimeout();
         if (client != null) {
@@ -638,7 +607,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         resetRoomState();
     }
 
-    /** ซิงค์คะแนนและรายชื่อผู้เล่นไปยังหน้าจอในเกมทั้งสองหน้า (Questioner และ Guesser) */
+    /** ซิงค์คะแนนและรายชื่อ */
     private void pushScoreboards() {
         String[] names = playerNames.toArray(new String[0]);
         int[] scores = new int[names.length];
@@ -655,10 +624,10 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
     }
 
     // =====================================================================
-    //  ฟังก์ชันช่วยและการแสดงผลกล่องข้อความ (Small Helpers)
+    // ฟังก์ชันช่วย
     // =====================================================================
 
-    /** ดึงค่าอาร์กิวเมนต์ตามตำแหน่ง หากไม่มีให้คืนสตริงว่าง */
+    /** อาร์กิวเมนต์ตามตำแหน่ง (ค่าว่างถ้าไม่มี) */
     private static String arg(String[] args, int index) {
         if (index < 0 || index >= args.length) {
             return "";
@@ -666,7 +635,7 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         return args[index];
     }
 
-    /** แปลงข้อความเป็นตัวเลข หากผิดรูปแบบให้คืนค่า fallback */
+    /** แปลงข้อความเป็นตัวเลข (fallback ถ้าผิดรูปแบบ) */
     private static int parseInt(String value, int fallback) {
         try {
             return Integer.parseInt(value);
@@ -675,25 +644,25 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         }
     }
 
-    /** แสดงกล่องข้อความแจ้งข้อผิดพลาด */
+    /** แสดงข้อผิดพลาด */
     private void showError(String title, String message) {
         AppDialog.showError(this, title, message);
     }
 
-    /** แสดงกล่องข้อความข้อมูล */
+    /** แสดงข้อมูล */
     private void showInfo(String message, String title) {
         AppDialog.showInfo(this, title, message);
     }
 
-    /** คลาสรับคอลแบ็กข้อความจาก GameClient */
+    /** Listener ของ GameClient */
     private class NetworkListener implements GameClient.Listener {
-        /** ส่งข้อความที่ได้รับต่อไปยังตัวจัดการหน้าจอ */
+        /** ส่งข้อความไปยังตัวจัดการหน้าจอ */
         @Override
         public void onMessage(String type, String[] args) {
             handleMessage(type, args);
         }
 
-        /** แจ้ง MainApp เมื่อการเชื่อมต่อหลุด */
+        /** แจ้งเมื่อการเชื่อมต่อหลุด */
         @Override
         public void onDisconnected(String reason) {
             handleDisconnected(reason);

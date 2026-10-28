@@ -4,13 +4,10 @@ import java.util.List;
 import javax.swing.*;
 import javax.swing.border.*;
 
-/**
- * JoinScreen_UI: ส่วนหน้าตาของหน้าจอสร้าง/เข้าร่วมห้อง
- * เก็บคอมโพเนนต์และเมธอดสร้าง UI ทั้งหมด โดยไม่ถือสถานะของเกม
- */
+/** ส่วนหน้าตาของหน้าจอสร้าง/เข้าร่วมห้อง */
 public class JoinScreen_UI extends JPanel {
 
-    // สีและค่าคงที่เฉพาะของหน้าจอนี้ (ส่วนอื่นดึงมาจาก AppDialog)
+    // สีและค่าคงที่ของหน้าจอ
     private static final Color BG_LIGHT = new Color(244, 246, 250), TEXT_DARK = new Color(17, 24, 39);
     private static final Color TEXT_MUTED = new Color(107, 114, 128), DANGER_HOVER = new Color(220, 38, 38);
     private static final Color WARNING_BG = new Color(255, 247, 230), WARNING_TEXT = new Color(146, 84, 0);
@@ -30,23 +27,19 @@ public class JoinScreen_UI extends JPanel {
     protected JLabel statusTagLabel;        // ป้ายกำกับคำว่า "STATUS"
     protected JPanel statusBanner;          // แถบกล่องแสดงสถานะ
 
-    /**
-     * คอนสตรักเตอร์สำหรับสร้างหน้าจอ JoinScreen แบ่งการจัดวางออกเป็น 2 ฝั่ง (ซ้าย-ขวา)
-     */
+    /** สร้างหน้าจอ JoinScreen */
     public JoinScreen_UI() {
         setLayout(new BorderLayout());
         setBackground(BG_LIGHT);
 
-        // แบ่งครึ่งหน้าจอ: ฝั่งซ้ายคือข้อมูลแบรนด์/โลโก้ ฝั่งขวาคือแบบฟอร์มการเชื่อมต่อ
+        // แบ่งหน้าจอเป็นสองฝั่ง
         JPanel split = new JPanel(new GridLayout(1, 2));
         split.add(buildLeftPanel());
         split.add(buildRightPanel());
         add(split, BorderLayout.CENTER);
     }
 
-    /**
-     * สร้างส่วนแสดงผลฝั่งซ้าย: IP แนะนำของเครื่องนี้, โลโก้เกม และชื่อเกม
-     */
+    /** ส่วนซ้าย: ข้อมูลแบรนด์ */
     private JPanel buildLeftPanel() {
         JPanel brand = new JPanel(new BorderLayout());
         brand.setBackground(BG_LIGHT);
@@ -56,7 +49,7 @@ public class JoinScreen_UI extends JPanel {
         JPanel header = AppDialog.group(FlowLayout.LEFT, 0, 0, hostInfoLabel);
         brand.add(header, BorderLayout.NORTH);
 
-        // จัดกลุ่มโลโก้และชื่อเกมให้อยู่ตรงกลางตามแนวตั้ง
+        // จัดกลุ่มโลโก้และชื่อเกม
         JPanel center = AppDialog.panel(new GridLayout(4, 1, 0, 8));
         JLabel title = AppDialog.label("<html>Guess What<br>It Looks Like?</html>", AppDialog.f(Font.BOLD, 36), TEXT_DARK);
         center.add(AppDialog.panel());
@@ -68,9 +61,7 @@ public class JoinScreen_UI extends JPanel {
         return brand;
     }
 
-    /**
-     * สร้างส่วนแสดงผลฝั่งขวา: แบบฟอร์มกรอกชื่อผู้เล่น, IP เซิร์ฟเวอร์, พอร์ต และปุ่มกด
-     */
+    /** ส่วนขวา: ฟอร์มเชื่อมต่อ */
     private JPanel buildRightPanel() {
         JPanel wrapper = new JPanel(new GridLayout(1, 1));
         wrapper.setBackground(BG_LIGHT);
@@ -86,7 +77,7 @@ public class JoinScreen_UI extends JPanel {
         header.setBorder(new EmptyBorder(0, 0, 24, 0));
         form.add(header, BorderLayout.NORTH);
 
-        // รายการช่องกรอกข้อมูล 3 ช่อง: ชื่อ, IP เซิร์ฟเวอร์, พอร์ต
+        // ช่องกรอกข้อมูล 3 ช่อง
         String[] labels = {"Name", "Server IP (host)", "Port"};
         String[] defaults = {"", "", String.valueOf(DEFAULT_PORT)};
         JPanel inputs = AppDialog.panel(new GridLayout(labels.length, 1, 0, 16));
@@ -157,7 +148,7 @@ public class JoinScreen_UI extends JPanel {
     }
 
     // =====================================================================
-    //  เมธอดปรับสถานะและดึงข้อมูลที่ใช้งานโดย MainApp
+    // เมธอดปรับสถานะสำหรับ MainApp
     // =====================================================================
 
     // ดึงชื่อผู้เล่นที่กรอก
@@ -175,9 +166,7 @@ public class JoinScreen_UI extends JPanel {
         return portField.getText().trim();
     }
 
-    /**
-     * เปิด/ปิดการทำงานของปุ่มคำสั่งขณะกำลังรอเชื่อมต่อ พร้อมเปลี่ยนเคอร์เซอร์เมาส์เป็นรูปนาฬิกาทราย
-     */
+    /** เปิด/ปิดปุ่มขณะรอเชื่อมต่อ */
     public void setBusy(boolean busy) {
         createBtn.setEnabled(!busy);
         joinBtn.setEnabled(!busy);
@@ -191,12 +180,12 @@ public class JoinScreen_UI extends JPanel {
         setCursor(new Cursor(cursorType));
     }
 
-    /** แสดงข้อความสถานะทั่วไป (สีเหลืองอ่อน) */
+    /** แสดงสถานะทั่วไป */
     public void showStatus(String text) {
         applyStatus(text, WARNING_BG, WARNING_BORDER, WARNING_TEXT);
     }
 
-    /** แสดงข้อความสถานะข้อผิดพลาด (สีแดง) หรือสถานะทั่วไป */
+    /** แสดงสถานะผิดพลาดหรือทั่วไป */
     public void showStatus(String text, boolean error) {
         if (error) {
             applyStatus(text, AppDialog.DANGER_BG, AppDialog.DANGER_BORDER, AppDialog.DANGER_TEXT);
@@ -205,7 +194,7 @@ public class JoinScreen_UI extends JPanel {
         }
     }
 
-    /** แสดงข้อความสถานะสำเร็จ (สีเขียว) */
+    /** แสดงสถานะสำเร็จ */
     public void showSuccess(String text) {
         applyStatus(text, AppDialog.SUCCESS_BG, AppDialog.SUCCESS_BORDER, AppDialog.SUCCESS_TEXT);
     }
@@ -221,23 +210,19 @@ public class JoinScreen_UI extends JPanel {
         statusBanner.repaint();
     }
 
-    /**
-     * รีเซ็ตหน้าจอฟอร์มให้กลับสู่สถานะพร้อมใช้งานหลังจากออกจากห้อง
-     */
+    /** รีเซ็ตฟอร์มหลังออกจากห้อง */
     public void reset() {
         setBusy(false);
         showStatus("Ready. Host a game or enter a host address.");
     }
 
-    /**
-     * กำหนดพอร์ตและรีเฟรชข้อมูล IP ฝั่งซ้ายสำหรับบอกเพื่อนร่วมห้อง
-     */
+    /** กำหนดพอร์ตและรีเฟรช IP */
     public void setHostInfo(int port) {
         portField.setText(String.valueOf(port));
         refreshHostInfo(port);
     }
 
-    // ค้นหาและแสดงรายการ IP ในเครือข่าย LAN สำหรับให้ผู้เล่นคนอื่นพิมพ์เข้าร่วม
+    // แสดงรายการ IP ใน LAN
     private void refreshHostInfo(int port) {
         List<String> addresses = LanAddresses.getLanAddresses();
         if (addresses.isEmpty()) {
@@ -258,10 +243,10 @@ public class JoinScreen_UI extends JPanel {
     }
 
     // =====================================================================
-    //  คอมโพเนนต์สำเร็จรูปสำหรับหน้าจอนี้ (Small factories)
+    // คอมโพเนนต์สำเร็จรูป
     // =====================================================================
 
-    /** สร้างกรอบสี่เหลี่ยมมีเส้นขอบและระยะเว้นด้านใน (Padding) */
+    /** กรอบเส้นขอบพร้อมระยะเว้น */
     private static JPanel framed(Container content, Color fill, Color line, int top, int left, int bottom, int right) {
         JPanel inner = AppDialog.panel(new BorderLayout());
         inner.setBorder(new EmptyBorder(top, left, bottom, right));
@@ -274,7 +259,7 @@ public class JoinScreen_UI extends JPanel {
         return outer;
     }
 
-    /** สร้างช่องกรอกข้อความ (JTextField) แบบไม่มีขอบในตัว */
+    /** ช่องกรอกข้อความไม่มีขอบ */
     private static JTextField makeField(String initialText) {
         JTextField field = new JTextField(initialText);
         field.setFont(AppDialog.PLAIN_14);
@@ -284,7 +269,7 @@ public class JoinScreen_UI extends JPanel {
         return field;
     }
 
-    // สร้างปุ่มกดพร้อมระบบเปลี่ยนสีเมื่อเมาส์ชี้
+    // ปุ่มพร้อมเอฟเฟกต์ hover
     private static JButton makeButton(String text, Color normal, Color fg, Color hover, boolean outlined) {
         JButton button = new JButton(text);
         button.setFont(AppDialog.SUBTITLE);
@@ -300,7 +285,7 @@ public class JoinScreen_UI extends JPanel {
             button.setBorder(new EmptyBorder(0, 0, 0, 0));
         }
         button.addMouseListener(new MouseAdapter() {
-            // เมื่อเมาส์เข้าปุ่ม ให้เปลี่ยนเป็นสี hover
+            // เมาส์เข้าปุ่ม
             @Override
             public void mouseEntered(MouseEvent event) {
                 if (button.isEnabled()) {
@@ -308,7 +293,7 @@ public class JoinScreen_UI extends JPanel {
                 }
             }
 
-            // เมื่อเมาส์ออกจากปุ่ม ให้กลับไปใช้สีปกติ
+            // เมาส์ออกจากปุ่ม
             @Override
             public void mouseExited(MouseEvent event) {
                 if (button.isEnabled()) {
