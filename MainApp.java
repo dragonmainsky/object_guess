@@ -188,7 +188,13 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         intentionalLeave = false;
         if (host) {
             String lan = LanAddresses.getPreferredLanAddress();
-            connectAddress = (lan.isEmpty() ? "127.0.0.1" : lan) + ":" + port;
+            String hostAddress;
+            if (lan.isEmpty()) {
+                hostAddress = "127.0.0.1";
+            } else {
+                hostAddress = lan;
+            }
+            connectAddress = hostAddress + ":" + port;
         } else {
             connectAddress = ip + ":" + port;
         }
@@ -406,13 +412,25 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         }
 
         joinScreen.setBusy(false);
-        joinScreen.showSuccess("Joined the room as " + myName + (isHost ? " (host)" : "") + ".");
+        String hostTag;
+        if (isHost) {
+            hostTag = " (host)";
+        } else {
+            hostTag = "";
+        }
+        joinScreen.showSuccess("Joined the room as " + myName + hostTag + ".");
         showScreen(SCREEN_LOBBY);
     }
 
     /** จัดการเมื่อเข้าห้องไม่สำเร็จ (JOIN_FAILED) */
     private void handleJoinFailed(String[] args) {
-        String reason = arg(args, 0).isEmpty() ? "The host refused the connection." : arg(args, 0);
+        String rawReason = arg(args, 0);
+        String reason;
+        if (rawReason.isEmpty()) {
+            reason = "The host refused the connection.";
+        } else {
+            reason = rawReason;
+        }
         teardownSession();
         joinScreen.setBusy(false);
         joinScreen.showStatus("Could not join: " + reason, true);
@@ -496,8 +514,13 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         String who = arg(args, 0);
         String submitted = arg(args, 1);
         String total = arg(args, 2);
-        questionerScreen.setStatus("Guesses in: " + submitted + " / " + total
-                + (who.isEmpty() ? "" : " (last: " + who + ")"));
+        String lastGuess;
+        if (who.isEmpty()) {
+            lastGuess = "";
+        } else {
+            lastGuess = " (last: " + who + ")";
+        }
+        questionerScreen.setStatus("Guesses in: " + submitted + " / " + total + lastGuess);
         if (!who.equals(myName)) {
             guesserScreen.setStatus("Waiting for the other players... " + submitted + " / " + total);
         }
@@ -555,7 +578,10 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
     private static String[] splitCsv(String csv) {
         // ผู้เรียกทุกจุดส่งค่าจาก arg() ซึ่งคืนสตริงว่างแทน null
         // จึงเหลือเพียงการตรวจว่าข้อความว่างหรือไม่
-        return csv.isEmpty() ? new String[0] : csv.split(",");
+        if (csv.isEmpty()) {
+            return new String[0];
+        }
+        return csv.split(",");
     }
 
     /** กลับไปยังหน้าห้องพักคอย (TO_LOBBY) */
@@ -618,7 +644,11 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
         int[] scores = new int[names.length];
         for (int i = 0; i < names.length; i++) {
             Integer value = lastScores.get(names[i]);
-            scores[i] = (value == null) ? 0 : value.intValue();
+            if (value == null) {
+                scores[i] = 0;
+            } else {
+                scores[i] = value.intValue();
+            }
         }
         questionerScreen.setScoreboard(names, scores);
         guesserScreen.setScoreboard(names, scores);
@@ -630,7 +660,10 @@ public class MainApp extends MainApp_UI implements JoinScreen.JoinListener {
 
     /** ดึงค่าอาร์กิวเมนต์ตามตำแหน่ง หากไม่มีให้คืนสตริงว่าง */
     private static String arg(String[] args, int index) {
-        return (index < 0 || index >= args.length) ? "" : args[index];
+        if (index < 0 || index >= args.length) {
+            return "";
+        }
+        return args[index];
     }
 
     /** แปลงข้อความเป็นตัวเลข หากผิดรูปแบบให้คืนค่า fallback */

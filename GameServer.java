@@ -238,7 +238,13 @@ public class GameServer {
                 out.add("0");
             }
 
-            out.add(client == clients.get(0) ? "1" : "0");
+            String hostFlag;
+            if (client == clients.get(0)) {
+                hostFlag = "1";
+            } else {
+                hostFlag = "0";
+            }
+            out.add(hostFlag);
         }
         return out.toArray(new String[0]);
     }
@@ -330,7 +336,13 @@ public class GameServer {
             isHost = clients.get(0) == handler;
         }
 
-        handler.send(JOIN_SUCCESS, name, isHost ? "1" : "0");
+        String hostFlag;
+        if (isHost) {
+            hostFlag = "1";
+        } else {
+            hostFlag = "0";
+        }
+        handler.send(JOIN_SUCCESS, name, hostFlag);
         broadcastPlayerList();
         broadcast(SYSTEM, name + " joined the room.");
     }
@@ -533,7 +545,12 @@ public class GameServer {
             bonusFlags.clear();
 
             // ตรวจสอบว่าขึ้นรอบใหญ่ (Cycle) ใหม่หรือไม่
-            int cycle = (cycleSize > 0) ? (round - 1) / cycleSize : 0;
+            int cycle;
+            if (cycleSize > 0) {
+                cycle = (round - 1) / cycleSize;
+            } else {
+                cycle = 0;
+            }
             if (cycle != cycleIndex) {
                 startNewCycleLocked(cycle);
             }
@@ -595,7 +612,10 @@ public class GameServer {
                 return candidate;
             }
         }
-        return clients.isEmpty() ? null : clients.get(0).playerName;
+        if (clients.isEmpty()) {
+            return null;
+        }
+        return clients.get(0).playerName;
     }
 
     /** เริ่มรอบใหม่เมื่อ Questioner คนเดิมออกจากห้องไป */
@@ -652,8 +672,14 @@ public class GameServer {
                     return;
                 }
                 long sleepyMillis = millisToNextWholeSecond();
+                long sleepMillis;
+                if (sleepyMillis <= 0) {
+                    sleepMillis = 50;
+                } else {
+                    sleepMillis = sleepyMillis;
+                }
                 try {
-                    Thread.sleep(sleepyMillis <= 0 ? 50 : sleepyMillis);
+                    Thread.sleep(sleepMillis);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     return;
@@ -752,8 +778,14 @@ public class GameServer {
             }
 
             if (shapes.length != expectedShapes) {
+                String shapeWord;
+                if (expectedShapes == 1) {
+                    shapeWord = "";
+                } else {
+                    shapeWord = "s";
+                }
                 sender.send(ERROR, "Pick exactly " + expectedShapes + " shape"
-                        + (expectedShapes == 1 ? "" : "s") + " for this round.");
+                        + shapeWord + " for this round.");
                 return;
             }
 
@@ -772,7 +804,13 @@ public class GameServer {
             roundStartMillis = System.currentTimeMillis();
         }
         broadcast(SECRET_LOCKED, questioner, String.valueOf(count));
-        broadcast(SYSTEM, "The questioner locked in " + count + " shape" + (count == 1 ? "" : "s")
+        String shapeWord;
+        if (count == 1) {
+            shapeWord = "";
+        } else {
+            shapeWord = "s";
+        }
+        broadcast(SYSTEM, "The questioner locked in " + count + " shape" + shapeWord
                 + ". Start guessing!");
         startRoundTimer(currentRound, ROUND_SECONDS);
     }
@@ -809,8 +847,14 @@ public class GameServer {
             }
 
             if (shapes.length != secret.length) {
+                String shapeWord;
+                if (secret.length == 1) {
+                    shapeWord = "";
+                } else {
+                    shapeWord = "s";
+                }
                 sender.send(ERROR, "Pick exactly " + secret.length + " shape"
-                        + (secret.length == 1 ? "" : "s") + " for this round.");
+                        + shapeWord + " for this round.");
                 return;
             }
 
@@ -979,7 +1023,12 @@ public class GameServer {
         correctCounts.clear();
         bonusFlags.clear();
 
-        int expected = (secret == null) ? 0 : secret.length;
+        int expected;
+        if (secret == null) {
+            expected = 0;
+        } else {
+            expected = secret.length;
+        }
 
         for (ClientHandler client : clients) {
             String name = client.playerName;
@@ -987,16 +1036,24 @@ public class GameServer {
             int delta = 0;
             boolean bonus = false;
 
-            String[] guess = (expected == 0 || name.equals(questioner)) ? null : guesses.get(name);
+            String[] guess;
+            if (expected == 0 || name.equals(questioner)) {
+                guess = null;
+            } else {
+                guess = guesses.get(name);
+            }
 
             if (guess != null) {
                 correct = countMatching(secret, guess);
                 delta = correct;
 
                 Long submittedAt = guessTimes.get(name);
-                long elapsedSeconds = (submittedAt == null)
-                        ? 0
-                        : (submittedAt.longValue() - roundStartMillis) / 1000;
+                long elapsedSeconds;
+                if (submittedAt == null) {
+                    elapsedSeconds = 0;
+                } else {
+                    elapsedSeconds = (submittedAt.longValue() - roundStartMillis) / 1000;
+                }
 
                 bonus = (correct == expected && elapsedSeconds <= BONUS_WINDOW_SECONDS);
 
@@ -1013,7 +1070,13 @@ public class GameServer {
         // รวมคะแนนรอบนี้เข้ากับคะแนนสะสม
         for (Map.Entry<String, Integer> entry : deltas.entrySet()) {
             Integer current = scores.get(entry.getKey());
-            int total = (current == null ? 0 : current.intValue()) + entry.getValue().intValue();
+            int baseTotal;
+            if (current == null) {
+                baseTotal = 0;
+            } else {
+                baseTotal = current.intValue();
+            }
+            int total = baseTotal + entry.getValue().intValue();
             scores.put(entry.getKey(), total);
         }
     }
@@ -1042,11 +1105,29 @@ public class GameServer {
         ArrayList<String> out = new ArrayList<String>();
         out.add(String.valueOf(roundNumber));
         out.add(String.valueOf(totalRounds));
-        out.add(isFinal ? "1" : "0");
-        out.add(secret == null ? "" : String.join(",", secret));
+        String finalFlag;
+        if (isFinal) {
+            finalFlag = "1";
+        } else {
+            finalFlag = "0";
+        }
+        out.add(finalFlag);
+        String secretCsv;
+        if (secret == null) {
+            secretCsv = "";
+        } else {
+            secretCsv = String.join(",", secret);
+        }
+        out.add(secretCsv);
         // reason มาจาก endRound()/finishTournament() ซึ่งส่งค่าคงที่ที่ไม่เป็น null
         out.add(reason);
-        out.add(questioner == null ? "" : questioner);
+        String questionerName;
+        if (questioner == null) {
+            questionerName = "";
+        } else {
+            questionerName = questioner;
+        }
+        out.add(questionerName);
         out.add(String.valueOf(clients.size()));
         for (ClientHandler client : clients) {
             String name = client.playerName;
@@ -1060,7 +1141,13 @@ public class GameServer {
             out.add(name);
             out.add(String.valueOf(deltaValue));
             out.add(String.valueOf(totalValue));
-            out.add(guess == null ? "" : String.join(",", guess));
+            String guessCsv;
+            if (guess == null) {
+                guessCsv = "";
+            } else {
+                guessCsv = String.join(",", guess);
+            }
+            out.add(guessCsv);
             out.add(String.valueOf(correctValue));
 
             // bonusFlags ถูกเติมครบทุกคนใน computeScoresLocked() เช่นกัน

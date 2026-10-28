@@ -182,7 +182,13 @@ public class JoinScreen_UI extends JPanel {
         createBtn.setEnabled(!busy);
         joinBtn.setEnabled(!busy);
         exitBtn.setEnabled(!busy);
-        setCursor(new Cursor(busy ? Cursor.WAIT_CURSOR : Cursor.DEFAULT_CURSOR));
+        int cursorType;
+        if (busy) {
+            cursorType = Cursor.WAIT_CURSOR;
+        } else {
+            cursorType = Cursor.DEFAULT_CURSOR;
+        }
+        setCursor(new Cursor(cursorType));
     }
 
     /** แสดงข้อความสถานะทั่วไป (สีเหลืองอ่อน) */
@@ -240,7 +246,13 @@ public class JoinScreen_UI extends JPanel {
         }
         StringBuilder text = new StringBuilder("Others join at: ");
         for (int i = 0; i < addresses.size(); i++) {
-            text.append(i > 0 ? "  or  " : "").append(addresses.get(i)).append(":").append(port);
+            String separator;
+            if (i > 0) {
+                separator = "  or  ";
+            } else {
+                separator = "";
+            }
+            text.append(separator).append(addresses.get(i)).append(":").append(port);
         }
         hostInfoLabel.setText(text.toString());
     }
@@ -282,7 +294,11 @@ public class JoinScreen_UI extends JPanel {
         button.setContentAreaFilled(true);
         button.setFocusPainted(false);
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        button.setBorder(outlined ? new LineBorder(AppDialog.CARD_BORDER, 1) : new EmptyBorder(0, 0, 0, 0));
+        if (outlined) {
+            button.setBorder(new LineBorder(AppDialog.CARD_BORDER, 1));
+        } else {
+            button.setBorder(new EmptyBorder(0, 0, 0, 0));
+        }
         button.addMouseListener(new MouseAdapter() {
             // เมื่อเมาส์เข้าปุ่ม ให้เปลี่ยนเป็นสี hover
             @Override

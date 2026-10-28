@@ -156,7 +156,13 @@ public class GameClient {
 
     /** ส่งสถานะความพร้อมของผู้เล่น (พร้อม = "1", ไม่พร้อม = "0") */
     public void setReady(boolean ready) {
-        send(GameServer.READY, ready ? "1" : "0");
+        String readyValue;
+        if (ready) {
+            readyValue = "1";
+        } else {
+            readyValue = "0";
+        }
+        send(GameServer.READY, readyValue);
     }
 
     /** ส่งคำขอเริ่มเกม (สำหรับโฮสต์) */

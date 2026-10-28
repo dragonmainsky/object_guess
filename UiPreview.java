@@ -435,16 +435,27 @@ public class UiPreview extends JFrame {
         /** เปลี่ยนสถานะปุ่มที่กำลังถูกเลือก */
         void setActive(boolean active) {
             this.active = active;
-            setForeground(active ? Color.WHITE : AppDialog.TEXT_DARK);
+            if (active) {
+                setForeground(Color.WHITE);
+            } else {
+                setForeground(AppDialog.TEXT_DARK);
+            }
             repaint();
         }
 
         /** วาดพื้นหลังปุ่มตามสถานะ active / hover / pressed */
         @Override
         protected void paintComponent(Graphics g) {
-            Color fill = active ? AppDialog.PRIMARY_BLUE
-                    : (getModel().isPressed() ? AppDialog.BLUE_LIGHT_BG
-                    : (over ? AppDialog.BG_LIGHT : AppDialog.CARD_BG));
+            Color fill;
+            if (active) {
+                fill = AppDialog.PRIMARY_BLUE;
+            } else if (getModel().isPressed()) {
+                fill = AppDialog.BLUE_LIGHT_BG;
+            } else if (over) {
+                fill = AppDialog.BG_LIGHT;
+            } else {
+                fill = AppDialog.CARD_BG;
+            }
             g.setColor(fill);
             g.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
             if (!active) {

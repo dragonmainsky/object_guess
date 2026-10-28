@@ -164,10 +164,25 @@ public class RoundResultScreen_UI extends JPanel {
      * วาดส่วนหัวของรอบ: หมายเลขรอบ, สถานะรอบสุดท้าย และชื่อ Questioner
      */
     protected void renderHeader(int round, int totalRounds, boolean isFinal, String questioner) {
-        String questionerName = (questioner == null) ? "" : questioner;
+        String questionerName;
+        if (questioner == null) {
+            questionerName = "";
+        } else {
+            questionerName = questioner;
+        }
         titleLabel.setText("Round " + round + " of " + totalRounds);
-        questionerLabel.setText("Questioner: " + (questionerName.isEmpty() ? "-" : questionerName));
-        tagLabel.setText(isFinal ? "FINAL ROUND SUMMARY" : "ROUND SUMMARY");
+        String questionerDisplay;
+        if (questionerName.isEmpty()) {
+            questionerDisplay = "-";
+        } else {
+            questionerDisplay = questionerName;
+        }
+        questionerLabel.setText("Questioner: " + questionerDisplay);
+        if (isFinal) {
+            tagLabel.setText("FINAL ROUND SUMMARY");
+        } else {
+            tagLabel.setText("ROUND SUMMARY");
+        }
     }
 
     /**
@@ -211,7 +226,13 @@ public class RoundResultScreen_UI extends JPanel {
                                  int[] correctCounts, boolean[] bonuses, String questioner, String[] secret) {
         // showResult() ส่งค่าที่ไม่เป็น null มาจาก MainApp/UiPreview แล้ว
         String questionerName = questioner;
-        resultsBadge.setText(names.length + (names.length == 1 ? " player" : " players"));
+        String playerWord;
+        if (names.length == 1) {
+            playerWord = " player";
+        } else {
+            playerWord = " players";
+        }
+        resultsBadge.setText(names.length + playerWord);
 
         // สร้างแถวแสดงผลสำหรับผู้เล่นแต่ละคน
         rowsPanel.removeAll();
@@ -238,7 +259,13 @@ public class RoundResultScreen_UI extends JPanel {
      * วาดข้อความนับถอยหลัง โดยเลือกคำนำหน้าตามว่าเป็นรอบสุดท้ายหรือไม่
      */
     protected void renderCountdown(int seconds, boolean isFinal) {
-        countdownLabel.setText((isFinal ? "Final scoreboard in " : "Next round in ") + seconds + "s...");
+        String prefix;
+        if (isFinal) {
+            prefix = "Final scoreboard in ";
+        } else {
+            prefix = "Next round in ";
+        }
+        countdownLabel.setText(prefix + seconds + "s...");
     }
 
     // =====================================================================
@@ -255,10 +282,13 @@ public class RoundResultScreen_UI extends JPanel {
         row.setBorder(new CompoundBorder(new LineBorder(AppDialog.ROW_BG, 1), new EmptyBorder(10, 14, 10, 14)));
 
         // ข้อมูลผู้เล่นฝั่งซ้าย (Avatar, ชื่อ, ป้าย Questioner)
-        JLabel questionerBadge = isQuestioner
-                ? AppDialog.badge("Questioner", AppDialog.CARD_BORDER, AppDialog.TEXT_DARK,
-                        AppDialog.CARD_BORDER, 2, 8)
-                : null;
+        JLabel questionerBadge;
+        if (isQuestioner) {
+            questionerBadge = AppDialog.badge("Questioner", AppDialog.CARD_BORDER, AppDialog.TEXT_DARK,
+                    AppDialog.CARD_BORDER, 2, 8);
+        } else {
+            questionerBadge = null;
+        }
         row.add(AppDialog.playerWho(AppDialog.initialOf(name), AppDialog.avatarColor(index), name,
                 AVATAR_SIZE, 8, questionerBadge), BorderLayout.WEST);
 
@@ -270,8 +300,13 @@ public class RoundResultScreen_UI extends JPanel {
             guessed.add(mutedLabel("did not guess"));
         } else {
             for (String shapeName : guess) {
-                guessed.add(shapeIcon(shapeName, GUESS_ICON,
-                        containsShape(secret, shapeName) ? SUCCESS_LINE : DANGER_LINE, 2));
+                Color borderColor;
+                if (containsShape(secret, shapeName)) {
+                    borderColor = SUCCESS_LINE;
+                } else {
+                    borderColor = DANGER_LINE;
+                }
+                guessed.add(shapeIcon(shapeName, GUESS_ICON, borderColor, 2));
             }
             guessed.add(mutedLabel(correct + " / " + guess.length + " correct"));
         }
@@ -288,8 +323,14 @@ public class RoundResultScreen_UI extends JPanel {
             score.add(AppDialog.badge("+0", AppDialog.BG_LIGHT, AppDialog.TEXT_MUTED, AppDialog.CARD_BORDER, 3, 10));
         }
 
-        JLabel totalLabel = AppDialog.label(String.valueOf(total), AppDialog.STRONG,
-                total > 0 ? AppDialog.PRIMARY_BLUE : AppDialog.TEXT_MUTED, JLabel.RIGHT);
+        JLabel totalLabel;
+        if (total > 0) {
+            totalLabel = AppDialog.label(String.valueOf(total), AppDialog.STRONG,
+                    AppDialog.PRIMARY_BLUE, JLabel.RIGHT);
+        } else {
+            totalLabel = AppDialog.label(String.valueOf(total), AppDialog.STRONG,
+                    AppDialog.TEXT_MUTED, JLabel.RIGHT);
+        }
         totalLabel.setPreferredSize(new Dimension(46, 24));
         score.add(totalLabel);
         row.add(score, BorderLayout.EAST);

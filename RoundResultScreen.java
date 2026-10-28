@@ -42,7 +42,12 @@ public class RoundResultScreen extends RoundResultScreen_UI {
         if ("time".equals(reason)) {
             renderReason("Time is up", true);
         } else {
-            String badgeText = "all".equals(reason) ? "All guesses in" : "Round complete";
+            String badgeText;
+            if ("all".equals(reason)) {
+                badgeText = "All guesses in";
+            } else {
+                badgeText = "Round complete";
+            }
             renderReason(badgeText, false);
         }
 

@@ -123,9 +123,13 @@ public class LobbyScreen extends LobbyScreen_UI {
         // สลับข้อความบนปุ่ม Ready
         renderReadyButton(isReady());
 
-        setStatusText(total < GameServer.MIN_PLAYERS
-                ? "Waiting for more players to join..."
-                : "Get ready while the host prepares the round.");
+        String statusText;
+        if (total < GameServer.MIN_PLAYERS) {
+            statusText = "Waiting for more players to join...";
+        } else {
+            statusText = "Get ready while the host prepares the round.";
+        }
+        setStatusText(statusText);
     }
 
     // =====================================================================

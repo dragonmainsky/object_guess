@@ -90,9 +90,13 @@ public class ScoreboardScreen_UI extends JPanel {
      */
     public void setNextEnabled(boolean enabled) {
         nextBtn.setEnabled(enabled);
-        nextBtn.setToolTipText(enabled
-                ? "Continue to the next round, or start a fresh tournament."
-                : "Only the host can continue or start a new game.");
+        String tooltip;
+        if (enabled) {
+            tooltip = "Continue to the next round, or start a fresh tournament.";
+        } else {
+            tooltip = "Only the host can continue or start a new game.";
+        }
+        nextBtn.setToolTipText(tooltip);
     }
 
     // =====================================================================
@@ -206,10 +210,21 @@ public class ScoreboardScreen_UI extends JPanel {
      */
     private JPanel buildLeaderboardRow(int rank, String name, int score) {
         boolean winner = rank == 1;
-        Color rowBg = winner ? AppDialog.GOLD_BG : AppDialog.ROW_BG;
-        Color rowBorder = winner ? AppDialog.GOLD_BORDER : AppDialog.ROW_BG;
-        Color rankColor = winner ? AppDialog.GOLD_TEXT : AppDialog.TEXT_MUTED;
-        Color scoreColor = winner ? AppDialog.GOLD_TEXT : AppDialog.PRIMARY_BLUE;
+        Color rowBg;
+        Color rowBorder;
+        Color rankColor;
+        Color scoreColor;
+        if (winner) {
+            rowBg = AppDialog.GOLD_BG;
+            rowBorder = AppDialog.GOLD_BORDER;
+            rankColor = AppDialog.GOLD_TEXT;
+            scoreColor = AppDialog.GOLD_TEXT;
+        } else {
+            rowBg = AppDialog.ROW_BG;
+            rowBorder = AppDialog.ROW_BG;
+            rankColor = AppDialog.TEXT_MUTED;
+            scoreColor = AppDialog.PRIMARY_BLUE;
+        }
 
         JPanel row = new JPanel(new BorderLayout(10, 0));
         row.setBackground(rowBg);
@@ -219,9 +234,12 @@ public class ScoreboardScreen_UI extends JPanel {
         rankLabel.setPreferredSize(new Dimension(36, 26));
         row.add(rankLabel, BorderLayout.WEST);
 
-        JLabel winnerBadge = winner
-                ? AppDialog.badge("WINNER", GOLD_BADGE_BG, AppDialog.GOLD_TEXT, null, 2, 8)
-                : null;
+        JLabel winnerBadge;
+        if (winner) {
+            winnerBadge = AppDialog.badge("WINNER", GOLD_BADGE_BG, AppDialog.GOLD_TEXT, null, 2, 8);
+        } else {
+            winnerBadge = null;
+        }
         row.add(AppDialog.playerWho(name.substring(0, 1), rankColor(rank), name, 28, 10, winnerBadge),
                 BorderLayout.CENTER);
 
@@ -239,7 +257,10 @@ public class ScoreboardScreen_UI extends JPanel {
         if (rank == 2) {
             return new Color(56, 189, 248);
         }
-        return rank == 3 ? new Color(139, 92, 246) : DANGER_AVATAR;
+        if (rank == 3) {
+            return new Color(139, 92, 246);
+        }
+        return DANGER_AVATAR;
     }
 
     /** สร้างแถวแสดงสถิติสรุป: จำนวนรอบที่เล่น, จำนวนผู้เล่น */

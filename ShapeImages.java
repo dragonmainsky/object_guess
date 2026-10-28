@@ -30,7 +30,10 @@ public final class ShapeImages {
     // ฟังก์ชันอ่านรายชื่อไฟล์ทั้งหมดจากโฟลเดอร์ shape
     private static String[] filesOf() {
         String[] files = new File(DIR).list();
-        return (files == null) ? new String[0] : files;
+        if (files == null) {
+            return new String[0];
+        }
+        return files;
     }
 
     // =====================================================================
@@ -63,7 +66,13 @@ public final class ShapeImages {
      */
     private static String fileOf(String shape) {
         boolean lowerCase = shape.equalsIgnoreCase("Diamond") || shape.equalsIgnoreCase("Star");
-        return (lowerCase ? shape.toLowerCase() : shape) + ".png";
+        String baseName;
+        if (lowerCase) {
+            baseName = shape.toLowerCase();
+        } else {
+            baseName = shape;
+        }
+        return baseName + ".png";
     }
 
     /**
@@ -91,7 +100,12 @@ public final class ShapeImages {
         g.setColor(PLACEHOLDER_LINE);
         g.drawRect(x, y, size - 1, size - 1);
         g.setFont(new Font("Tahoma", Font.BOLD, Math.max(10, size / 6)));
-        String text = shapeName.length() > 6 ? shapeName.substring(0, 6) : shapeName;
+        String text;
+        if (shapeName.length() > 6) {
+            text = shapeName.substring(0, 6);
+        } else {
+            text = shapeName;
+        }
         FontMetrics metrics = g.getFontMetrics();
         g.drawString(text, x + (size - metrics.stringWidth(text)) / 2,
                 y + (size - metrics.getHeight()) / 2 + metrics.getAscent());
@@ -203,12 +217,37 @@ public final class ShapeImages {
          * รีเฟรชสีพื้นหลัง เส้นขอบ และสีตัวอักษรตามสถานะถูกเลือก (selected) หรือเมาส์ชี้ (hovered)
          */
         private void refresh() {
-            int line = selected ? 2 : 1;
-            Color edge = selected ? AppDialog.PRIMARY_BLUE
-                    : (hovered ? AppDialog.BLUE_BORDER : AppDialog.CARD_BORDER);
-            setBackground(selected ? AppDialog.BLUE_LIGHT_BG : (hovered ? AppDialog.ROW_BG : Color.WHITE));
+            int line;
+            if (selected) {
+                line = 2;
+            } else {
+                line = 1;
+            }
+            Color edge;
+            if (selected) {
+                edge = AppDialog.PRIMARY_BLUE;
+            } else if (hovered) {
+                edge = AppDialog.BLUE_BORDER;
+            } else {
+                edge = AppDialog.CARD_BORDER;
+            }
+            Color background;
+            if (selected) {
+                background = AppDialog.BLUE_LIGHT_BG;
+            } else if (hovered) {
+                background = AppDialog.ROW_BG;
+            } else {
+                background = Color.WHITE;
+            }
+            setBackground(background);
             setBorder(AppDialog.box(edge, line, padV - line, padH - line));
-            nameLabel.setForeground(selected ? AppDialog.PRIMARY_BLUE : AppDialog.TEXT_DARK);
+            Color nameColor;
+            if (selected) {
+                nameColor = AppDialog.PRIMARY_BLUE;
+            } else {
+                nameColor = AppDialog.TEXT_DARK;
+            }
+            nameLabel.setForeground(nameColor);
             repaint();
         }
     }

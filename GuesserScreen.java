@@ -111,8 +111,11 @@ public class GuesserScreen extends GuesserScreen_UI {
     public void startRound(int roundNumber, int totalRounds, String questioner, int requiredShapes) {
         submitted = false;
         secretLocked = false;
-        requiredPicks = (requiredShapes >= GameServer.MIN_SHAPES && requiredShapes <= GameServer.MAX_SHAPES)
-                ? requiredShapes : GameServer.MIN_SHAPES;
+        if (requiredShapes >= GameServer.MIN_SHAPES && requiredShapes <= GameServer.MAX_SHAPES) {
+            requiredPicks = requiredShapes;
+        } else {
+            requiredPicks = GameServer.MIN_SHAPES;
+        }
         questionerName = questioner;
         guessedShapes.clear();
         renderRoundLabel(roundNumber, totalRounds);
@@ -134,7 +137,13 @@ public class GuesserScreen extends GuesserScreen_UI {
         requiredPicks = Math.max(1, count);
         guessedShapes.clear();
         renderTarget(requiredPicks);
-        setStatus("The questioner locked in " + requiredPicks + " shape" + (requiredPicks == 1 ? "" : "s")
+        String shapeWord;
+        if (requiredPicks == 1) {
+            shapeWord = "";
+        } else {
+            shapeWord = "s";
+        }
+        setStatus("The questioner locked in " + requiredPicks + " shape" + shapeWord
                 + ". Pick yours, then press SUBMIT GUESS.");
         renderSubmitEnabled(!submitted);
         // เซิร์ฟเวอร์ส่ง SECRET_LOCKED ครั้งเดียวต่อรอบ ก่อนรับคำตอบแรก
@@ -180,8 +189,14 @@ public class GuesserScreen extends GuesserScreen_UI {
             return;
         }
         if (guessedShapes.size() != requiredPicks) {
+            String shapeWord;
+            if (requiredPicks == 1) {
+                shapeWord = "";
+            } else {
+                shapeWord = "s";
+            }
             AppDialog.showWarning(this, "Not ready yet", "Pick exactly " + requiredPicks + " shape"
-                    + (requiredPicks == 1 ? "" : "s") + " before submitting.");
+                    + shapeWord + " before submitting.");
             return;
         }
         onSubmitAction.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "submit"));

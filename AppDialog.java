@@ -218,8 +218,11 @@ public final class AppDialog {
         badge.setForeground(fg);
         badge.setBackground(bg);
         badge.setOpaque(true);
-        badge.setBorder(line == null ? new EmptyBorder(padV + 1, padH + 1, padV + 1, padH + 1)
-                : box(line, 1, padV, padH));
+        if (line == null) {
+            badge.setBorder(new EmptyBorder(padV + 1, padH + 1, padV + 1, padH + 1));
+        } else {
+            badge.setBorder(box(line, 1, padV, padH));
+        }
         badge.repaint();
         return badge;
     }
@@ -232,11 +235,19 @@ public final class AppDialog {
     /** อัปเดตสีและข้อความของป้ายส่วนหัว */
     static JLabel paintTopBadge(JLabel badge, String text, Color bg, Color fg, Color line, boolean strong) {
         badge.setText(text);
-        badge.setFont(strong ? STRONG : SUBTITLE);
+        if (strong) {
+            badge.setFont(STRONG);
+        } else {
+            badge.setFont(SUBTITLE);
+        }
         badge.setForeground(fg);
         badge.setBackground(bg);
         badge.setOpaque(true);
-        badge.setBorder(box(line, 1, strong ? 10 : 8, strong ? 20 : 16));
+        if (strong) {
+            badge.setBorder(box(line, 1, 10, 20));
+        } else {
+            badge.setBorder(box(line, 1, 8, 16));
+        }
         badge.repaint();
         return badge;
     }
@@ -346,7 +357,11 @@ public final class AppDialog {
         }
         row.setOpaque(highlight);
         row.setBackground(BLUE_LIGHT_BG);
-        row.setBorder(highlight ? box(BLUE_BORDER, 1, 4, 8) : new EmptyBorder(padV, padH, padV, padH));
+        if (highlight) {
+            row.setBorder(box(BLUE_BORDER, 1, 4, 8));
+        } else {
+            row.setBorder(new EmptyBorder(padV, padH, padV, padH));
+        }
 
         row.add(playerWho(initialOf(name), avatarColor(index), name, 24, 8, null), BorderLayout.WEST);
         JLabel scoreLabel = label(String.valueOf(score), BODY_BOLD, TEXT_DARK, JLabel.RIGHT);
@@ -360,10 +375,19 @@ public final class AppDialog {
     /** อัปเดตป้ายเวลานับถอยหลังและเปลี่ยนเป็นสีแดงในช่วงท้าย */
     static void setTimeLeft(JLabel badge, int seconds) {
         boolean hurry = seconds <= GameServer.BONUS_WINDOW_SECONDS;
-        paintTopBadge(badge, timeText(seconds),
-                hurry ? DANGER_BG : WARNING_BG,
-                hurry ? DANGER_TEXT : WARNING_TEXT,
-                hurry ? DANGER_BORDER : WARNING_BORDER, true);
+        Color background;
+        Color foreground;
+        Color border;
+        if (hurry) {
+            background = DANGER_BG;
+            foreground = DANGER_TEXT;
+            border = DANGER_BORDER;
+        } else {
+            background = WARNING_BG;
+            foreground = WARNING_TEXT;
+            border = WARNING_BORDER;
+        }
+        paintTopBadge(badge, timeText(seconds), background, foreground, border, true);
     }
 
     /** แสดงสถานะรอก่อนเริ่มนับเวลา */
@@ -387,7 +411,11 @@ public final class AppDialog {
         button.setContentAreaFilled(false);   // ต้องปิดก่อนเพื่อไม่ให้ Look and Feel รีเซ็ตค่าสี
         button.setOpaque(true);
         button.setBorderPainted(line != null);
-        button.setBorder(line == null ? new EmptyBorder(padV, padH, padV, padH) : box(line, 1, padV, padH));
+        if (line == null) {
+            button.setBorder(new EmptyBorder(padV, padH, padV, padH));
+        } else {
+            button.setBorder(box(line, 1, padV, padH));
+        }
         button.setFocusPainted(false);
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
         button.addMouseListener(new ButtonHover(button, bg, hover, pressed));
@@ -396,7 +424,10 @@ public final class AppDialog {
 
     /** ดึงตัวอักษรตัวแรกของชื่อผู้เล่นสำหรับแสดงบน Avatar */
     static String initialOf(String name) {
-        return (name == null || name.isEmpty()) ? "?" : name.substring(0, 1).toUpperCase();
+        if (name == null || name.isEmpty()) {
+            return "?";
+        }
+        return name.substring(0, 1).toUpperCase();
     }
 
     /** ดึงสีประจำตัว Avatar ของผู้เล่นตามลำดับ */
@@ -415,7 +446,13 @@ public final class AppDialog {
         if (shapes <= 0) {
             return "Target: ?";
         }
-        return "Target: " + shapes + (shapes == 1 ? " Shape" : " Shapes");
+        String shapeWord;
+        if (shapes == 1) {
+            shapeWord = " Shape";
+        } else {
+            shapeWord = " Shapes";
+        }
+        return "Target: " + shapes + shapeWord;
     }
 
     /**
@@ -459,7 +496,11 @@ public final class AppDialog {
         // เมื่อปล่อยเมาส์ ให้กลับไปใช้สี hover หรือสีปกติ
         @Override
         public void mouseReleased(MouseEvent event) {
-            apply(inside ? hover : normal);
+            if (inside) {
+                apply(hover);
+            } else {
+                apply(normal);
+            }
         }
 
         // เปลี่ยนสีพื้นหลังปุ่มเฉพาะเมื่อปุ่มยังใช้งานได้

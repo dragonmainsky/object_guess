@@ -231,7 +231,10 @@ public class GuesserScreen_UI extends JPanel {
 
     // กำหนดขนาดรูปภาพในช่องทาย ถ้าต้องการเกิน 3 รูป จะย่อขนาดลงเพื่อให้พอดีแถว
     private int slotIconSize(int requiredPicks) {
-        return requiredPicks > 3 ? SLOT_ICON_TIGHT : SLOT_ICON_WIDE;
+        if (requiredPicks > 3) {
+            return SLOT_ICON_TIGHT;
+        }
+        return SLOT_ICON_WIDE;
     }
 
     /**
@@ -240,15 +243,33 @@ public class GuesserScreen_UI extends JPanel {
      */
     private JPanel createSlot(int index, List<String> guessedShapes, int requiredPicks) {
         boolean filled = index < guessedShapes.size();
-        JPanel slot = new JPanel(new BorderLayout(0, filled ? 8 : 0));
+        int verticalGap;
+        if (filled) {
+            verticalGap = 8;
+        } else {
+            verticalGap = 0;
+        }
+        JPanel slot = new JPanel(new BorderLayout(0, verticalGap));
         if (filled) {
             String name = guessedShapes.get(index);
             int icon = slotIconSize(requiredPicks);
             slot.setBackground(Color.WHITE);
-            slot.setBorder(AppDialog.box(AppDialog.PRIMARY_BLUE, 2, requiredPicks > 3 ? 8 : 14, 6));
+            int slotPadding;
+            if (requiredPicks > 3) {
+                slotPadding = 8;
+            } else {
+                slotPadding = 14;
+            }
+            slot.setBorder(AppDialog.box(AppDialog.PRIMARY_BLUE, 2, slotPadding, 6));
             slot.add(ShapeImages.shape(name, icon), BorderLayout.CENTER);
-            slot.add(AppDialog.label(name, requiredPicks > 3 ? AppDialog.SMALL_BOLD : AppDialog.BODY_BOLD,
-                    AppDialog.TEXT_DARK, JLabel.CENTER), BorderLayout.SOUTH);
+            Font nameFont;
+            if (requiredPicks > 3) {
+                nameFont = AppDialog.SMALL_BOLD;
+            } else {
+                nameFont = AppDialog.BODY_BOLD;
+            }
+            slot.add(AppDialog.label(name, nameFont, AppDialog.TEXT_DARK, JLabel.CENTER),
+                    BorderLayout.SOUTH);
             drag.draggable(slot, name, true, () -> isInputLocked());   // ลากกลับไปที่ Objects เพื่อลบออก
         } else {
             slot.setBackground(AppDialog.ROW_BG);
@@ -257,9 +278,19 @@ public class GuesserScreen_UI extends JPanel {
         }
         // กำหนดให้ช่องนี้เป็น Drop zone
         drag.dropZone(slot, () -> true, on -> {
-            slot.setBackground(on ? AppDialog.BLUE_LIGHT_BG : (filled ? Color.WHITE : AppDialog.ROW_BG));
+            if (on) {
+                slot.setBackground(AppDialog.BLUE_LIGHT_BG);
+            } else if (filled) {
+                slot.setBackground(Color.WHITE);
+            } else {
+                slot.setBackground(AppDialog.ROW_BG);
+            }
             if (!filled) {
-                slot.setBorder(AppDialog.box(on ? AppDialog.PRIMARY_BLUE : AppDialog.SLOT_BORDER, 2, 0, 0));
+                if (on) {
+                    slot.setBorder(AppDialog.box(AppDialog.PRIMARY_BLUE, 2, 0, 0));
+                } else {
+                    slot.setBorder(AppDialog.box(AppDialog.SLOT_BORDER, 2, 0, 0));
+                }
             }
             slot.repaint();
         }, (shapeName, where) -> onShapeDroppedToSlot(shapeName, index));
@@ -296,8 +327,13 @@ public class GuesserScreen_UI extends JPanel {
 
         // การ์ด Objects ทั้งหมดทำหน้าที่เป็น Drop Zone สำหรับลากรูปออกจากช่องทายเพื่อลบออก
         drag.dropZone(objectsCard, () -> drag.fromBoard(), on -> {
-            objectsCard.setBackground(on ? AppDialog.DANGER_BG : AppDialog.CARD_BG);
-            objectsCard.setBorder(AppDialog.box(on ? AppDialog.DANGER_BORDER : AppDialog.CARD_BORDER, 1, 16, 16));
+            if (on) {
+                objectsCard.setBackground(AppDialog.DANGER_BG);
+                objectsCard.setBorder(AppDialog.box(AppDialog.DANGER_BORDER, 1, 16, 16));
+            } else {
+                objectsCard.setBackground(AppDialog.CARD_BG);
+                objectsCard.setBorder(AppDialog.box(AppDialog.CARD_BORDER, 1, 16, 16));
+            }
         }, (shapeName, where) -> onShapeRemoved(shapeName));
 
         JPanel hintRow = AppDialog.panel(new FlowLayout(FlowLayout.CENTER, 8, 0));
@@ -325,7 +361,10 @@ public class GuesserScreen_UI extends JPanel {
 
     /** สร้างข้อความจำนวนรูปที่เลือก เช่น "2 / 4" */
     private static String picksCountText(int selected, int requiredPicks) {
-        return selected + (requiredPicks == 0 ? " / ?" : " / " + requiredPicks);
+        if (requiredPicks == 0) {
+            return selected + " / ?";
+        }
+        return selected + " / " + requiredPicks;
     }
 
     /** อัปเดตป้ายจำนวนเป้าหมายรูปทรง */
@@ -341,15 +380,32 @@ public class GuesserScreen_UI extends JPanel {
     /** เปิด/ปิดการใช้งานปุ่มส่งคำตอบ พร้อมเปลี่ยนสี */
     protected void renderSubmitEnabled(boolean enabled) {
         submitBtn.setEnabled(enabled);
-        submitBtn.setBackground(enabled ? AppDialog.PRIMARY_BLUE : AppDialog.SLOT_BORDER);
+        if (enabled) {
+            submitBtn.setBackground(AppDialog.PRIMARY_BLUE);
+        } else {
+            submitBtn.setBackground(AppDialog.SLOT_BORDER);
+        }
     }
 
     /** อัปเดตป้ายสถานะการส่งคำตอบ */
     protected void renderSubmitted(boolean submitted) {
-        AppDialog.paintTopBadge(submittedBadge, submitted ? "Submitted" : "Not submitted",
-                submitted ? AppDialog.SUCCESS_BG : AppDialog.WARNING_BG,
-                submitted ? AppDialog.SUCCESS_TEXT : AppDialog.WARNING_TEXT,
-                submitted ? AppDialog.SUCCESS_BORDER : AppDialog.WARNING_BORDER, false);
+        String badgeText;
+        Color badgeBackground;
+        Color badgeForeground;
+        Color badgeBorder;
+        if (submitted) {
+            badgeText = "Submitted";
+            badgeBackground = AppDialog.SUCCESS_BG;
+            badgeForeground = AppDialog.SUCCESS_TEXT;
+            badgeBorder = AppDialog.SUCCESS_BORDER;
+        } else {
+            badgeText = "Not submitted";
+            badgeBackground = AppDialog.WARNING_BG;
+            badgeForeground = AppDialog.WARNING_TEXT;
+            badgeBorder = AppDialog.WARNING_BORDER;
+        }
+        AppDialog.paintTopBadge(submittedBadge, badgeText, badgeBackground, badgeForeground,
+                badgeBorder, false);
     }
 
     /** แสดงเวลารอโดยยังไม่เริ่มนับถอยหลัง */
@@ -361,7 +417,12 @@ public class GuesserScreen_UI extends JPanel {
     protected void renderScoreboard(String[] names, int[] scores, String myName) {
         scoreRowsPanel.removeAll();
         for (int i = 0; i < names.length; i++) {
-            int score = (i < scores.length) ? scores[i] : 0;
+            int score;
+            if (i < scores.length) {
+                score = scores[i];
+            } else {
+                score = 0;
+            }
             boolean me = names[i].equals(myName);
             if (me) {
                 scoreBadge.setText("Score: " + score);

@@ -298,7 +298,12 @@ public class LobbyScreen_UI extends JPanel {
                 fg = AppDialog.WARNING_TEXT;
                 border = AppDialog.WARNING_BORDER;
             }
-            String display = myName.equals(name) ? name + " (you)" : name;
+            String display;
+            if (myName.equals(name)) {
+                display = name + " (you)";
+            } else {
+                display = name;
+            }
             JPanel row = AppDialog.panel(new BorderLayout(8, 0));
             row.add(AppDialog.playerWho(AppDialog.initialOf(name), AppDialog.avatarColor(i), display, 26, 8, null),
                     BorderLayout.WEST);
@@ -309,7 +314,11 @@ public class LobbyScreen_UI extends JPanel {
         playerRowsPanel.repaint();
 
         playersCountLabel.setText("Players in room: " + total);
-        hostValueLabel.setText(hostName.isEmpty() ? "-" : hostName);
+        if (hostName.isEmpty()) {
+            hostValueLabel.setText("-");
+        } else {
+            hostValueLabel.setText(hostName);
+        }
     }
 
     /**
@@ -323,7 +332,11 @@ public class LobbyScreen_UI extends JPanel {
         trackPanel.setLayout(new GridLayout(1, Math.max(1, total), 0, 0));
         for (int i = 0; i < Math.max(1, total); i++) {
             JPanel segment = new JPanel();
-            segment.setBackground(i < readyCount ? AppDialog.PRIMARY_BLUE : AppDialog.CARD_BORDER);
+            if (i < readyCount) {
+                segment.setBackground(AppDialog.PRIMARY_BLUE);
+            } else {
+                segment.setBackground(AppDialog.CARD_BORDER);
+            }
             trackPanel.add(segment);
         }
         trackPanel.revalidate();
@@ -335,9 +348,18 @@ public class LobbyScreen_UI extends JPanel {
      */
     protected void renderStartButton(boolean canStart, boolean isHost, String tooltip) {
         startBtn.setEnabled(canStart);
-        startBtn.setText(isHost ? "START GAME" : "HOST STARTS");
-        startBtn.setBackground(canStart ? Color.WHITE : AppDialog.CARD_BORDER);
-        startBtn.setForeground(canStart ? AppDialog.TEXT_DARK : AppDialog.TEXT_LIGHT);
+        if (isHost) {
+            startBtn.setText("START GAME");
+        } else {
+            startBtn.setText("HOST STARTS");
+        }
+        if (canStart) {
+            startBtn.setBackground(Color.WHITE);
+            startBtn.setForeground(AppDialog.TEXT_DARK);
+        } else {
+            startBtn.setBackground(AppDialog.CARD_BORDER);
+            startBtn.setForeground(AppDialog.TEXT_LIGHT);
+        }
         startBtn.setToolTipText(tooltip);
     }
 
@@ -345,7 +367,11 @@ public class LobbyScreen_UI extends JPanel {
      * สลับข้อความบนปุ่ม Ready
      */
     protected void renderReadyButton(boolean ready) {
-        readyBtn.setText(ready ? "CANCEL READY" : "READY");
+        if (ready) {
+            readyBtn.setText("CANCEL READY");
+        } else {
+            readyBtn.setText("READY");
+        }
     }
 
     // =====================================================================
@@ -361,7 +387,14 @@ public class LobbyScreen_UI extends JPanel {
 
     /** เพิ่มข้อความใหม่ลงในกล่องแชต */
     protected void renderChatMessage(String sender, String text, boolean isUser, boolean isSystem) {
-        Color senderColor = isUser ? AppDialog.PRIMARY_BLUE : (isSystem ? AppDialog.WARNING_TEXT : AppDialog.TEXT_MUTED);
+        Color senderColor;
+        if (isUser) {
+            senderColor = AppDialog.PRIMARY_BLUE;
+        } else if (isSystem) {
+            senderColor = AppDialog.WARNING_TEXT;
+        } else {
+            senderColor = AppDialog.TEXT_MUTED;
+        }
 
         JPanel message = AppDialog.panel(new GridLayout(2, 1, 0, 0));
         message.add(AppDialog.label(sender, AppDialog.SMALL_BOLD, senderColor));
@@ -377,7 +410,11 @@ public class LobbyScreen_UI extends JPanel {
 
     /** แสดงที่อยู่ IP และพอร์ตของโฮสต์ */
     public void setAddress(String address) {
-        addressValueLabel.setText((address == null || address.isEmpty()) ? "-" : address);
+        if (address == null || address.isEmpty()) {
+            addressValueLabel.setText("-");
+        } else {
+            addressValueLabel.setText(address);
+        }
     }
 
     // อัปเดตข้อความสถานะย่อย

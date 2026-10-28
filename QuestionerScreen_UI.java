@@ -223,8 +223,13 @@ public class QuestionerScreen_UI extends JPanel {
 
         // การ์ดฝั่งขวาทั้งหมดทำหน้าที่เป็น Drop Zone สำหรับลากรูปออกจาก Canvas เพื่อลบทิ้ง
         drag.dropZone(objectsCard, () -> drag.fromBoard(), on -> {
-            objectsCard.setBackground(on ? AppDialog.DANGER_BG : AppDialog.CARD_BG);
-            objectsCard.setBorder(AppDialog.box(on ? AppDialog.DANGER_BORDER : AppDialog.CARD_BORDER, 1, 16, 16));
+            if (on) {
+                objectsCard.setBackground(AppDialog.DANGER_BG);
+                objectsCard.setBorder(AppDialog.box(AppDialog.DANGER_BORDER, 1, 16, 16));
+            } else {
+                objectsCard.setBackground(AppDialog.CARD_BG);
+                objectsCard.setBorder(AppDialog.box(AppDialog.CARD_BORDER, 1, 16, 16));
+            }
         }, (shapeName, where) -> onShapeRemoved(shapeName));
 
         JPanel column = AppDialog.stack(AppDialog.panel());
@@ -274,10 +279,23 @@ public class QuestionerScreen_UI extends JPanel {
             int number = i + 1;
             boolean done = number < activeStep;
             boolean current = number == activeStep;
-            step.circle.setBackground(done ? AppDialog.SUCCESS_TEXT
-                    : (current ? AppDialog.PRIMARY_BLUE : AppDialog.SLOT_BORDER));
-            step.text.setFont(current ? AppDialog.BODY_BOLD : AppDialog.BODY);
-            step.text.setForeground(current ? AppDialog.TEXT_DARK : AppDialog.TEXT_MUTED);
+            if (done) {
+                step.circle.setBackground(AppDialog.SUCCESS_TEXT);
+            } else if (current) {
+                step.circle.setBackground(AppDialog.PRIMARY_BLUE);
+            } else {
+                step.circle.setBackground(AppDialog.SLOT_BORDER);
+            }
+            if (current) {
+                step.text.setFont(AppDialog.BODY_BOLD);
+            } else {
+                step.text.setFont(AppDialog.BODY);
+            }
+            if (current) {
+                step.text.setForeground(AppDialog.TEXT_DARK);
+            } else {
+                step.text.setForeground(AppDialog.TEXT_MUTED);
+            }
         }
         revalidate();
         repaint();
@@ -305,7 +323,12 @@ public class QuestionerScreen_UI extends JPanel {
             if (i > 0) {
                 scoreRowsPanel.add(AppDialog.strut(8));
             }
-            int score = (i < scores.length) ? scores[i] : 0;
+            int score;
+            if (i < scores.length) {
+                score = scores[i];
+            } else {
+                score = 0;
+            }
             scoreRowsPanel.add(AppDialog.scoreRow(names[i], i, score, names[i].equals(myName), 4, 8, true, 36));
         }
         scoreRowsPanel.revalidate();
@@ -426,9 +449,17 @@ public class QuestionerScreen_UI extends JPanel {
             super.paintComponent(g);
             int w = getWidth();
             int h = getHeight();
-            g.setColor(dropHighlight ? AppDialog.BLUE_LIGHT_BG : CANVAS_BG);
+            if (dropHighlight) {
+                g.setColor(AppDialog.BLUE_LIGHT_BG);
+            } else {
+                g.setColor(CANVAS_BG);
+            }
             g.fillRect(0, 0, w - 1, h - 1);
-            g.setColor(dropHighlight ? AppDialog.PRIMARY_BLUE : AppDialog.CARD_BORDER);
+            if (dropHighlight) {
+                g.setColor(AppDialog.PRIMARY_BLUE);
+            } else {
+                g.setColor(AppDialog.CARD_BORDER);
+            }
             g.drawRect(0, 0, w - 1, h - 1);
 
             // วาดเส้นประตัดกันตรงกลาง: ขีด 6px เว้นช่องว่าง 4px

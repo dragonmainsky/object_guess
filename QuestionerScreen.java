@@ -136,7 +136,13 @@ public class QuestionerScreen extends QuestionerScreen_UI {
         shapeSpots.clear();
         renderRoundLabel(roundNumber, totalRounds);
         renderConfirmEnabled(true);
-        setStatus("Pick exactly " + this.requiredShapes + " shape" + (this.requiredShapes == 1 ? "" : "s")
+        String shapeWord;
+        if (this.requiredShapes == 1) {
+            shapeWord = "";
+        } else {
+            shapeWord = "s";
+        }
+        setStatus("Pick exactly " + this.requiredShapes + " shape" + shapeWord
                 + " for the others to guess, then press CONFIRM.");
         renderTimeWaiting();
         refreshUI();
@@ -179,8 +185,14 @@ public class QuestionerScreen extends QuestionerScreen_UI {
         }
         int count = selectedShapes.size();
         if (count != requiredShapes) {
+            String shapeWord;
+            if (requiredShapes == 1) {
+                shapeWord = "";
+            } else {
+                shapeWord = "s";
+            }
             AppDialog.showWarning(this, "Not ready yet", "Please select exactly " + requiredShapes + " shape"
-                    + (requiredShapes == 1 ? "" : "s") + " before confirming.");
+                    + shapeWord + " before confirming.");
             return;
         }
         onConfirmAction.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, "confirm"));
